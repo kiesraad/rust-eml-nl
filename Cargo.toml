@@ -1,0 +1,11 @@
+[package]
+name = "kiesraad-eml-nl"
+version = "0.1.0"
+edition = "2024"
+license = "EUPL-1.2"
+rust-version = "1.91"
+
+[dependencies]
+thiserror = "2.0.17"
+quick-xml = "0.38.4"
+tracing = "0.1.41"

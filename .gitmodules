@@ -1,0 +1,3 @@
+[submodule "eml-nl"]
+	path = eml-nl
+	url = https://github.com/kiesraad/EML_NL.git
