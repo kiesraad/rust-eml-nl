@@ -1,5 +1,5 @@
 [package]
-name = "kiesraad-eml-nl"
+name = "eml-nl"
 version = "0.1.0"
 edition = "2024"
 license = "EUPL-1.2"

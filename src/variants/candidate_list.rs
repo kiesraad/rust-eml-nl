@@ -1,20 +1,20 @@
 use crate::{
-    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLWrite, NS_EML, TransactionId,
-    accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement, EMLWriteElement,
+    NS_EML, TransactionId, accepted_root, collect_struct,
     error::{EMLErrorKind, EMLResultExt},
-    reader::EMLParse,
     write_eml_element,
 };
 
-pub const EML_CANDIDATE_LIST_ID: &str = "230b";
+pub(crate) const EML_CANDIDATE_LIST_ID: &str = "230b";
 
+/// Representing a `230b` document, containing a candidate list.
 #[derive(Debug, Clone)]
-pub struct EMLCandidateList {
+pub struct CandidateList {
     pub transaction_id: TransactionId,
 }
 
-impl EMLParse for EMLCandidateList {
-    fn parse_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+impl EMLReadElement for CandidateList {
+    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req("Id", None)?;
@@ -26,13 +26,13 @@ impl EMLParse for EMLCandidateList {
             .with_span(elem.span());
         }
 
-        Ok(collect_struct!(elem, EMLCandidateList {
-            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::parse_eml_element(elem)?,
+        Ok(collect_struct!(elem, CandidateList {
+            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::read_eml_element(elem)?,
         }))
     }
 }
 
-impl EMLWrite for EMLCandidateList {
+impl EMLWriteElement for CandidateList {
     fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr("Id", None, EML_CANDIDATE_LIST_ID)?

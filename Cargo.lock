@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "kiesraad-eml-nl"
+name = "eml-nl"
 version = "0.1.0"
 dependencies = [
  "quick-xml",

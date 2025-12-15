@@ -1,20 +1,21 @@
 use crate::{
-    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLWrite, NS_EML, TransactionId,
-    accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLRead, EMLReadElement,
+    EMLWriteElement, NS_EML, TransactionId, accepted_root, collect_struct,
     error::{EMLErrorKind, EMLResultExt},
-    reader::EMLParse,
     write_eml_element,
 };
 
-pub const EML_ELECTION_DEFINITION_ID: &str = "110a";
+pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 
+/// Representing a `110a` document, containing an election definition.
 #[derive(Debug, Clone)]
-pub struct EMLElectionDefinition {
+pub struct ElectionDefinition {
     pub transaction_id: TransactionId,
+    pub election_event: ElectionDefinitionElectionEvent,
 }
 
-impl EMLParse for EMLElectionDefinition {
-    fn parse_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+impl EMLReadElement for ElectionDefinition {
+    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req("Id", None)?;
@@ -26,13 +27,14 @@ impl EMLParse for EMLElectionDefinition {
             .with_span(elem.span());
         }
 
-        Ok(collect_struct!(elem, EMLElectionDefinition {
-            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::parse_eml_element(elem)?,
+        Ok(collect_struct!(elem, ElectionDefinition {
+            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::read_eml_element(elem)?,
+            ("ElectionEvent", Some(NS_EML)) as election_event => |elem| ElectionDefinitionElectionEvent::read_eml_element(elem)?,
         }))
     }
 }
 
-impl EMLWrite for EMLElectionDefinition {
+impl EMLWriteElement for ElectionDefinition {
     fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr("Id", None, EML_ELECTION_DEFINITION_ID)?
@@ -42,8 +44,29 @@ impl EMLWrite for EMLElectionDefinition {
                 Some(NS_EML),
                 write_eml_element(&self.transaction_id),
             )?
+            .child(
+                "ElectionEvent",
+                Some(NS_EML),
+                write_eml_element(&self.election_event),
+            )?
             .finish()?;
 
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ElectionDefinitionElectionEvent {}
+
+impl EMLReadElement for ElectionDefinitionElectionEvent {
+    fn read_eml_element(_elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+        Ok(ElectionDefinitionElectionEvent {})
+    }
+}
+
+impl EMLWriteElement for ElectionDefinitionElectionEvent {
+    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.empty()?;
         Ok(())
     }
 }

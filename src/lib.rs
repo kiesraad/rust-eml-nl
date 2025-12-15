@@ -1,3 +1,31 @@
+//! EML (Election Markup Language) library written by the
+//! [Kiesraad](https://www.kiesraad.nl/) (the Dutch Electoral Council) for
+//! parsing and writing EML-NL documents written in safe Rust code only.
+//!
+//! This library sometimes uses EML and EML-NL interchangeably, but only EML-NL
+//! is supported. For details of the EML-NL standard, see the
+//! [Kiesraad EML-NL repository](https://github.com/kiesraad/EML_NL/).
+//!
+//! The main entrypoints for this crate are the [`EML`] enum for parsing any
+//! EML document. You can also use the specific structs for specific EML-NL
+//! documents, such as [`ElectionDefinition`] for a 110a EML document. The best
+//! reference for which documents are supported are the variants in the [`EML`]
+//! enum.
+//!
+//! Reading of EML documents is done through the [`EMLRead`] trait, while
+//! writing is done through the [`EMLWrite`] trait.
+//!
+//! This crate only parses and writes EML documents in memory, it does not
+//! support streaming parsing or writing. This was a design decision to keep
+//! the code simple and maintainable, and it is expected that EML documents will
+//! generally not be extremely large. Up to a few megabytes were expected, but
+//! larger documents will work fine as long as enough memory is available.
+//! Expect somewhere between 1.2 and 2.0 times the original document size
+//! depending on the contents of the file.
+
+// This crate must only use safe Rust code.
+#![forbid(unsafe_code)]
+
 mod common;
 mod error;
 mod reader;
@@ -13,63 +41,78 @@ pub use variants::*;
 pub use writer::*;
 
 /// Supported EML schema version
-pub const EML_SCHEMA_VERSION: &str = "5";
+pub(crate) const EML_SCHEMA_VERSION: &str = "5";
 
 /// Namespace URI for the EML standard
-pub const NS_EML: &str = "urn:oasis:names:tc:evs:schema:eml";
+pub(crate) const NS_EML: &str = "urn:oasis:names:tc:evs:schema:eml";
 
 /// Namespace URI for the Kiesraad expansions on the EML standard
-pub const NS_KR: &str = "http://www.kiesraad.nl/extensions";
+pub(crate) const NS_KR: &str = "http://www.kiesraad.nl/extensions";
 
 /// Namespace URI for the eXtensible Address Language (xAL)
-pub const NS_XAL: &str = "urn:oasis:names:tc:ciq:xsdschema:xAL:2.0";
+pub(crate) const NS_XAL: &str = "urn:oasis:names:tc:ciq:xsdschema:xAL:2.0";
 
 /// Namespace URI for the eXtensible Name Language (xNL)
-pub const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
+pub(crate) const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
 
 // /// Namespace URI for XML Digital Signatures
-// const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
+// pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
 // /// Namespace URI for XML Schema
-// const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
+// pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
 // /// Namespace URI for XML
-// const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+// pub(crate) const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
 
+/// Generic EML document that can represent any of the supported EML variants.
+///
+/// You can use this struct to parse an EML document of any variant if you don't
+/// know in advance which variant you will receive.
 #[derive(Debug, Clone)]
-pub struct EML {
-    pub variant: EMLVariant,
+pub enum EML {
+    /// Representing a `110a` document, containing an election definition.
+    ElectionDefinition(ElectionDefinition),
+    /// Representing a `110b` document, containing polling stations.
+    PollingStations(PollingStations),
+    /// Representing a `230b` document, containing a candidate list.
+    CandidateList(CandidateList),
 }
 
-impl EMLParse for EML {
-    fn parse_eml_element(elem: &mut reader::EMLElement<'_, '_>) -> Result<Self, EMLError> {
+impl EML {
+    pub fn to_eml_id(&self) -> &'static str {
+        match self {
+            EML::ElectionDefinition(_) => EML_ELECTION_DEFINITION_ID,
+            EML::PollingStations(_) => EML_POLLING_STATIONS_ID,
+            EML::CandidateList(_) => EML_CANDIDATE_LIST_ID,
+        }
+    }
+}
+
+impl EMLReadElement for EML {
+    fn read_eml_element(elem: &mut reader::EMLElement<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req("Id", None)?;
-        let variant = match document_id.as_ref() {
+        Ok(match document_id.as_ref() {
             EML_ELECTION_DEFINITION_ID => {
-                EMLVariant::EMLElectionDefinition(EMLElectionDefinition::parse_eml_element(elem)?)
+                EML::ElectionDefinition(ElectionDefinition::read_eml_element(elem)?)
             }
             EML_POLLING_STATIONS_ID => {
-                EMLVariant::EMLPollingStations(EMLPollingStations::parse_eml_element(elem)?)
+                EML::PollingStations(PollingStations::read_eml_element(elem)?)
             }
-            EML_CANDIDATE_LIST_ID => {
-                EMLVariant::EMLCandidateList(EMLCandidateList::parse_eml_element(elem)?)
-            }
+            EML_CANDIDATE_LIST_ID => EML::CandidateList(CandidateList::read_eml_element(elem)?),
             _ => {
                 return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
                     .with_span(elem.span());
             }
-        };
-
-        Ok(EML { variant })
+        })
     }
 }
 
-impl EMLWrite for EML {
+impl EMLWriteElement for EML {
     fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        match &self.variant {
-            EMLVariant::EMLElectionDefinition(ed) => ed.write_eml_element(writer),
-            EMLVariant::EMLPollingStations(ps) => ps.write_eml_element(writer),
-            EMLVariant::EMLCandidateList(cl) => cl.write_eml_element(writer),
+        match self {
+            EML::ElectionDefinition(ed) => ed.write_eml_element(writer),
+            EML::PollingStations(ps) => ps.write_eml_element(writer),
+            EML::CandidateList(cl) => cl.write_eml_element(writer),
         }
     }
 }
@@ -87,26 +130,6 @@ fn accepted_root(elem: &reader::EMLElement<'_, '_>) -> Result<(), EMLError> {
             schema_version.to_string(),
         ))
         .with_span(elem.span())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum EMLVariant {
-    /// 110a
-    EMLElectionDefinition(EMLElectionDefinition),
-    /// 110b
-    EMLPollingStations(EMLPollingStations),
-    /// 230b
-    EMLCandidateList(EMLCandidateList),
-}
-
-impl EMLVariant {
-    pub fn to_eml_id(&self) -> &'static str {
-        match self {
-            EMLVariant::EMLElectionDefinition(_) => EML_ELECTION_DEFINITION_ID,
-            EMLVariant::EMLPollingStations(_) => EML_POLLING_STATIONS_ID,
-            EMLVariant::EMLCandidateList(_) => EML_CANDIDATE_LIST_ID,
-        }
     }
 }
 

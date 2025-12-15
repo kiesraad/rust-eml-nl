@@ -8,12 +8,12 @@ use quick_xml::{
 use crate::{EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL};
 
 #[derive(Debug, Clone)]
-pub struct NsDefinitions {
+pub(crate) struct NsDefinitions {
     default_namespace_uri: Option<&'static str>,
     namespace_definitions: HashMap<&'static str, &'static str>,
 }
 
-pub struct EMLWriter {
+pub(crate) struct EMLWriter {
     ns_definitions: NsDefinitions,
     writer: Writer<Vec<u8>>,
 }
@@ -94,7 +94,7 @@ impl EMLWriter {
     }
 }
 
-pub struct EMLElementWriter<'a> {
+pub(crate) struct EMLElementWriter<'a> {
     start_tag: BytesStart<'a>,
     writer: &'a mut EMLWriter,
 }
@@ -169,7 +169,7 @@ impl<'a> EMLElementWriter<'a> {
     }
 }
 
-pub struct EMLElementContentWriter<'a> {
+pub(crate) struct EMLElementContentWriter<'a> {
     start_tag: BytesStart<'a>,
     writer: &'a mut EMLWriter,
 }
@@ -203,9 +203,30 @@ impl<'a> EMLElementContentWriter<'a> {
     }
 }
 
-pub trait EMLWrite {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError>;
+pub(crate) trait EMLWriteInternal {
+    fn write_root(
+        &self,
+        root_name: Option<&str>,
+        default_namespace_uri: Option<Option<&'static str>>,
+        namespace_definitions: Option<HashMap<&'static str, &'static str>>,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<Vec<u8>, EMLError>;
 
+    fn write_root_str(
+        &self,
+        root_name: Option<&str>,
+        default_namespace_uri: Option<Option<&'static str>>,
+        namespace_definitions: Option<HashMap<&'static str, &'static str>>,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<String, EMLError>;
+}
+
+impl<T> EMLWriteInternal for T
+where
+    T: EMLWriteElement,
+{
     fn write_root(
         &self,
         root_name: Option<&str>,
@@ -259,6 +280,49 @@ pub trait EMLWrite {
         Ok(eml_writer.writer.into_inner())
     }
 
+    fn write_root_str(
+        &self,
+        root_name: Option<&str>,
+        default_namespace_uri: Option<Option<&'static str>>,
+        namespace_definitions: Option<HashMap<&'static str, &'static str>>,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<String, EMLError> {
+        Ok(String::from_utf8(self.write_root(
+            root_name,
+            default_namespace_uri,
+            namespace_definitions,
+            pretty_print,
+            include_declaration,
+        )?)
+        .without_span()?)
+    }
+}
+
+/// Writing EML documents to a [`String`] or [`Vec<u8>`].
+///
+/// The errors generated during writing do not contain location information, as
+/// there is no document to refer to yet. Most of the time errors generated
+/// during writing are underlying errors or logic errors in your implementation,
+/// so location information would be of limited use anyway.
+pub trait EMLWrite {
+    fn write_eml_root(
+        &self,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<Vec<u8>, EMLError>;
+
+    fn write_eml_root_str(
+        &self,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<String, EMLError>;
+}
+
+impl<T> EMLWrite for T
+where
+    T: EMLWriteInternal,
+{
     fn write_eml_root(
         &self,
         pretty_print: bool,
@@ -266,10 +330,26 @@ pub trait EMLWrite {
     ) -> Result<Vec<u8>, EMLError> {
         self.write_root(None, None, None, pretty_print, include_declaration)
     }
+
+    /// Writes an EML document with an EML root element to a string.
+    fn write_eml_root_str(
+        &self,
+        pretty_print: bool,
+        include_declaration: bool,
+    ) -> Result<String, EMLError> {
+        Ok(
+            String::from_utf8(self.write_eml_root(pretty_print, include_declaration)?)
+                .without_span()?,
+        )
+    }
 }
 
-pub fn write_eml_element(
-    element: &impl EMLWrite,
+pub(crate) trait EMLWriteElement {
+    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError>;
+}
+
+pub(crate) fn write_eml_element(
+    element: &impl EMLWriteElement,
 ) -> impl FnOnce(EMLElementWriter) -> Result<(), EMLError> {
-    return |writer| element.write_eml_element(writer);
+    |writer| element.write_eml_element(writer)
 }

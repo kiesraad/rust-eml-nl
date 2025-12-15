@@ -1,19 +1,19 @@
 use crate::{
-    EMLElement, EMLElementWriter, EMLError, EMLWrite, NS_EML, TransactionId, accepted_root,
-    collect_struct,
+    EMLElement, EMLElementWriter, EMLError, EMLReadElement, EMLWriteElement, NS_EML, TransactionId,
+    accepted_root, collect_struct,
     error::{EMLErrorKind, EMLResultExt},
-    reader::EMLParse,
 };
 
-pub const EML_POLLING_STATIONS_ID: &str = "110b";
+pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
 
+/// Representing a `110b` document, containing polling stations.
 #[derive(Debug, Clone)]
-pub struct EMLPollingStations {
+pub struct PollingStations {
     pub transaction_id: TransactionId,
 }
 
-impl EMLParse for EMLPollingStations {
-    fn parse_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+impl EMLReadElement for PollingStations {
+    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req("Id", None)?;
@@ -25,13 +25,13 @@ impl EMLParse for EMLPollingStations {
             .with_span(elem.span());
         }
 
-        Ok(collect_struct!(elem, EMLPollingStations {
-            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::parse_eml_element(elem)?,
+        Ok(collect_struct!(elem, PollingStations {
+            ("TransactionId", Some(NS_EML)) as transaction_id => |elem| TransactionId::read_eml_element(elem)?,
         }))
     }
 }
 
-impl EMLWrite for EMLPollingStations {
+impl EMLWriteElement for PollingStations {
     fn write_eml_element(&self, _writer: EMLElementWriter) -> Result<(), EMLError> {
         todo!()
     }

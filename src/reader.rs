@@ -9,17 +9,30 @@ use quick_xml::{
 
 use crate::error::{EMLError, EMLErrorKind, EMLResultExt};
 
-/// This trait should be implemented by all types that can be parsed from EML files.
-pub trait EMLParse {
+/// Reading EML documents from a string slice.
+pub trait EMLRead {
+    fn parse_eml(input: &str) -> Result<Self, EMLError>
+    where
+        Self: Sized;
+}
+
+impl<T> EMLRead for T
+where
+    T: EMLReadElement,
+{
     fn parse_eml(input: &str) -> Result<Self, EMLError>
     where
         Self: Sized,
     {
         let mut reader = EMLReader::init_from_str(input);
         let mut root = reader.next_element()?;
-        Self::parse_eml_element(&mut root)
+        T::read_eml_element(&mut root)
     }
-    fn parse_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError>
+}
+
+/// This trait should be implemented by all types that can be parsed from EML files.
+pub(crate) trait EMLReadElement {
+    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError>
     where
         Self: Sized;
 }
@@ -66,13 +79,13 @@ impl Span {
 }
 
 /// A map of attribute values, where the key is a tuple of (local name, optional namespace URI)
-pub type AttributeHashMap<'a> = HashMap<(Cow<'a, str>, Option<Cow<'a, str>>), Cow<'a, str>>;
+pub(crate) type AttributeHashMap<'a> = HashMap<(Cow<'a, str>, Option<Cow<'a, str>>), Cow<'a, str>>;
 
 /// The main EML XML reader.
 ///
 /// We require all EML files to be fully loaded in memory, so this reader only
 /// works on byte slices. Furthermore, all files should be encoded in UTF-8.
-pub struct EMLReader<'a> {
+pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
 }
 
@@ -131,7 +144,7 @@ impl<'a> EMLReader<'a> {
 /// This reader tries to ensure that the entire element is consumed before it
 /// is dropped, but it is recommended to explicitly call `skip` to completely
 /// consume the element.
-pub struct EMLElement<'r, 'input> {
+pub(crate) struct EMLElement<'r, 'input> {
     reader: &'r mut EMLReader<'input>,
     start: BytesStart<'input>,
     depth: usize,
@@ -433,7 +446,6 @@ impl Drop for EMLElement<'_, '_> {
     }
 }
 
-#[macro_export]
 macro_rules! collect_struct {
     (
         $root:expr,
@@ -481,3 +493,4 @@ macro_rules! collect_struct {
         $field
     };
 }
+pub(crate) use collect_struct;
