@@ -249,6 +249,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     }
 
     /// Get a hasmap of all attributes of the start tag of this element.
+    #[expect(unused)]
     pub fn attributes(&self) -> Result<AttributeHashMap<'_>, EMLError> {
         let mut attributes = HashMap::new();
         // quick-xml does not expose any way to get the span of individual attributes, so we use the whole start tag span for now
@@ -318,6 +319,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     /// Returns the full span of this element up until the current event,
     /// including the start tag. If the entire element has been consumed, this
     /// will return the full span of the element.
+    #[expect(unused)]
     pub fn full_span(&self) -> Span {
         Span::new(self.span.start, self.last_span.end)
     }
@@ -326,6 +328,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     /// returned span does not include the span of the last read event. If the
     /// entire element has been consumed, this will return the span between the
     /// start and end tags.
+    #[expect(unused)]
     pub fn inner_span(&self) -> Span {
         Span::new(self.span.end, self.last_span.start)
     }

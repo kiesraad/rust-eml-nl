@@ -141,9 +141,6 @@ mod tests {
     fn it_works() {
         let data = include_str!("test-emls/election_definition/eml110a_test.eml.xml");
         let res = dbg!(EML::parse_eml(data).unwrap());
-        println!(
-            "{}",
-            String::from_utf8_lossy(&res.write_eml_root(true, true).unwrap())
-        );
+        println!("{}", res.write_eml_root_str(true, true).unwrap());
     }
 }

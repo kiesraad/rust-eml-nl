@@ -156,6 +156,7 @@ impl<'a> EMLElementWriter<'a> {
         self.content()?.text(text)
     }
 
+    #[expect(unused)]
     pub fn finish(self) -> Result<(), EMLError> {
         self.content()?.finish()
     }
@@ -288,14 +289,14 @@ where
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError> {
-        Ok(String::from_utf8(self.write_root(
+        String::from_utf8(self.write_root(
             root_name,
             default_namespace_uri,
             namespace_definitions,
             pretty_print,
             include_declaration,
         )?)
-        .without_span()?)
+        .without_span()
     }
 }
 
@@ -337,10 +338,7 @@ where
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError> {
-        Ok(
-            String::from_utf8(self.write_eml_root(pretty_print, include_declaration)?)
-                .without_span()?,
-        )
+        self.write_root_str(None, None, None, pretty_print, include_declaration)
     }
 }
 

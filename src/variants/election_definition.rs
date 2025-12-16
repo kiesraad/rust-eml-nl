@@ -1,6 +1,6 @@
 use crate::{
-    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLRead, EMLReadElement,
-    EMLWriteElement, NS_EML, TransactionId, accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement, EMLWriteElement,
+    NS_EML, TransactionId, accepted_root, collect_struct,
     error::{EMLErrorKind, EMLResultExt},
     write_eml_element,
 };
