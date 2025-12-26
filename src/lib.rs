@@ -28,6 +28,7 @@
 
 mod common;
 mod error;
+mod qualified_name;
 mod reader;
 mod utils;
 mod variants;
@@ -35,6 +36,7 @@ mod writer;
 
 pub use common::*;
 pub use error::*;
+pub use qualified_name::*;
 pub use reader::*;
 pub use utils::*;
 pub use variants::*;
@@ -90,7 +92,7 @@ impl EMLReadElement for EML {
     fn read_eml_element(elem: &mut reader::EMLElement<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
-        let document_id = elem.attribute_value_req("Id", None)?;
+        let document_id = elem.attribute_value_req(("Id", None))?;
         Ok(match document_id.as_ref() {
             EML_ELECTION_DEFINITION_ID => {
                 EML::ElectionDefinition(ElectionDefinition::read_eml_element(elem)?)
@@ -118,11 +120,11 @@ impl EMLWriteElement for EML {
 }
 
 fn accepted_root(elem: &reader::EMLElement<'_, '_>) -> Result<(), EMLError> {
-    if !elem.has_name("EML", Some(NS_EML))? {
+    if !elem.has_name(("EML", Some(NS_EML)))? {
         return Err(EMLErrorKind::InvalidRootElement).with_span(elem.span());
     }
 
-    let schema_version = elem.attribute_value_req("SchemaVersion", None)?;
+    let schema_version = elem.attribute_value_req(("SchemaVersion", None))?;
     if schema_version == EML_SCHEMA_VERSION {
         Ok(())
     } else {
@@ -130,17 +132,5 @@ fn accepted_root(elem: &reader::EMLElement<'_, '_>) -> Result<(), EMLError> {
             schema_version.to_string(),
         ))
         .with_span(elem.span())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let data = include_str!("test-emls/election_definition/eml110a_test.eml.xml");
-        let res = dbg!(EML::parse_eml(data).unwrap());
-        println!("{}", res.write_eml_root_str(true, true).unwrap());
     }
 }

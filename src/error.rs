@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::reader::{OwnedQualifiedName, Span};
+use crate::{OwnedQualifiedName, Span};
 
 /// Different kinds of errors that can occur during EML-NL processing.
 #[derive(thiserror::Error, Debug)]

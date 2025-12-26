@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, fmt::Display};
+use std::{borrow::Cow, collections::HashMap};
 
 use quick_xml::{
     NsReader,
@@ -7,7 +7,10 @@ use quick_xml::{
     name::{QName, ResolveResult},
 };
 
-use crate::error::{EMLError, EMLErrorKind, EMLResultExt};
+use crate::{
+    QualifiedName,
+    error::{EMLError, EMLErrorKind, EMLResultExt},
+};
 
 /// Reading EML documents from a string slice.
 pub trait EMLRead {
@@ -37,34 +40,6 @@ pub(crate) trait EMLReadElement {
         Self: Sized;
 }
 
-/// A fully owned qualified name (consisting of local name and optional namespace URI).
-///
-/// Used in error reporting only.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct OwnedQualifiedName {
-    pub local_name: String,
-    pub namespace: Option<String>,
-}
-
-impl OwnedQualifiedName {
-    pub fn new(local_name: impl Into<String>, namespace: Option<impl Into<String>>) -> Self {
-        OwnedQualifiedName {
-            local_name: local_name.into(),
-            namespace: namespace.map(|ns| ns.into()),
-        }
-    }
-}
-
-impl Display for OwnedQualifiedName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(ns) = &self.namespace {
-            write!(f, "{{{}}}{}", ns, self.local_name)
-        } else {
-            write!(f, "{}", self.local_name)
-        }
-    }
-}
-
 /// A span in the input data, represented as byte offsets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
@@ -77,9 +52,6 @@ impl Span {
         Span { start, end }
     }
 }
-
-/// A map of attribute values, where the key is a tuple of (local name, optional namespace URI)
-pub(crate) type AttributeHashMap<'a> = HashMap<(Cow<'a, str>, Option<Cow<'a, str>>), Cow<'a, str>>;
 
 /// The main EML XML reader.
 ///
@@ -178,13 +150,16 @@ impl<'r, 'input> EMLElement<'r, 'input> {
 
     /// Extracts the resolved name of this element as a tuple of local name and
     /// an optional namespace URI.
-    pub fn name(&self) -> Result<(Cow<'_, str>, Option<Cow<'_, str>>), EMLError> {
+    pub fn name(&self) -> Result<QualifiedName<'_, '_>, EMLError> {
         self.get_resolved_name(self.start.name(), self.span, false)
     }
 
     /// Checks if this element has the given local name and optional namespace URI.
-    pub fn has_name(&self, local_name: &str, namespace: Option<&str>) -> Result<bool, EMLError> {
-        self.is_resolved_name(self.start.name(), self.span, local_name, namespace, false)
+    pub fn has_name<'a, 'b>(
+        &self,
+        name: impl Into<QualifiedName<'a, 'b>>,
+    ) -> Result<bool, EMLError> {
+        self.is_resolved_name(self.start.name(), self.span, name, false)
     }
 
     /// Find the next child element of this element and return a reader for that
@@ -216,29 +191,27 @@ impl<'r, 'input> EMLElement<'r, 'input> {
 
     /// Get the value of an attribute. If the attribute does not exist this will
     /// return an error.
-    pub fn attribute_value_req(
+    pub fn attribute_value_req<'a, 'b>(
         &self,
-        local_name: &str,
-        namespace: Option<&str>,
+        name: impl Into<QualifiedName<'a, 'b>>,
     ) -> Result<Cow<'_, str>, EMLError> {
-        self.attribute_value(local_name, namespace)?
-            .ok_or_else(|| {
-                EMLErrorKind::MissingAttribute(OwnedQualifiedName::new(local_name, namespace))
-            })
+        let name = name.into();
+        self.attribute_value(name.clone())?
+            .ok_or_else(|| EMLErrorKind::MissingAttribute(name.as_owned()))
             .with_span(self.span)
     }
 
     /// Get the value of an attribute. If the attribute does not exist this will
     /// return None.
-    pub fn attribute_value(
+    pub fn attribute_value<'a, 'b>(
         &self,
-        local_name: &str,
-        namespace: Option<&str>,
+        name: impl Into<QualifiedName<'a, 'b>>,
     ) -> Result<Option<Cow<'_, str>>, EMLError> {
+        let name = name.into();
         // quick-xml does not expose any way to get the span of individual attributes, so we use the whole start tag span for now
         for attr in self.start.attributes() {
             let attr = attr.with_span(self.span)?;
-            if self.is_resolved_name(attr.key, self.span, local_name, namespace, true)? {
+            if self.is_resolved_name(attr.key, self.span, name.clone(), true)? {
                 return Ok(Some(
                     attr.decode_and_unescape_value(self.reader.inner.decoder())
                         .with_span(self.span)?,
@@ -250,16 +223,16 @@ impl<'r, 'input> EMLElement<'r, 'input> {
 
     /// Get a hasmap of all attributes of the start tag of this element.
     #[expect(unused)]
-    pub fn attributes(&self) -> Result<AttributeHashMap<'_>, EMLError> {
+    pub fn attributes(&self) -> Result<HashMap<QualifiedName<'_, '_>, Cow<'_, str>>, EMLError> {
         let mut attributes = HashMap::new();
         // quick-xml does not expose any way to get the span of individual attributes, so we use the whole start tag span for now
         for attr in self.start.attributes() {
             let attr = attr.with_span(self.span)?;
-            let (local_name, namespace) = self.get_resolved_name(attr.key, self.span, true)?;
+            let name = self.get_resolved_name(attr.key, self.span, true)?;
             let value = attr
                 .decode_and_unescape_value(self.reader.inner.decoder())
                 .with_span(self.span)?;
-            attributes.insert((local_name, namespace), value);
+            attributes.insert(name, value);
         }
         Ok(attributes)
     }
@@ -362,18 +335,20 @@ impl<'r, 'input> EMLElement<'r, 'input> {
 
     /// Checks if the given qualified name is of the expected local name and
     /// optional namespace URI.
-    fn is_resolved_name<'a>(
+    fn is_resolved_name<'a, 'b, 'c>(
         &self,
         name: QName<'a>,
         span: Span,
-        expected_local_name: &str,
-        expected_namespace: Option<&str>,
+        expected_name: impl Into<QualifiedName<'b, 'c>>,
         is_attribute: bool,
     ) -> Result<bool, EMLError> {
-        let (resolved_local_name, resolved_namespace) =
-            self.get_resolved_name(name, span, is_attribute)?;
-        let matches_local = resolved_local_name == expected_local_name;
-        let matches_namespace = match (expected_namespace, resolved_namespace.as_deref()) {
+        let expected_name = expected_name.into();
+        let resolved_name = self.get_resolved_name(name, span, is_attribute)?;
+        let matches_local = resolved_name.local_name.as_ref() == expected_name.local_name.as_ref();
+        let matches_namespace = match (
+            expected_name.namespace.as_deref(),
+            resolved_name.namespace.as_deref(),
+        ) {
             (Some(expected), Some(found)) => expected == found,
             (None, None) => true,
             _ => false,
@@ -389,7 +364,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
         name: QName<'a>,
         span: Span,
         is_attribute: bool,
-    ) -> Result<(Cow<'a, str>, Option<Cow<'a, str>>), EMLError> {
+    ) -> Result<QualifiedName<'a, 'a>, EMLError> {
         let (resolved, local_name) = if is_attribute {
             self.reader.inner.resolver().resolve_attribute(name)
         } else {
@@ -403,7 +378,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
             .decode(local_name.into_inner())
             .with_span(span)?;
 
-        Ok((local_name, namespace))
+        Ok(QualifiedName::new(local_name, namespace))
     }
 
     /// Reads the next event from this element, returning None if the end of
@@ -454,7 +429,7 @@ macro_rules! collect_struct {
         $root:expr,
         $ty:ident {
             $(
-                ($local:expr, $ns:expr) as $field:ident $( : $opt_kind:ident )? => |$var:ident| $map:expr
+                $field:ident $( : $opt_kind:ident )? : $namespaced_name:expr => |$var:ident| $map:expr
             ),+ $(,)?
         }
     ) => {{
@@ -464,8 +439,7 @@ macro_rules! collect_struct {
         while let Some(mut next_child) = $root.next_child()? {
             match next_child.name()? {
                 $(
-                    (local_name, namespace)
-                        if local_name == $local && namespace.as_deref() == $ns =>
+                    name if name == crate::QualifiedName::from($namespaced_name) =>
                     {
                         let $var = &mut next_child;
                         $field = Some($map);
@@ -481,19 +455,36 @@ macro_rules! collect_struct {
 
         $ty {
             $(
-                $field: collect_struct!(@build_field $root, ($local, $ns), $field $( $opt_kind )?)
+                $field: collect_struct!(@build_field $root, $namespaced_name, $field $( $opt_kind )?)
             ),+
         }
     }};
 
     // Required field: no ": Option" present
-    (@build_field $root:expr, ($local:expr, $ns:expr), $field:ident) => {
-        $crate::error::EMLResultExt::with_span($field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement($crate::reader::OwnedQualifiedName::new($local, $ns))), $root.last_span())?
+    (@build_field $root:expr, $namespaced_name:expr, $field:ident) => {
+        $crate::error::EMLResultExt::with_span($field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement($crate::QualifiedName::from($namespaced_name).as_owned())), $root.last_span())?
     };
 
     // Optional field: ": Option" present
-    (@build_field $root:expr, ($local:expr, $ns:expr), $field:ident Option) => {
+    (@build_field $root:expr, $namespaced_name:expr, $field:ident Option) => {
         $field
     };
 }
 pub(crate) use collect_struct;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unknown_namespace() {
+        let document = r#"<eml:UnknownElement />"#;
+        let mut reader = EMLReader::init_from_str(document);
+        let root = reader.next_element().unwrap();
+        let error = root.name().unwrap_err();
+        assert!(matches!(
+            error.kind,
+            EMLErrorKind::UnknownNamespace(ns) if ns == "eml"
+        ));
+    }
+}

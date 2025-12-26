@@ -5,7 +5,7 @@ use quick_xml::{
     events::{BytesDecl, BytesStart, BytesText, Event, attributes::Attribute},
 };
 
-use crate::{EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL};
+use crate::{EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL, QualifiedName};
 
 #[derive(Debug, Clone)]
 pub(crate) struct NsDefinitions {
@@ -62,20 +62,21 @@ impl EMLWriter {
     ///
     /// Note the difference in behavior for attributes and elements as described
     /// in `resolve_namespace_prefix`.
-    fn format_qname<'b>(
+    fn format_qname<'b, 'c>(
         &self,
-        name: &'b str,
-        namespace: Option<&str>,
+        name: &'b QualifiedName<'b, 'c>,
         is_attribute: bool,
     ) -> Result<Cow<'b, str>, EMLError> {
-        let namespace_name = namespace
-            .map(|n| self.resolve_namespace_prefix(n, is_attribute))
+        let namespace_name = name
+            .namespace
+            .as_ref()
+            .map(|n| self.resolve_namespace_prefix(n.as_ref(), is_attribute))
             .transpose()?
             .flatten();
 
         match namespace_name {
             Some(ns_name) => Ok(Cow::Owned(format!("{}:{}", ns_name, name))),
-            None => Ok(Cow::Borrowed(name)),
+            None => Ok(Cow::Borrowed(name.local_name.as_ref())),
         }
     }
 
@@ -100,13 +101,12 @@ pub(crate) struct EMLElementWriter<'a> {
 }
 
 impl<'a> EMLElementWriter<'a> {
-    pub fn new(
+    pub(crate) fn new(
         writer: &'a mut EMLWriter,
-        name: &'a str,
-        namespace: Option<&'a str>,
+        name: &'a QualifiedName<'a, 'a>,
     ) -> Result<Self, EMLError> {
-        let elem_name = writer.format_qname(name, namespace, false)?;
-        if namespace.is_none() && writer.has_default_namespace() {
+        let elem_name = writer.format_qname(name, false)?;
+        if name.namespace.is_none() && writer.has_default_namespace() {
             // Technically this is something that XML allows, but as it is not
             // needed for EML we do not support it here.
             return Err(EMLErrorKind::ElementNamespaceError).without_span();
@@ -116,13 +116,13 @@ impl<'a> EMLElementWriter<'a> {
         Ok(EMLElementWriter { start_tag, writer })
     }
 
-    pub fn attr(
+    pub fn attr<'b, 'c>(
         mut self,
-        name: &str,
-        namespace: Option<&str>,
+        name: impl Into<QualifiedName<'b, 'c>>,
         value: &str,
     ) -> Result<Self, EMLError> {
-        let attr_name = self.writer.format_qname(name, namespace, true)?;
+        let name = name.into();
+        let attr_name = self.writer.format_qname(&name, true)?;
         self = self.attr_raw((attr_name.as_ref(), value));
         Ok(self)
     }
@@ -143,13 +143,12 @@ impl<'a> EMLElementWriter<'a> {
         })
     }
 
-    pub fn child(
+    pub fn child<'b, 'c>(
         self,
-        name: &str,
-        namespace: Option<&str>,
+        name: impl Into<QualifiedName<'b, 'c>>,
         child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
-        self.content()?.child(name, namespace, child_writer)
+        self.content()?.child(name, child_writer)
     }
 
     pub fn text(self, text: &str) -> Result<EMLElementContentWriter<'a>, EMLError> {
@@ -176,13 +175,13 @@ pub(crate) struct EMLElementContentWriter<'a> {
 }
 
 impl<'a> EMLElementContentWriter<'a> {
-    pub fn child(
+    pub fn child<'b, 'c>(
         self,
-        name: &str,
-        namespace: Option<&str>,
+        name: impl Into<QualifiedName<'b, 'c>>,
         child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
     ) -> Result<Self, EMLError> {
-        let elem_writer = EMLElementWriter::new(self.writer, name, namespace)?;
+        let name = name.into();
+        let elem_writer = EMLElementWriter::new(self.writer, &name)?;
         child_writer(elem_writer)?;
         Ok(self)
     }
@@ -205,18 +204,18 @@ impl<'a> EMLElementContentWriter<'a> {
 }
 
 pub(crate) trait EMLWriteInternal {
-    fn write_root(
+    fn write_root<'a, 'b>(
         &self,
-        root_name: Option<&str>,
+        root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<HashMap<&'static str, &'static str>>,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError>;
 
-    fn write_root_str(
+    fn write_root_str<'a, 'b>(
         &self,
-        root_name: Option<&str>,
+        root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<HashMap<&'static str, &'static str>>,
         pretty_print: bool,
@@ -228,16 +227,18 @@ impl<T> EMLWriteInternal for T
 where
     T: EMLWriteElement,
 {
-    fn write_root(
+    fn write_root<'a, 'b>(
         &self,
-        root_name: Option<&str>,
+        root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<HashMap<&'static str, &'static str>>,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError> {
         // default values are for EML root element
-        let root = root_name.unwrap_or("EML");
+        let root = root_name
+            .map(|v| v.into())
+            .unwrap_or_else(|| QualifiedName::new("EML", Some(NS_EML)));
         let default_namespace_uri = default_namespace_uri.unwrap_or(Some(NS_EML));
         let namespace_definitions = namespace_definitions.unwrap_or_else(|| {
             let mut ns_defs = HashMap::new();
@@ -270,7 +271,7 @@ where
             ns_definitions: ns_definitions.clone(),
             writer,
         };
-        let mut element = EMLElementWriter::new(&mut eml_writer, root, default_namespace_uri)?;
+        let mut element = EMLElementWriter::new(&mut eml_writer, &root)?;
         if let Some(ns_uri) = ns_definitions.default_namespace_uri {
             element = element.attr_raw(("xmlns", ns_uri));
         }
@@ -281,9 +282,9 @@ where
         Ok(eml_writer.writer.into_inner())
     }
 
-    fn write_root_str(
+    fn write_root_str<'a, 'b>(
         &self,
-        root_name: Option<&str>,
+        root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<HashMap<&'static str, &'static str>>,
         pretty_print: bool,
@@ -329,7 +330,13 @@ where
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError> {
-        self.write_root(None, None, None, pretty_print, include_declaration)
+        self.write_root(
+            None::<QualifiedName<'_, '_>>,
+            None,
+            None,
+            pretty_print,
+            include_declaration,
+        )
     }
 
     /// Writes an EML document with an EML root element to a string.
@@ -338,7 +345,13 @@ where
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError> {
-        self.write_root_str(None, None, None, pretty_print, include_declaration)
+        self.write_root_str(
+            None::<QualifiedName<'_, '_>>,
+            None,
+            None,
+            pretty_print,
+            include_declaration,
+        )
     }
 }
 
