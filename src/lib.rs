@@ -134,3 +134,32 @@ fn accepted_root(elem: &reader::EMLElement<'_, '_>) -> Result<(), EMLError> {
         .with_span(elem.span())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parsing_arbitrary_eml_documents() {
+        let doc = include_str!("test-emls/candidate_list/eml230b_test.eml.xml");
+        let eml = EML::parse_eml(doc).expect("Failed to parse EML document");
+        assert!(matches!(eml, EML::CandidateList(_)));
+
+        let doc = include_str!("test-emls/election_definition/eml110a_test.eml.xml");
+        let eml = EML::parse_eml(doc).expect("Failed to parse EML document");
+        assert!(matches!(eml, EML::ElectionDefinition(_)));
+
+        let doc = include_str!("test-emls/polling_stations/eml110b_test.eml.xml");
+        let eml = EML::parse_eml(doc).expect("Failed to parse EML document");
+        assert!(matches!(eml, EML::PollingStations(_)));
+    }
+
+    #[test]
+    fn parse_and_write_eml_document_should_not_fail() {
+        let doc = include_str!("test-emls/election_definition/eml110a_test.eml.xml");
+        let eml = EML::parse_eml(doc).expect("Failed to parse EML document");
+
+        eml.write_eml_root_str(true, true)
+            .expect("Failed to output EML document");
+    }
+}
