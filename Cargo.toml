@@ -9,3 +9,4 @@ rust-version = "1.91" # MSRV
 thiserror = "2.0"
 quick-xml = "0.38.2"
 tracing = "0.1.38"
+chrono = "0.4.42"

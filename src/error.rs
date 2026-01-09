@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{OwnedQualifiedName, Span};
 
 /// Different kinds of errors that can occur during EML-NL processing.
@@ -71,7 +69,10 @@ pub enum EMLErrorKind {
 
     /// An invalid value was encountered for a specific attribute/element
     #[error("Invalid value for {0}: {1}")]
-    InvalidValue(&'static str, #[source] Arc<dyn std::error::Error>),
+    InvalidValue(
+        &'static str,
+        #[source] Box<dyn std::error::Error + Send + Sync>,
+    ),
 
     /// Attributes cannot have the default namespace
     #[error("Attributes cannot have the default namespace")]
@@ -99,11 +100,12 @@ impl EMLError {
     /// Create a new invalid value error
     pub(crate) fn invalid_value(
         field: &'static str,
-        source: impl std::error::Error + 'static,
+        source: impl std::error::Error + Send + Sync + 'static,
+        span: Option<Span>,
     ) -> Self {
         EMLError {
-            kind: EMLErrorKind::InvalidValue(field, Arc::new(source)),
-            span: None,
+            kind: EMLErrorKind::InvalidValue(field, Box::new(source)),
+            span,
         }
     }
 }

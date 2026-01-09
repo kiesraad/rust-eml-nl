@@ -14,7 +14,7 @@ use crate::{
 
 /// Reading EML documents from a string slice.
 pub trait EMLRead {
-    fn parse_eml(input: &str) -> Result<Self, EMLError>
+    fn parse_eml(input: &str, strict_value_parsing: bool) -> Result<Self, EMLError>
     where
         Self: Sized;
 }
@@ -23,11 +23,11 @@ impl<T> EMLRead for T
 where
     T: EMLReadElement,
 {
-    fn parse_eml(input: &str) -> Result<Self, EMLError>
+    fn parse_eml(input: &str, strict_value_parsing: bool) -> Result<Self, EMLError>
     where
         Self: Sized,
     {
-        let mut reader = EMLReader::init_from_str(input);
+        let mut reader = EMLReader::init_from_str(input, strict_value_parsing);
         let mut root = reader.next_element()?;
         T::read_eml_element(&mut root)
     }
@@ -59,16 +59,20 @@ impl Span {
 /// works on byte slices. Furthermore, all files should be encoded in UTF-8.
 pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
+    strict_value_parsing: bool,
 }
 
 impl<'a> EMLReader<'a> {
     /// Create this reader from a string slice.
-    pub fn init_from_str(data: &'a str) -> EMLReader<'a> {
-        Self::from_reader(NsReader::from_str(data))
+    pub fn init_from_str(data: &'a str, strict_value_parsing: bool) -> EMLReader<'a> {
+        Self::from_reader(NsReader::from_str(data), strict_value_parsing)
     }
 
-    pub fn from_reader(reader: NsReader<&'a [u8]>) -> EMLReader<'a> {
-        EMLReader { inner: reader }
+    pub fn from_reader(reader: NsReader<&'a [u8]>, strict_value_parsing: bool) -> EMLReader<'a> {
+        EMLReader {
+            inner: reader,
+            strict_value_parsing,
+        }
     }
 
     fn next(&mut self) -> Result<(Event<'a>, Span), EMLError> {
@@ -301,9 +305,13 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     /// returned span does not include the span of the last read event. If the
     /// entire element has been consumed, this will return the span between the
     /// start and end tags.
-    #[expect(unused)]
     pub fn inner_span(&self) -> Span {
         Span::new(self.span.end, self.last_span.start)
+    }
+
+    /// Returns whether strict value parsing is enabled for this reader
+    pub fn strict_value_parsing(&self) -> bool {
+        self.reader.strict_value_parsing
     }
 
     /// Extracts the namespace URI from a ResolveResult.
@@ -479,7 +487,7 @@ mod tests {
     #[test]
     fn test_unknown_namespace() {
         let document = r#"<eml:UnknownElement />"#;
-        let mut reader = EMLReader::init_from_str(document);
+        let mut reader = EMLReader::init_from_str(document, true);
         let root = reader.next_element().unwrap();
         let error = root.name().unwrap_err();
         assert!(matches!(

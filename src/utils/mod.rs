@@ -1,3 +1,3 @@
-mod stringvalue;
+mod string_value;
 
-pub use stringvalue::*;
+pub use string_value::*;

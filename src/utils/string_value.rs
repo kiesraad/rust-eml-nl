@@ -1,7 +1,11 @@
 use std::{borrow::Cow, convert::Infallible};
 
+use chrono::{DateTime, Utc};
+
+use crate::{EMLError, Span};
+
 pub trait StringValueData: Clone {
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     fn parse_from_str(s: &str) -> Result<Self, Self::Error>
     where
@@ -17,9 +21,27 @@ pub enum StringValue<T: StringValueData> {
 }
 
 impl<T: StringValueData> StringValue<T> {
-    pub fn from_raw_parsed(s: impl AsRef<String>) -> Result<Self, T::Error> {
+    pub fn from_raw_parsed(s: impl AsRef<str>) -> Result<Self, T::Error> {
         let v = T::parse_from_str(s.as_ref())?;
         Ok(StringValue::Parsed(v))
+    }
+
+    pub fn from_maybe_parsed(s: String, strict_value_parsing: bool) -> Result<Self, T::Error> {
+        if strict_value_parsing {
+            Self::from_raw_parsed(s)
+        } else {
+            Ok(StringValue::Raw(s))
+        }
+    }
+
+    pub fn from_maybe_parsed_err(
+        text: String,
+        strict_value_parsing: bool,
+        element_name: &'static str,
+        span: Option<Span>,
+    ) -> Result<Self, EMLError> {
+        Self::from_maybe_parsed(text, strict_value_parsing)
+            .map_err(|e| EMLError::invalid_value(element_name, e, span))
     }
 
     pub fn from_raw(s: impl Into<String>) -> Self {
@@ -45,6 +67,15 @@ impl<T: StringValueData> StringValue<T> {
             }
             StringValue::Parsed(v) => Ok(Cow::Borrowed(v)),
         }
+    }
+
+    pub fn value_err(
+        &self,
+        element_name: &'static str,
+        span: Option<Span>,
+    ) -> Result<Cow<'_, T>, EMLError> {
+        self.value()
+            .map_err(|e| EMLError::invalid_value(element_name, e, span))
     }
 }
 
@@ -75,5 +106,26 @@ impl StringValueData for u64 {
 
     fn to_raw_value(&self) -> String {
         self.to_string()
+    }
+}
+
+impl StringValueData for DateTime<Utc> {
+    type Error = chrono::ParseError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+            Ok(dt.with_timezone(&Utc))
+        } else {
+            // Fallback to parsing without timezone info, assuming UTC
+            let naive_dt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")?;
+            Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive_dt, Utc))
+        }
+    }
+
+    fn to_raw_value(&self) -> String {
+        self.to_rfc3339()
     }
 }
