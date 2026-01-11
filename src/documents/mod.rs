@@ -7,7 +7,7 @@ use crate::{
         election_definition::{EML_ELECTION_DEFINITION_ID, ElectionDefinition},
         polling_stations::{EML_POLLING_STATIONS_ID, PollingStations},
     },
-    io::{EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement},
+    io::{EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement},
 };
 
 pub mod candidate_list;
@@ -118,7 +118,7 @@ impl EML {
 }
 
 impl EMLReadElement for EML {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req(("Id", None))?;
@@ -148,7 +148,7 @@ impl EMLWriteElement for EML {
     }
 }
 
-fn accepted_root(elem: &EMLElement<'_, '_>) -> Result<(), EMLError> {
+fn accepted_root(elem: &EMLElementReader<'_, '_>) -> Result<(), EMLError> {
     if !elem.has_name(("EML", Some(NS_EML)))? {
         return Err(EMLErrorKind::InvalidRootElement).with_span(elem.span());
     }

@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
     error::EMLError,
-    io::{EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement},
+    io::{EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement},
     utils::{StringValue, XsDateOrDateTime, XsDateTime},
 };
 
@@ -28,7 +28,7 @@ impl TransactionId {
 }
 
 impl EMLReadElement for TransactionId {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(TransactionId(StringValue::from_maybe_parsed_err(
@@ -64,7 +64,7 @@ impl CreationDateTime {
 }
 
 impl EMLReadElement for CreationDateTime {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(CreationDateTime(StringValue::from_maybe_parsed_err(
@@ -102,7 +102,7 @@ impl IssueDate {
 }
 
 impl EMLReadElement for IssueDate {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(IssueDate(StringValue::from_maybe_parsed_err(

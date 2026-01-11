@@ -6,7 +6,7 @@ use crate::{
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{
-        EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
+        EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
         write_eml_element,
     },
 };
@@ -27,7 +27,7 @@ pub struct ElectionDefinition {
 }
 
 impl EMLReadElement for ElectionDefinition {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req(("Id", None))?;
@@ -76,7 +76,7 @@ impl EMLWriteElement for ElectionDefinition {
 pub struct ElectionDefinitionElectionEvent {}
 
 impl EMLReadElement for ElectionDefinitionElectionEvent {
-    fn read_eml_element(_elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(ElectionDefinitionElectionEvent {})
     }
 }

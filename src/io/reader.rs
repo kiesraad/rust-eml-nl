@@ -41,7 +41,7 @@ where
 
 /// This trait should be implemented by all types that can be parsed from EML files.
 pub(crate) trait EMLReadElement {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError>
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
     where
         Self: Sized;
 }
@@ -107,14 +107,14 @@ impl<'a> EMLReader<'a> {
         Ok((event, span))
     }
 
-    pub fn next_element<'tmp>(&'a mut self) -> Result<EMLElement<'tmp, 'a>, EMLError> {
+    pub fn next_element<'tmp>(&'a mut self) -> Result<EMLElementReader<'tmp, 'a>, EMLError> {
         loop {
             match self.next()? {
                 (Event::Start(start), span) => {
-                    return Ok(EMLElement::from_start(self, start, false, span));
+                    return Ok(EMLElementReader::from_start(self, start, false, span));
                 }
                 (Event::Empty(start), span) => {
-                    return Ok(EMLElement::from_start(self, start, true, span));
+                    return Ok(EMLElementReader::from_start(self, start, true, span));
                 }
                 _other => {
                     // Ignore other events
@@ -129,7 +129,7 @@ impl<'a> EMLReader<'a> {
 /// This reader tries to ensure that the entire element is consumed before it
 /// is dropped, but it is recommended to explicitly call `skip` to completely
 /// consume the element.
-pub(crate) struct EMLElement<'r, 'input> {
+pub(crate) struct EMLElementReader<'r, 'input> {
     reader: &'r mut EMLReader<'input>,
     start: BytesStart<'input>,
     depth: usize,
@@ -138,7 +138,7 @@ pub(crate) struct EMLElement<'r, 'input> {
     last_span: Span,
 }
 
-impl<'r, 'input> EMLElement<'r, 'input> {
+impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// Given a start event that was just read from the reader, create a element
     /// reader until the matching end tag. If the start event was an empty
     /// element, this must be indicated using the `is_empty` parameter, otherwise
@@ -150,8 +150,8 @@ impl<'r, 'input> EMLElement<'r, 'input> {
         start: BytesStart<'input>,
         is_empty: bool,
         span: Span,
-    ) -> EMLElement<'r, 'input> {
-        EMLElement {
+    ) -> EMLElementReader<'r, 'input> {
+        EMLElementReader {
             reader,
             start,
             depth: 1,
@@ -179,12 +179,12 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     /// part of the document. The returned reader must be fully consumed before
     /// continuing to read from this element. If the entire element is consumed,
     /// this will return None.
-    pub fn next_child(&mut self) -> Result<Option<EMLElement<'_, 'input>>, EMLError> {
+    pub fn next_child(&mut self) -> Result<Option<EMLElementReader<'_, 'input>>, EMLError> {
         loop {
             match self.next()? {
                 Some((Event::Start(start), span)) => {
                     self.depth -= 1; // the child must handle the end tag itself
-                    return Ok(Some(EMLElement::from_start(
+                    return Ok(Some(EMLElementReader::from_start(
                         self.reader,
                         start,
                         false,
@@ -192,7 +192,12 @@ impl<'r, 'input> EMLElement<'r, 'input> {
                     )));
                 }
                 Some((Event::Empty(start), span)) => {
-                    return Ok(Some(EMLElement::from_start(self.reader, start, true, span)));
+                    return Ok(Some(EMLElementReader::from_start(
+                        self.reader,
+                        start,
+                        true,
+                        span,
+                    )));
                 }
                 None => return Ok(None),
                 _other => {
@@ -434,7 +439,7 @@ impl<'r, 'input> EMLElement<'r, 'input> {
     }
 }
 
-impl Drop for EMLElement<'_, '_> {
+impl Drop for EMLElementReader<'_, '_> {
     fn drop(&mut self) {
         // Ensure we have consumed the entire element
         let _ = self.skip();

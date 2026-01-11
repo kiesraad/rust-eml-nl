@@ -6,7 +6,7 @@ use crate::{
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{
-        EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
+        EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
         write_eml_element,
     },
 };
@@ -21,7 +21,7 @@ pub struct PollingStations {
 }
 
 impl EMLReadElement for PollingStations {
-    fn read_eml_element(elem: &mut EMLElement<'_, '_>) -> Result<Self, EMLError> {
+    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req(("Id", None))?;
