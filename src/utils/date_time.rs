@@ -4,11 +4,17 @@ use chrono::{
     DateTime, FixedOffset, MappedLocalTime, NaiveDate, NaiveDateTime, Offset as _, TimeZone, Utc,
 };
 
-use crate::StringValueData;
+use crate::utils::StringValueData;
 
+/// Represents an `xs:date`.
+///
+/// These kinds of dates may optionally contain timezone information using a
+/// fixed offset from UTC.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XsDate {
+    /// The date part of the `xs:date`.
     pub date: NaiveDate,
+    /// The optional timezone offset from UTC of the `xs:date`.
     pub tz: Option<FixedOffset>,
 }
 
@@ -61,14 +67,24 @@ impl StringValueData for XsDate {
     }
 }
 
+/// Represents an `xs:dateTime`.
+///
+/// These kinds of date-times may optionally contain timezone information using
+/// a fixed offset from UTC.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XsDateTime {
+    /// The naive date-time. This information does not reflect a specific point
+    /// in time without considering timezone information. If a specific point in
+    /// time needs to be referenced use the [`Self::datetime_utc`] or [`Self::datetime_tz`]
+    /// methods.
     pub naive_date_time: NaiveDateTime,
+    /// The timezone offset, if specified. If [`None`], the date-time needs external
+    /// context to determine the actual point in time it represents.
     pub tz: Option<FixedOffset>,
 }
 
 impl XsDateTime {
-    /// Converts this XsDateTime to a DateTime<Utc>.
+    /// Converts this [`XsDateTime`] to a [`DateTime<Utc>`].
     ///
     /// If the DateTime did not contain timezone information, it is assumed to be in UTC.
     pub fn datetime_utc(&self) -> DateTime<Utc> {
@@ -81,9 +97,9 @@ impl XsDateTime {
         }
     }
 
-    /// Converts this XsDateTime to a DateTime with the specified timezone.
+    /// Converts this [`XsDateTime`] to a [`DateTime`] with the specified timezone.
     ///
-    /// If the XsDateTime did not contain timezone information, it is assumed it was a local time for the specified timezone.
+    /// If the [`XsDateTime`] did not contain timezone information, it is assumed it was a local time for the specified timezone.
     /// This does mean that some local date-times might be ambiguous or invalid (e.g. during daylight saving time transitions).
     pub fn datetime_tz<Tz: TimeZone>(&self, tz: &Tz) -> MappedLocalTime<DateTime<Tz>> {
         match self.tz {
@@ -148,14 +164,16 @@ impl StringValueData for XsDateTime {
 /// Represents either an `xs:date` or an `xs:dateTime`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XsDateOrDateTime {
+    /// An `xs:date` value.
     Date(XsDate),
+    /// An `xs:dateTime` value.
     DateTime(XsDateTime),
 }
 
 impl XsDateOrDateTime {
-    /// Returns the date of the XsDate or XsDateTime.
+    /// Returns the date of the [`XsDate`] or [`XsDateTime`].
     ///
-    /// If the value is an XsDateTime and the timezone is unknown, the date-time is assumed to be
+    /// If the value is an [`XsDateTime`] and the timezone is unknown, the date-time is assumed to be
     /// in the specified timezone. In these cases the resulting date may be ambiguous or non-existent.
     pub fn date<Tz: TimeZone>(&self, tz: &Tz) -> MappedLocalTime<NaiveDate> {
         match self {

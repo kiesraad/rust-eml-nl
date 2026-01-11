@@ -3,7 +3,9 @@ use std::{borrow::Cow, fmt::Display, ops::Deref};
 /// A qualified XML name, consisting of a local name and an optional namespace URI.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QualifiedName<'a, 'b> {
+    /// Local name of the qualified name.
     pub local_name: Cow<'a, str>,
+    /// Optional namespace URI of the qualified name.
     pub namespace: Option<Cow<'b, str>>,
 }
 
@@ -26,6 +28,7 @@ impl<'a> From<(&'a str,)> for QualifiedName<'a, 'a> {
 }
 
 impl<'a, 'b> QualifiedName<'a, 'b> {
+    /// Create a new qualified name with the given local name and namespace URI.
     pub fn new(
         local_name: impl Into<Cow<'a, str>>,
         namespace: Option<impl Into<Cow<'b, str>>>,
@@ -36,6 +39,8 @@ impl<'a, 'b> QualifiedName<'a, 'b> {
         }
     }
 
+    /// Convert this (possibly borrowed) qualified name into one that fully owns
+    /// its data.
     pub fn as_owned(&self) -> OwnedQualifiedName {
         OwnedQualifiedName::new(self.local_name.as_ref(), self.namespace.as_deref())
     }
@@ -57,6 +62,7 @@ impl<'a, 'b> Display for QualifiedName<'a, 'b> {
 pub struct OwnedQualifiedName(QualifiedName<'static, 'static>);
 
 impl OwnedQualifiedName {
+    /// Create a new owned qualified name with the given local name and namespace URI.
     pub fn new(local_name: impl Into<String>, namespace: Option<impl Into<String>>) -> Self {
         OwnedQualifiedName(QualifiedName::new(
             Cow::Owned(local_name.into()),
@@ -64,6 +70,9 @@ impl OwnedQualifiedName {
         ))
     }
 
+    /// Consume this owned qualified name and return the inner qualified name.
+    ///
+    /// The inner qualified name will own its data.
     pub fn into_inner(self) -> QualifiedName<'static, 'static> {
         self.0
     }

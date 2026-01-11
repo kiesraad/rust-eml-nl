@@ -8,12 +8,18 @@ use quick_xml::{
 };
 
 use crate::{
-    QualifiedName,
     error::{EMLError, EMLErrorKind, EMLResultExt},
+    io::QualifiedName,
 };
 
 /// Reading EML documents from a string slice.
 pub trait EMLRead {
+    /// Parse an EML document from the given string slice.
+    ///
+    /// The `strict_value_parsing` parameter indicates whether strict parsing of
+    /// values (e.g. dates, numbers) should be performed. If set to false, values
+    /// that cannot be parsed will be stored as raw strings instead. If set to
+    /// true, parsing errors will result in an error being returned.
     fn parse_eml(input: &str, strict_value_parsing: bool) -> Result<Self, EMLError>
     where
         Self: Sized;
@@ -43,11 +49,14 @@ pub(crate) trait EMLReadElement {
 /// A span in the input data, represented as byte offsets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
+    /// Start byte offset of the span (inclusive).
     pub start: u64,
+    /// End byte offset of the span (exclusive).
     pub end: u64,
 }
 
 impl Span {
+    /// Create a new span from the given start and end byte offsets.
     pub fn new(start: u64, end: u64) -> Span {
         Span { start, end }
     }
@@ -447,7 +456,7 @@ macro_rules! collect_struct {
         while let Some(mut next_child) = $root.next_child()? {
             match next_child.name()? {
                 $(
-                    name if name == crate::QualifiedName::from($namespaced_name) =>
+                    name if name == $crate::io::QualifiedName::from($namespaced_name) =>
                     {
                         let $var = &mut next_child;
                         $field = Some($map);
@@ -470,7 +479,7 @@ macro_rules! collect_struct {
 
     // Required field: no ": Option" present
     (@build_field $root:expr, $namespaced_name:expr, $field:ident) => {
-        $crate::error::EMLResultExt::with_span($field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement($crate::QualifiedName::from($namespaced_name).as_owned())), $root.last_span())?
+        $crate::error::EMLResultExt::with_span($field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement($crate::io::QualifiedName::from($namespaced_name).as_owned())), $root.last_span())?
     };
 
     // Optional field: ": Option" present

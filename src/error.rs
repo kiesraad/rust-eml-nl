@@ -1,6 +1,6 @@
-use crate::{OwnedQualifiedName, Span};
+use crate::io::{OwnedQualifiedName, Span};
 
-/// Different kinds of errors that can occur during EML-NL processing.
+/// Different kinds of errors that can occur during EML_NL processing.
 #[derive(thiserror::Error, Debug)]
 pub enum EMLErrorKind {
     /// An error originanting from the XML parser
@@ -83,7 +83,7 @@ pub enum EMLErrorKind {
     ElementNamespaceError,
 }
 
-/// An error encountered during EML-NL processing.
+/// An error encountered during EML_NL processing.
 ///
 /// The error includes the kind of error as well as an optional span indicating
 /// where in the source XML the error approximately occured.

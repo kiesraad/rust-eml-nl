@@ -1,3 +1,5 @@
+//! Utility function and types used within EML_NL documents.
+
 mod date_time;
 mod string_value;
 

@@ -5,7 +5,9 @@ use quick_xml::{
     events::{BytesDecl, BytesStart, BytesText, Event, attributes::Attribute},
 };
 
-use crate::{EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL, QualifiedName};
+use crate::{
+    EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL, io::QualifiedName,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct NsDefinitions {
@@ -308,12 +310,14 @@ where
 /// during writing are underlying errors or logic errors in your implementation,
 /// so location information would be of limited use anyway.
 pub trait EMLWrite {
+    /// Writes an EML document with an EML root element to a byte vector.
     fn write_eml_root(
         &self,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError>;
 
+    /// Writes an EML document with an EML root element to a string.
     fn write_eml_root_str(
         &self,
         pretty_print: bool,

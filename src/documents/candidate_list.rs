@@ -1,8 +1,14 @@
+//! Document variant for the EML_NL Candidate List (`230b`) document.
+
 use crate::{
-    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement, EMLWriteElement,
-    NS_EML, TransactionId, accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLError, NS_EML,
+    common::TransactionId,
+    documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    write_eml_element,
+    io::{
+        EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
+        write_eml_element,
+    },
 };
 
 pub(crate) const EML_CANDIDATE_LIST_ID: &str = "230b";
@@ -10,6 +16,7 @@ pub(crate) const EML_CANDIDATE_LIST_ID: &str = "230b";
 /// Representing a `230b` document, containing a candidate list.
 #[derive(Debug, Clone)]
 pub struct CandidateList {
+    /// Transaction id of the document.
     pub transaction_id: TransactionId,
 }
 

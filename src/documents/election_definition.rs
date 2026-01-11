@@ -1,8 +1,14 @@
+//! Document variant for the EML_NL Election Definition (`110a`) document.
+
 use crate::{
-    CreationDateTime, EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement,
-    EMLWriteElement, IssueDate, NS_EML, NS_KR, TransactionId, accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
+    common::{CreationDateTime, IssueDate, TransactionId},
+    documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    write_eml_element,
+    io::{
+        EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
+        write_eml_element,
+    },
 };
 
 pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
@@ -10,9 +16,13 @@ pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 /// Representing a `110a` document, containing an election definition.
 #[derive(Debug, Clone)]
 pub struct ElectionDefinition {
+    /// Transaction id of the document.
     pub transaction_id: TransactionId,
+    /// Time this document was created.
     pub creation_date_time: CreationDateTime,
+    /// Issue date of the election definition, if present.
     pub issue_date: Option<IssueDate>,
+    /// The election event defined in this document.
     pub election_event: ElectionDefinitionElectionEvent,
 }
 
@@ -61,6 +71,7 @@ impl EMLWriteElement for ElectionDefinition {
     }
 }
 
+/// Election event defined in the election definition document.
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionElectionEvent {}
 

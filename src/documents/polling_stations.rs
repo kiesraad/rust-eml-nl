@@ -1,8 +1,14 @@
+//! Document variant for the EML_NL Polling Stations (`110b`) document.
+
 use crate::{
-    EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement, EMLWriteElement,
-    NS_EML, TransactionId, accepted_root, collect_struct,
+    EML_SCHEMA_VERSION, EMLError, NS_EML,
+    common::TransactionId,
+    documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    write_eml_element,
+    io::{
+        EMLElement, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
+        write_eml_element,
+    },
 };
 
 pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
@@ -10,6 +16,7 @@ pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
 /// Representing a `110b` document, containing polling stations.
 #[derive(Debug, Clone)]
 pub struct PollingStations {
+    /// Transaction id of the document.
     pub transaction_id: TransactionId,
 }
 
