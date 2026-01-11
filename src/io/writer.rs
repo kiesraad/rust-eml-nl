@@ -145,6 +145,27 @@ impl<'a> EMLElementWriter<'a> {
         })
     }
 
+    #[expect(unused)]
+    pub fn child_if<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        condition: bool,
+        child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        self.content()?.child_if(name, condition, child_writer)
+    }
+
+    #[expect(unused)]
+    pub fn child_option<'b, 'c, T>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: Option<T>,
+        child_writer: impl FnOnce(EMLElementWriter, T) -> Result<(), EMLError>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        self.content()?.child_option(name, value, child_writer)
+    }
+
+    #[expect(unused)]
     pub fn child<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
@@ -153,11 +174,27 @@ impl<'a> EMLElementWriter<'a> {
         self.content()?.child(name, child_writer)
     }
 
+    pub fn child_elem<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: &impl EMLWriteElement,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        self.content()?.child_elem(name, value)
+    }
+
+    #[expect(unused)]
+    pub fn child_elem_option<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: Option<&impl EMLWriteElement>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        self.content()?.child_elem_option(name, value)
+    }
+
     pub fn text(self, text: &str) -> Result<EMLElementContentWriter<'a>, EMLError> {
         self.content()?.text(text)
     }
 
-    #[expect(unused)]
     pub fn finish(self) -> Result<(), EMLError> {
         self.content()?.finish()
     }
@@ -186,6 +223,50 @@ impl<'a> EMLElementContentWriter<'a> {
         let elem_writer = EMLElementWriter::new(self.writer, &name)?;
         child_writer(elem_writer)?;
         Ok(self)
+    }
+
+    pub fn child_if<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        condition: bool,
+        child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
+    ) -> Result<Self, EMLError> {
+        if condition {
+            self.child(name, child_writer)
+        } else {
+            Ok(self)
+        }
+    }
+
+    pub fn child_option<'b, 'c, T>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: Option<T>,
+        child_writer: impl FnOnce(EMLElementWriter, T) -> Result<(), EMLError>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        if let Some(v) = value {
+            self.child(name, |w| child_writer(w, v))
+        } else {
+            Ok(self)
+        }
+    }
+
+    pub fn child_elem<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: &impl EMLWriteElement,
+    ) -> Result<Self, EMLError> {
+        self.child(name, write_eml_element(value))
+    }
+
+    pub fn child_elem_option<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: Option<&impl EMLWriteElement>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        self.child_option(name, value, |writer, value| {
+            write_eml_element(value)(writer)
+        })
     }
 
     pub fn text(self, text: &str) -> Result<Self, EMLError> {

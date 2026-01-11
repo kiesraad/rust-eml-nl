@@ -5,10 +5,7 @@ use crate::{
     common::TransactionId,
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    io::{
-        EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
-        write_eml_element,
-    },
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
 };
 
 pub(crate) const EML_CANDIDATE_LIST_ID: &str = "230b";
@@ -20,8 +17,10 @@ pub struct CandidateList {
     pub transaction_id: TransactionId,
 }
 
-impl EMLReadElement for CandidateList {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+impl EMLElement for CandidateList {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         accepted_root(elem)?;
 
         let document_id = elem.attribute_value_req(("Id", None))?;
@@ -34,20 +33,15 @@ impl EMLReadElement for CandidateList {
         }
 
         Ok(collect_struct!(elem, CandidateList {
-            transaction_id: ("TransactionId", NS_EML) => |elem| TransactionId::read_eml_element(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
         }))
     }
-}
 
-impl EMLWriteElement for CandidateList {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_CANDIDATE_LIST_ID)?
             .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child(
-                ("TransactionId", NS_EML),
-                write_eml_element(&self.transaction_id),
-            )?
+            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .finish()?;
 
         Ok(())

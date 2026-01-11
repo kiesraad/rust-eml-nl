@@ -1,6 +1,9 @@
 use std::{borrow::Cow, convert::Infallible};
 
-use crate::{EMLError, io::Span};
+use crate::{
+    EMLError,
+    io::{QualifiedName, Span},
+};
 
 /// Trait for data types that can be used with [`StringValue`], defines how to parse and serialize the value.
 pub trait StringValueData: Clone {
@@ -58,14 +61,14 @@ impl<T: StringValueData> StringValue<T> {
     /// In case of parsing errors an [`EMLError`] is returned. The `element_name`
     /// and `span` parameters are used to provide context in the error if parsing
     /// fails in strict mode.
-    pub fn from_maybe_parsed_err(
+    pub fn from_maybe_parsed_err<'a, 'b>(
         text: String,
         strict_value_parsing: bool,
-        element_name: &'static str,
+        element_name: impl Into<QualifiedName<'a, 'b>>,
         span: Option<Span>,
     ) -> Result<Self, EMLError> {
         Self::from_maybe_parsed(text, strict_value_parsing)
-            .map_err(|e| EMLError::invalid_value(element_name, e, span))
+            .map_err(|e| EMLError::invalid_value(element_name.into().as_owned(), e, span))
     }
 
     /// Create a [`StringValue`] from a raw string.
@@ -101,13 +104,13 @@ impl<T: StringValueData> StringValue<T> {
     ///
     /// The `element_name` and `span` parameters are used to provide context in the error
     /// if parsing fails.
-    pub fn value_err(
+    pub fn value_err<'a, 'b>(
         &self,
-        element_name: &'static str,
+        element_name: impl Into<QualifiedName<'a, 'b>>,
         span: Option<Span>,
     ) -> Result<Cow<'_, T>, EMLError> {
         self.value()
-            .map_err(|e| EMLError::invalid_value(element_name, e, span))
+            .map_err(|e| EMLError::invalid_value(element_name.into().as_owned(), e, span))
     }
 }
 

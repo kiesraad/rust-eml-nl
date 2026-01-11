@@ -70,7 +70,7 @@ pub enum EMLErrorKind {
     /// An invalid value was encountered for a specific attribute/element
     #[error("Invalid value for {0}: {1}")]
     InvalidValue(
-        &'static str,
+        OwnedQualifiedName,
         #[source] Box<dyn std::error::Error + Send + Sync>,
     ),
 
@@ -99,7 +99,7 @@ pub struct EMLError {
 impl EMLError {
     /// Create a new invalid value error
     pub(crate) fn invalid_value(
-        field: &'static str,
+        field: OwnedQualifiedName,
         source: impl std::error::Error + Send + Sync + 'static,
         span: Option<Span>,
     ) -> Self {

@@ -1,5 +1,24 @@
 use std::{borrow::Cow, fmt::Display, ops::Deref};
 
+pub(crate) trait IntoQualifiedNameCow<'a, 'b, 'c> {
+    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>>;
+}
+
+impl<'a, 'b, 'c> IntoQualifiedNameCow<'a, 'b, 'c> for &'a QualifiedName<'b, 'c> {
+    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>> {
+        Cow::Borrowed(self)
+    }
+}
+
+impl<'a, 'b, 'c, T> IntoQualifiedNameCow<'a, 'b, 'c> for T
+where
+    QualifiedName<'b, 'c>: From<T>,
+{
+    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>> {
+        Cow::Owned(QualifiedName::from(self))
+    }
+}
+
 /// A qualified XML name, consisting of a local name and an optional namespace URI.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QualifiedName<'a, 'b> {
@@ -27,6 +46,12 @@ impl<'a> From<(&'a str,)> for QualifiedName<'a, 'a> {
     }
 }
 
+impl<'a> From<&'a str> for QualifiedName<'a, 'a> {
+    fn from(local_name: &'a str) -> Self {
+        QualifiedName::new(local_name, None::<&str>)
+    }
+}
+
 impl<'a, 'b> QualifiedName<'a, 'b> {
     /// Create a new qualified name with the given local name and namespace URI.
     pub fn new(
@@ -36,6 +61,21 @@ impl<'a, 'b> QualifiedName<'a, 'b> {
         QualifiedName {
             local_name: local_name.into(),
             namespace: namespace.map(|ns| ns.into()),
+        }
+    }
+
+    /// Create a new qualified name from static string slices, usable in const contexts.
+    pub const fn from_static(local_name: &'static str, namespace: Option<&'static str>) -> Self {
+        if let Some(namespace) = namespace {
+            QualifiedName {
+                local_name: Cow::Borrowed(local_name),
+                namespace: Some(Cow::Borrowed(namespace)),
+            }
+        } else {
+            QualifiedName {
+                local_name: Cow::Borrowed(local_name),
+                namespace: None,
+            }
         }
     }
 

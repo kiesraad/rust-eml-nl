@@ -5,10 +5,7 @@ use crate::{
     common::TransactionId,
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    io::{
-        EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct,
-        write_eml_element,
-    },
+    io::{EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement, collect_struct},
 };
 
 pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
@@ -44,10 +41,7 @@ impl EMLWriteElement for PollingStations {
         writer
             .attr(("Id", None), EML_POLLING_STATIONS_ID)?
             .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child(
-                ("TransactionId", NS_EML),
-                write_eml_element(&self.transaction_id),
-            )?
+            .child_elem(("TransactionId", NS_EML), &self.transaction_id)?
             .finish()?;
 
         Ok(())

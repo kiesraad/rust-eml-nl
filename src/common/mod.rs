@@ -1,10 +1,15 @@
 //! Element definitions common to multiple EML_NL document variants.
 
+mod managing_authority;
+
+pub use managing_authority::*;
+
 use std::borrow::Cow;
 
 use crate::{
+    NS_EML, NS_KR,
     error::EMLError,
-    io::{EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement},
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, XsDateOrDateTime, XsDateTime},
 };
 
@@ -23,25 +28,29 @@ impl TransactionId {
 
     /// Get the parsed u64 value of the transaction id.
     pub fn value(&self) -> Result<u64, EMLError> {
-        Ok(self.0.value_err("TransactionId", None)?.into_owned())
+        Ok(self
+            .0
+            .value_err(("TransactionId", NS_EML), None)?
+            .into_owned())
     }
 }
 
-impl EMLReadElement for TransactionId {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+impl EMLElement for TransactionId {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("TransactionId", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(TransactionId(StringValue::from_maybe_parsed_err(
             text,
             elem.strict_value_parsing(),
-            "TransactionId",
+            ("TransactionId", NS_EML),
             Some(elem.inner_span()),
         )?))
     }
-}
 
-impl EMLWriteElement for TransactionId {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer.text(self.raw().as_ref())?.finish()?;
         Ok(())
     }
@@ -59,25 +68,29 @@ impl CreationDateTime {
 
     /// Get the parsed XsDateTime value of the creation date time.
     pub fn value(&self) -> Result<XsDateTime, EMLError> {
-        Ok(self.0.value_err("CreationDateTime", None)?.into_owned())
+        Ok(self
+            .0
+            .value_err(("CreationDateTime", NS_KR), None)?
+            .into_owned())
     }
 }
 
-impl EMLReadElement for CreationDateTime {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+impl EMLElement for CreationDateTime {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("CreationDateTime", Some(NS_KR));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(CreationDateTime(StringValue::from_maybe_parsed_err(
             text,
             elem.strict_value_parsing(),
-            "CreationDateTime",
+            ("CreationDateTime", NS_KR),
             Some(elem.inner_span()),
         )?))
     }
-}
 
-impl EMLWriteElement for CreationDateTime {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer.text(self.raw().as_ref())?.finish()?;
         Ok(())
     }
@@ -97,25 +110,25 @@ impl IssueDate {
 
     /// Get the parsed XsDateOrDateTime value of the issue date.
     pub fn value(&self) -> Result<XsDateOrDateTime, EMLError> {
-        Ok(self.0.value_err("IssueDate", None)?.into_owned())
+        Ok(self.0.value_err(IssueDate::EML_NAME, None)?.into_owned())
     }
 }
 
-impl EMLReadElement for IssueDate {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+impl EMLElement for IssueDate {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("IssueDate", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let text = elem.text_without_children()?;
 
         Ok(IssueDate(StringValue::from_maybe_parsed_err(
             text,
             elem.strict_value_parsing(),
-            "IssueDate",
+            IssueDate::EML_NAME,
             Some(elem.inner_span()),
         )?))
     }
-}
 
-impl EMLWriteElement for IssueDate {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer.text(self.raw().as_ref())?.finish()?;
         Ok(())
     }

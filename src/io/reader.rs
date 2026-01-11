@@ -134,6 +134,7 @@ pub(crate) struct EMLElementReader<'r, 'input> {
     start: BytesStart<'input>,
     depth: usize,
     found_matching_end: bool,
+    is_empty: bool,
     span: Span,
     last_span: Span,
 }
@@ -156,6 +157,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             start,
             depth: 1,
             found_matching_end: is_empty,
+            is_empty,
             span,
             last_span: span,
         }
@@ -437,6 +439,11 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
 
         Ok(Some((evt, span)))
     }
+
+    /// Returns whether this element is empty (i.e., has no content and no end tag).
+    pub fn is_empty(&self) -> bool {
+        self.is_empty
+    }
 }
 
 impl Drop for EMLElementReader<'_, '_> {
@@ -461,7 +468,7 @@ macro_rules! collect_struct {
         while let Some(mut next_child) = $root.next_child()? {
             match next_child.name()? {
                 $(
-                    name if name == $crate::io::QualifiedName::from($namespaced_name) =>
+                    name if &name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref() =>
                     {
                         let $var = &mut next_child;
                         $field = Some($map);
