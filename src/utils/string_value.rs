@@ -1,7 +1,5 @@
 use std::{borrow::Cow, convert::Infallible};
 
-use chrono::{DateTime, Utc};
-
 use crate::{EMLError, Span};
 
 pub trait StringValueData: Clone {
@@ -106,26 +104,5 @@ impl StringValueData for u64 {
 
     fn to_raw_value(&self) -> String {
         self.to_string()
-    }
-}
-
-impl StringValueData for DateTime<Utc> {
-    type Error = chrono::ParseError;
-
-    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
-    where
-        Self: Sized,
-    {
-        if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
-            Ok(dt.with_timezone(&Utc))
-        } else {
-            // Fallback to parsing without timezone info, assuming UTC
-            let naive_dt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")?;
-            Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive_dt, Utc))
-        }
-    }
-
-    fn to_raw_value(&self) -> String {
-        self.to_rfc3339()
     }
 }

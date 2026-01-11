@@ -437,7 +437,7 @@ macro_rules! collect_struct {
         $root:expr,
         $ty:ident {
             $(
-                $field:ident $( : $opt_kind:ident )? : $namespaced_name:expr => |$var:ident| $map:expr
+                $field:ident $( as $opt_kind:ident )? : $namespaced_name:expr => |$var:ident| $map:expr
             ),+ $(,)?
         }
     ) => {{

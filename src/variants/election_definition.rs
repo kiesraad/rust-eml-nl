@@ -1,6 +1,6 @@
 use crate::{
     CreationDateTime, EML_SCHEMA_VERSION, EMLElement, EMLElementWriter, EMLError, EMLReadElement,
-    EMLWriteElement, NS_EML, NS_KR, TransactionId, accepted_root, collect_struct,
+    EMLWriteElement, IssueDate, NS_EML, NS_KR, TransactionId, accepted_root, collect_struct,
     error::{EMLErrorKind, EMLResultExt},
     write_eml_element,
 };
@@ -12,6 +12,7 @@ pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 pub struct ElectionDefinition {
     pub transaction_id: TransactionId,
     pub creation_date_time: CreationDateTime,
+    pub issue_date: Option<IssueDate>,
     pub election_event: ElectionDefinitionElectionEvent,
 }
 
@@ -31,6 +32,7 @@ impl EMLReadElement for ElectionDefinition {
         Ok(collect_struct!(elem, ElectionDefinition {
             transaction_id: ("TransactionId", NS_EML) => |elem| TransactionId::read_eml_element(elem)?,
             creation_date_time: ("CreationDateTime", NS_KR) => |elem| CreationDateTime::read_eml_element(elem)?,
+            issue_date as Option: ("IssueDate", NS_KR) => |elem| IssueDate::read_eml_element(elem)?,
             election_event: ("ElectionEvent", NS_EML) => |elem| ElectionDefinitionElectionEvent::read_eml_element(elem)?,
         }))
     }
