@@ -2,7 +2,7 @@
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
-    common::{CreationDateTime, IssueDate, ManagingAuthority, TransactionId},
+    common::{CreationDateTime, IssueDate, ManagingAuthority, TransactionId, VotingMethod},
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
@@ -162,13 +162,66 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
 
 /// Contains details about the voting methods for the election.
 #[derive(Debug, Clone)]
-pub struct ElectionDefinitionContest {}
+pub struct ElectionDefinitionContest {
+    /// Identifier for the contest.
+    pub identifier: ContestIdentifier,
+    /// Voting method used in the contest.
+    pub voting_method: StringValue<VotingMethod>,
+    /// Maximum number of votes allowed.
+    pub max_votes: StringValue<u64>,
+}
 
 impl EMLElement for ElectionDefinitionContest {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
 
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, ElectionDefinitionContest {
+            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
+            voting_method: ("VotingMethod", NS_EML) => |elem| StringValue::<VotingMethod>::from_maybe_read_parsed_err(elem, ("VotingMethod", NS_EML))?,
+            max_votes: ("MaxVotes", NS_EML) => |elem| {
+                let text = elem.text_without_children()?;
+                let text = if !text.is_empty() {
+                    Some(text)
+                } else {
+                    None
+                };
+
+                // If MaxVotes value is not present, default to "1"
+                let text = text.unwrap_or_else(|| "1".to_string());
+
+                StringValue::<u64>::from_maybe_parsed_err(text, elem.strict_value_parsing(), ("MaxVotes", NS_KR), Some(elem.span()))?
+            }
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
+            .child(("VotingMethod", NS_EML), |elem| {
+                elem.text(self.voting_method.raw().as_ref())?.finish()
+            })?
+            .child(("MaxVotes", NS_EML), |elem| {
+                let raw_text = self.max_votes.raw();
+                if raw_text == "1" {
+                    elem.empty()
+                } else {
+                    elem.text(raw_text.as_ref())?.finish()
+                }
+            })?
+            .finish()
+    }
+}
+
+/// Identifier for the contest.
+#[derive(Debug, Clone)]
+pub struct ContestIdentifier {}
+
+impl EMLElement for ContestIdentifier {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
+
     fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(ElectionDefinitionContest {})
+        Ok(ContestIdentifier {})
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
