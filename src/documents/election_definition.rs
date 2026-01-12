@@ -1,11 +1,12 @@
 //! Document variant for the EML_NL Election Definition (`110a`) document.
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, NS_EML,
+    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
     common::{CreationDateTime, IssueDate, ManagingAuthority, TransactionId},
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    utils::StringValue,
 };
 
 pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
@@ -64,26 +65,172 @@ impl EMLElement for ElectionDefinition {
                 ElectionDefinitionElectionEvent::EML_NAME,
                 &self.election_event,
             )?
-            .finish()?;
-
-        Ok(())
+            .finish()
     }
 }
 
 /// Election event defined in the election definition document.
 #[derive(Debug, Clone)]
-pub struct ElectionDefinitionElectionEvent {}
+pub struct ElectionDefinitionElectionEvent {
+    /// Election details.
+    pub election: ElectionDefinitionElection,
+}
 
 impl EMLElement for ElectionDefinitionElectionEvent {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ElectionEvent", Some(NS_EML));
 
-    fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(ElectionDefinitionElectionEvent {})
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, ElectionDefinitionElectionEvent {
+            election: ElectionDefinitionElection::EML_NAME => |elem| ElectionDefinitionElection::read_eml(elem)?,
+        }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.empty()?;
-        Ok(())
+        writer
+            .child(("EventIdentifier", NS_EML), |elem| elem.empty())?
+            .child_elem(ElectionDefinitionElection::EML_NAME, &self.election)?
+            .finish()
+    }
+}
+
+/// Election details for an election definition.
+#[derive(Debug, Clone)]
+pub struct ElectionDefinitionElection {
+    /// Identifier
+    pub identifier: ElectionDefinitionElectionIdentifier,
+    /// Election voting method details
+    pub contest: ElectionDefinitionContest,
+    /// Number of seats in the election
+    pub number_of_seats: StringValue<u64>,
+    /// The preference threshold percentage
+    pub preference_threshold: StringValue<u64>,
+    /// A list of registered parties.
+    pub registered_parties: Vec<ElectionDefinitionRegisteredParty>,
+}
+
+impl EMLElement for ElectionDefinitionElection {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Election", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, ElectionDefinitionElection {
+            identifier: ElectionDefinitionElectionIdentifier::EML_NAME => |elem| ElectionDefinitionElectionIdentifier::read_eml(elem)?,
+            contest: ElectionDefinitionContest::EML_NAME => |elem| ElectionDefinitionContest::read_eml(elem)?,
+            number_of_seats: ("NumberOfSeats", NS_KR) => |elem| StringValue::<u64>::from_maybe_read_parsed_err(elem, ("NumberOfSeats", NS_KR))?,
+            preference_threshold: ("PreferenceThreshold", NS_KR) => |elem| StringValue::<u64>::from_maybe_read_parsed_err(elem, ("PreferenceThreshold", NS_KR))?,
+            registered_parties: ("RegisteredParties", NS_KR) => |elem| ElectionDefinitionRegisteredParty::read_list(elem)?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child_elem(
+                ElectionDefinitionElectionIdentifier::EML_NAME,
+                &self.identifier,
+            )?
+            .child_elem(ElectionDefinitionContest::EML_NAME, &self.contest)?
+            .child(("NumberOfSeats", NS_KR), |elem| {
+                elem.text(self.number_of_seats.raw().as_ref())?.finish()
+            })?
+            .child(("PreferenceThreshold", NS_KR), |elem| {
+                elem.text(self.preference_threshold.raw().as_ref())?
+                    .finish()
+            })?
+            .child(("RegisteredParties", NS_KR), |elem| {
+                ElectionDefinitionRegisteredParty::write_list(&self.registered_parties, elem)
+            })?
+            .finish()
+    }
+}
+
+/// Identifier for the election.
+#[derive(Debug, Clone)]
+pub struct ElectionDefinitionElectionIdentifier {}
+
+impl EMLElement for ElectionDefinitionElectionIdentifier {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
+
+    fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(ElectionDefinitionElectionIdentifier {})
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.empty()
+    }
+}
+
+/// Contains details about the voting methods for the election.
+#[derive(Debug, Clone)]
+pub struct ElectionDefinitionContest {}
+
+impl EMLElement for ElectionDefinitionContest {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
+
+    fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(ElectionDefinitionContest {})
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.empty()
+    }
+}
+
+/// A registered party in the election definition.
+///
+/// In election definitions this is just a party name, for full party details and
+/// candidates see the [`CandidateList`](crate::documents::candidate_list::CandidateList)
+/// document.
+#[derive(Debug, Clone)]
+pub struct ElectionDefinitionRegisteredParty {
+    /// Name of the registered party (as registered at the CSB)
+    pub registered_appellation: String,
+}
+
+impl ElectionDefinitionRegisteredParty {
+    pub(crate) fn read_list(
+        elem: &mut EMLElementReader<'_, '_>,
+    ) -> Result<Vec<ElectionDefinitionRegisteredParty>, EMLError> {
+        let mut parties = Vec::new();
+        while let Some(mut child) = elem.next_child()? {
+            if child.has_name(ElectionDefinitionRegisteredParty::EML_NAME)? {
+                let party = ElectionDefinitionRegisteredParty::read_eml(&mut child)?;
+                parties.push(party);
+            } else {
+                return Err(EMLErrorKind::UnexpectedElement(child.name()?.as_owned()))
+                    .with_span(child.span());
+            }
+        }
+        Ok(parties)
+    }
+
+    pub(crate) fn write_list(
+        parties: &[ElectionDefinitionRegisteredParty],
+        writer: EMLElementWriter,
+    ) -> Result<(), EMLError> {
+        let mut content = writer.content()?;
+        for party in parties {
+            content = content.child_elem(ElectionDefinitionRegisteredParty::EML_NAME, party)?;
+        }
+        content.finish()
+    }
+}
+
+impl EMLElement for ElectionDefinitionRegisteredParty {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("RegisteredParty", Some(NS_KR));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, ElectionDefinitionRegisteredParty {
+            registered_appellation: ("RegisteredAppellation", NS_KR) => |elem| elem.text_without_children()?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child(("RegisteredAppellation", NS_KR), |elem| {
+                elem.text(self.registered_appellation.as_ref())?.finish()
+            })?
+            .finish()
     }
 }

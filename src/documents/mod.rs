@@ -21,11 +21,11 @@ pub mod polling_stations;
 #[derive(Debug, Clone)]
 pub enum EML {
     /// Representing a `110a` document, containing an election definition.
-    ElectionDefinition(ElectionDefinition),
+    ElectionDefinition(Box<ElectionDefinition>),
     /// Representing a `110b` document, containing polling stations.
-    PollingStations(PollingStations),
+    PollingStations(Box<PollingStations>),
     /// Representing a `230b` document, containing a candidate list.
-    CandidateList(CandidateList),
+    CandidateList(Box<CandidateList>),
 }
 
 impl EML {
@@ -40,20 +40,12 @@ impl EML {
 
     /// Create a generic EML document from an Election Definition (`110a`) document.
     pub fn from_election_definition_doc(ed: ElectionDefinition) -> Self {
-        EML::ElectionDefinition(ed)
+        EML::ElectionDefinition(Box::new(ed))
     }
 
     /// Check if this EML document is an Election Definition (`110a`) document.
     pub fn is_election_definition_doc(&self) -> bool {
         matches!(self, EML::ElectionDefinition(_))
-    }
-
-    /// Convert this EML document into an Election Definition (`110a`) document, if possible.
-    pub fn into_election_definition_doc(self) -> Option<ElectionDefinition> {
-        match self {
-            EML::ElectionDefinition(ed) => Some(ed),
-            _ => None,
-        }
     }
 
     /// Get a reference to this EML document as an Election Definition (`110a`) document, if possible.
@@ -66,20 +58,12 @@ impl EML {
 
     /// Create a generic EML document from a Polling Stations (`110b`) document.
     pub fn from_polling_stations_doc(ps: PollingStations) -> Self {
-        EML::PollingStations(ps)
+        EML::PollingStations(Box::new(ps))
     }
 
     /// Check if this EML document is a Polling Stations (`110b`) document.
     pub fn is_polling_stations_doc(&self) -> bool {
         matches!(self, EML::PollingStations(_))
-    }
-
-    /// Convert this EML document into a Polling Stations (`110b`) document, if possible.
-    pub fn into_polling_stations_doc(self) -> Option<PollingStations> {
-        match self {
-            EML::PollingStations(ps) => Some(ps),
-            _ => None,
-        }
     }
 
     /// Get a reference to this EML document as a Polling Stations (`110b`) document, if possible.
@@ -92,20 +76,12 @@ impl EML {
 
     /// Create a generic EML document from a Candidate List (`230b`) document.
     pub fn from_candidate_list_doc(cl: CandidateList) -> Self {
-        EML::CandidateList(cl)
+        EML::CandidateList(Box::new(cl))
     }
 
     /// Check if this EML document is a Candidate List (`230b`) document.
     pub fn is_candidate_list_doc(&self) -> bool {
         matches!(self, EML::CandidateList(_))
-    }
-
-    /// Convert this EML document into a Candidate List (`230b`) document, if possible.
-    pub fn into_candidate_list_doc(self) -> Option<CandidateList> {
-        match self {
-            EML::CandidateList(cl) => Some(cl),
-            _ => None,
-        }
     }
 
     /// Get a reference to this EML document as a Candidate List (`230b`) document, if possible.
@@ -124,12 +100,14 @@ impl EMLReadElement for EML {
         let document_id = elem.attribute_value_req(("Id", None))?;
         Ok(match document_id.as_ref() {
             EML_ELECTION_DEFINITION_ID => {
-                EML::ElectionDefinition(ElectionDefinition::read_eml_element(elem)?)
+                EML::ElectionDefinition(Box::new(ElectionDefinition::read_eml_element(elem)?))
             }
             EML_POLLING_STATIONS_ID => {
-                EML::PollingStations(PollingStations::read_eml_element(elem)?)
+                EML::PollingStations(Box::new(PollingStations::read_eml_element(elem)?))
             }
-            EML_CANDIDATE_LIST_ID => EML::CandidateList(CandidateList::read_eml_element(elem)?),
+            EML_CANDIDATE_LIST_ID => {
+                EML::CandidateList(Box::new(CandidateList::read_eml_element(elem)?))
+            }
             _ => {
                 return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
                     .with_span(elem.span());
@@ -190,7 +168,10 @@ mod tests {
         let doc = include_str!("../test-emls/election_definition/eml110a_test.eml.xml");
         let eml = dbg!(EML::parse_eml(doc, true).expect("Failed to parse EML document"));
 
-        eml.write_eml_root_str(true, true)
-            .expect("Failed to output EML document");
+        println!(
+            "{}",
+            eml.write_eml_root_str(true, true)
+                .expect("Failed to output EML document")
+        );
     }
 }

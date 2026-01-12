@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::Infallible};
 
 use crate::{
     EMLError,
-    io::{QualifiedName, Span},
+    io::{EMLElementReader, QualifiedName, Span},
 };
 
 /// Trait for data types that can be used with [`StringValue`], defines how to parse and serialize the value.
@@ -69,6 +69,25 @@ impl<T: StringValueData> StringValue<T> {
     ) -> Result<Self, EMLError> {
         Self::from_maybe_parsed(text, strict_value_parsing)
             .map_err(|e| EMLError::invalid_value(element_name.into().as_owned(), e, span))
+    }
+
+    /// Given an [`EMLElementReader`], read all text from the element and put it
+    /// in a StringValue, parsing it if strict parsing is enabled.
+    ///
+    /// In case of parsing errors an [`EMLError`] is returned. The `element_name`
+    /// parameter is used to provide context in the error if parsing fails in
+    /// strict mode.
+    pub(crate) fn from_maybe_read_parsed_err<'a, 'b>(
+        elem: &mut EMLElementReader<'a, 'b>,
+        element_name: impl Into<QualifiedName<'a, 'b>>,
+    ) -> Result<Self, EMLError> {
+        let text = elem.text_without_children()?;
+        Self::from_maybe_parsed_err(
+            text,
+            elem.strict_value_parsing(),
+            element_name,
+            Some(elem.inner_span()),
+        )
     }
 
     /// Create a [`StringValue`] from a raw string.

@@ -77,7 +77,11 @@ impl EMLWriter {
             .flatten();
 
         match namespace_name {
-            Some(ns_name) => Ok(Cow::Owned(format!("{}:{}", ns_name, name))),
+            Some(ns_name) => Ok(Cow::Owned(format!(
+                "{}:{}",
+                ns_name,
+                name.local_name.as_ref()
+            ))),
             None => Ok(Cow::Borrowed(name.local_name.as_ref())),
         }
     }
@@ -165,7 +169,6 @@ impl<'a> EMLElementWriter<'a> {
         self.content()?.child_option(name, value, child_writer)
     }
 
-    #[expect(unused)]
     pub fn child<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,

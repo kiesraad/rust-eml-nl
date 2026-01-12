@@ -47,6 +47,10 @@ pub enum EMLErrorKind {
     #[error("Missing required attribute: {0}")]
     MissingAttribute(OwnedQualifiedName),
 
+    /// An unexpected element was found
+    #[error("Unexpected element: {0}")]
+    UnexpectedElement(OwnedQualifiedName),
+
     /// A namespace was encountered that is not recognized
     #[error("Unknown namespace: {0}")]
     UnknownNamespace(String),
