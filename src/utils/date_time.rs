@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use chrono::{
-    DateTime, FixedOffset, MappedLocalTime, NaiveDate, NaiveDateTime, Offset as _, TimeZone, Utc,
+    DateTime, FixedOffset, MappedLocalTime, NaiveDate, NaiveDateTime, Offset, TimeZone, Utc,
 };
 
 use crate::utils::StringValueData;
@@ -16,6 +16,21 @@ pub struct XsDate {
     pub date: NaiveDate,
     /// The optional timezone offset from UTC of the `xs:date`.
     pub tz: Option<FixedOffset>,
+}
+
+impl XsDate {
+    /// Create a new `XsDate` without timezone information.
+    pub fn new(date: NaiveDate) -> Self {
+        XsDate { date, tz: None }
+    }
+
+    /// Create a new `XsDate` with timezone information.
+    pub fn new_with_tz<O: Offset>(date: NaiveDate, tz: O) -> Self {
+        XsDate {
+            date,
+            tz: Some(tz.fix()),
+        }
+    }
 }
 
 impl FromStr for XsDate {
@@ -84,6 +99,22 @@ pub struct XsDateTime {
 }
 
 impl XsDateTime {
+    /// Create a new `XsDateTime` from a `DateTime` with timezone information.
+    pub fn new<T: TimeZone>(date_time: DateTime<T>) -> Self {
+        XsDateTime {
+            naive_date_time: date_time.naive_utc(),
+            tz: Some(date_time.offset().fix()),
+        }
+    }
+
+    /// Create a new `XsDateTime` without timezone information.
+    pub fn new_without_tz(naive_date_time: NaiveDateTime) -> Self {
+        XsDateTime {
+            naive_date_time,
+            tz: None,
+        }
+    }
+
     /// Converts this [`XsDateTime`] to a [`DateTime<Utc>`].
     ///
     /// If the DateTime did not contain timezone information, it is assumed to be in UTC.

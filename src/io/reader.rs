@@ -454,49 +454,141 @@ impl Drop for EMLElementReader<'_, '_> {
 }
 
 macro_rules! collect_struct {
-    (
-        $root:expr,
-        $ty:ident {
-            $(
-                $field:ident $( as $opt_kind:ident )? : $namespaced_name:expr => |$var:ident| $map:expr
-            ),+ $(,)?
-        }
-    ) => {{
-        // One temporary per field
-        $( let mut $field: Option<_> = None; )+
+    // This macro starts by first matching the external syntax and converting
+    // that to an internal representation that can be more easily processed.
+    // Once all tokens have been processed, we continue with the @emit rule.
+    // In this phase, we output the base structure of the code. In this phase,
+    // we again delegate to other rules to output specific parts of the code.
+    // These parts are: @decl: declares temporary variables that
+    // will hold the parsed values; @matcher: code to check for each field while
+    // reading children from the XML element; and @assign: code to assign the
+    // final values to the struct fields. This final part once again uses a
+    // recursive approach to output the assignments one by one because of
+    // limitations in macro_rules! that prevent us from directly outputting the
+    // list expansions as one (Rust stops expanding once it sees a macro in a
+    // field position and then fails with a syntax error).
+
+    // entry point of the macro, forward to expand rules
+    ( $root:expr, $ty:ident { $($rest:tt)* }) => {
+        collect_struct!(@expand [$root] [$ty] [] $($rest)* )
+    };
+
+    // accumulate for a normal row
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
+        $field:ident: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $($tail:tt)*
+    ) => {
+        collect_struct!(@expand [$root] [$ty] [
+            $($items ; )*
+            (@field [$field] [$namespaced_name] [$var] [$map]) ;
+        ] $($tail)*)
+    };
+
+    // accumulate, for an option row
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
+        $field:ident as Option: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $($tail:tt)*
+    ) => {
+        collect_struct!(@expand [$root] [$ty] [
+            $($items ; )*
+            (@optional [$field] [$namespaced_name] [$var] [$map]) ;
+        ] $($tail)*)
+    };
+
+    // accumulate for a direct row
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
+        $field:ident: $value:expr ,
+        $($tail:tt)*
+    ) => {
+        collect_struct!(@expand [$root] [$ty] [
+            $($items ; )*
+            (@direct [$field] [$value]) ;
+        ] $($tail)*)
+    };
+
+    // accumulation of items completed, start emitting
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*] ) => {
+        collect_struct!(@emit [$root] [$ty] [$($items ; )*])
+    };
+
+    // Emit the actual code to read the struct
+    ( @emit [$root:expr] [$ty:ident] [$($items:tt ; )*] ) => {{
+        $( collect_struct!(@decl $items); )*
 
         while let Some(mut next_child) = $root.next_child()? {
-            match next_child.name()? {
-                $(
-                    name if &name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref() =>
-                    {
-                        let $var = &mut next_child;
-                        $field = Some($map);
-                        next_child.skip()?;
-                    }
-                )+
-                _ => {
-                    // Unknown element at this level
-                    next_child.skip()?;
-                }
+            let name = next_child.name()?.as_owned().into_inner();
+            let mut handled = false;
+
+            $( collect_struct!(@matcher next_child, name, handled, $items); )*
+
+            if !handled {
+                // Unknown element at this level
+                next_child.skip()?;
             }
         }
 
-        $ty {
-            $(
-                $field: collect_struct!(@build_field $root, $namespaced_name, $field $( $opt_kind )?)
-            ),+
-        }
+        collect_struct!(@assign $root, $ty, [], $($items ; )*)
     }};
 
-    // Required field: no ": Option" present
-    (@build_field $root:expr, $namespaced_name:expr, $field:ident) => {
-        $crate::error::EMLResultExt::with_span($field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement($crate::io::QualifiedName::from($namespaced_name).as_owned())), $root.last_span())?
+    // Emit field declarations
+    (@decl (@direct [$field:ident] [$value:expr])) => {};
+    (@decl (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        collect_struct!(@decl (@field [$field] [$namespaced_name] [$var] [$map]));
+    };
+    (@decl (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        let mut $field: Option<_> = None;
     };
 
-    // Optional field: ": Option" present
-    (@build_field $root:expr, $namespaced_name:expr, $field:ident Option) => {
-        $field
+    // Emit match arms for each field
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@direct [$field:ident] [$value:expr])) => {};
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$var] [$map]));
+    };
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        if !$handled &&
+            &$name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref()
+        {
+            let $var = &mut $next_child;
+            $field = Some($map);
+            $var.skip()?;
+            $handled = true;
+        }
+    };
+
+    (@build_struct $root:expr, $ty:ident, $($items:tt ; )* ) => {
+        $ty {
+            collect_struct!(@assign $root, $($items ; )*)
+        }
+    };
+
+    // Emit struct field assignments
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@direct [$field:ident] [$value:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: $value,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: $field,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: $crate::error::EMLResultExt::with_span(
+                $field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement(
+                    $crate::io::QualifiedName::from($namespaced_name).as_owned()
+                )),
+                $root.last_span()
+            )?,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], ) => {
+        $ty {
+            $($out)*
+        }
     };
 }
 pub(crate) use collect_struct;

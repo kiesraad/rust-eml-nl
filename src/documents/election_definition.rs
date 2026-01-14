@@ -2,11 +2,14 @@
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
-    common::{CreationDateTime, IssueDate, ManagingAuthority, TransactionId, VotingMethod},
+    common::{CreationDateTime, ElectionDomain, IssueDate, ManagingAuthority, TransactionId},
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
-    utils::StringValue,
+    utils::{
+        ContestIdType, ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue,
+        VotingMethod, XsDate,
+    },
 };
 
 pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
@@ -145,18 +148,67 @@ impl EMLElement for ElectionDefinitionElection {
 
 /// Identifier for the election.
 #[derive(Debug, Clone)]
-pub struct ElectionDefinitionElectionIdentifier {}
+pub struct ElectionDefinitionElectionIdentifier {
+    /// Id of the election
+    pub id: StringValue<ElectionIdType>,
+    /// Name of the election
+    pub name: String,
+    /// Category of the election
+    pub category: StringValue<ElectionCategory>,
+    /// Subcategory of the election
+    pub subcategory: StringValue<ElectionSubcategory>,
+    /// The (top level) region where the election takes place.
+    pub domain: Option<ElectionDomain>,
+    /// Date of the election
+    pub election_date: StringValue<XsDate>,
+    /// Nomination date for the election
+    pub nomination_date: StringValue<XsDate>,
+}
 
 impl EMLElement for ElectionDefinitionElectionIdentifier {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
 
-    fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(ElectionDefinitionElectionIdentifier {})
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(
+            elem,
+            ElectionDefinitionElectionIdentifier {
+                id: StringValue::from_maybe_parsed_err(
+                    elem.attribute_value_req("Id")?.into_owned(),
+                    elem.strict_value_parsing(),
+                    "Id",
+                    Some(elem.span()),
+                )?,
+                name: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
+                category: ("ElectionCategory", NS_EML) => |elem| StringValue::from_maybe_read_parsed_err(elem, ("ElectionCategory", NS_EML))?,
+                subcategory: ("ElectionSubcategory", NS_KR) => |elem| StringValue::from_maybe_read_parsed_err(elem, ("ElectionSubcategory", NS_KR))?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                election_date: ("ElectionDate", NS_KR) => |elem| StringValue::from_maybe_read_parsed_err(elem, ("ElectionDate", NS_KR))?,
+                nomination_date: ("NominationDate", NS_KR) => |elem| StringValue::from_maybe_read_parsed_err(elem, ("NominationDate", NS_KR))?,
+            }
+        ))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.empty()
+        writer
+            .attr("Id", self.id.raw().as_ref())?
+            .child(("ElectionName", NS_EML), |elem| {
+                elem.text(self.name.as_ref())?.finish()
+            })?
+            .child(("ElectionCategory", NS_EML), |elem| {
+                elem.text(self.category.raw().as_ref())?.finish()
+            })?
+            .child(("ElectionSubcategory", NS_KR), |elem| {
+                elem.text(self.subcategory.raw().as_ref())?.finish()
+            })?
+            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
+            .child(("ElectionDate", NS_KR), |elem| {
+                elem.text(self.election_date.raw().as_ref())?.finish()
+            })?
+            .child(("NominationDate", NS_KR), |elem| {
+                elem.text(self.nomination_date.raw().as_ref())?.finish()
+            })?
+            .finish()
     }
 }
 
@@ -177,7 +229,7 @@ impl EMLElement for ElectionDefinitionContest {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionDefinitionContest {
             identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            voting_method: ("VotingMethod", NS_EML) => |elem| StringValue::<VotingMethod>::from_maybe_read_parsed_err(elem, ("VotingMethod", NS_EML))?,
+            voting_method: ("VotingMethod", NS_EML) => |elem| StringValue::from_maybe_read_parsed_err(elem, ("VotingMethod", NS_EML))?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
                 let text = elem.text_without_children()?;
                 let text = if !text.is_empty() {
@@ -189,8 +241,8 @@ impl EMLElement for ElectionDefinitionContest {
                 // If MaxVotes value is not present, default to "1"
                 let text = text.unwrap_or_else(|| "1".to_string());
 
-                StringValue::<u64>::from_maybe_parsed_err(text, elem.strict_value_parsing(), ("MaxVotes", NS_KR), Some(elem.span()))?
-            }
+                StringValue::from_maybe_parsed_err(text, elem.strict_value_parsing(), ("MaxVotes", NS_KR), Some(elem.span()))?
+            },
         }))
     }
 
@@ -214,18 +266,28 @@ impl EMLElement for ElectionDefinitionContest {
 
 /// Identifier for the contest.
 #[derive(Debug, Clone)]
-pub struct ContestIdentifier {}
+pub struct ContestIdentifier {
+    /// Id of the contest.
+    pub id: StringValue<ContestIdType>,
+}
 
 impl EMLElement for ContestIdentifier {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
 
-    fn read_eml(_elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(ContestIdentifier {})
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        let id_str = elem.attribute_value_req("Id")?;
+        let id = StringValue::<ContestIdType>::from_maybe_parsed_err(
+            id_str.into_owned(),
+            elem.strict_value_parsing(),
+            "Id",
+            Some(elem.span()),
+        )?;
+        Ok(ContestIdentifier { id })
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.empty()
+        writer.attr("Id", self.id.raw().as_ref())?.empty()
     }
 }
 

@@ -8,11 +8,11 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ManagingAuthority {
     /// Identifier of the managing authority
-    authority_identifier: AuthorityIdentifier,
+    pub authority_identifier: AuthorityIdentifier,
     /// Address of the managing authority
-    authority_address: AuthorityAddress,
+    pub authority_address: AuthorityAddress,
     /// Instance which created a data set on behalf of another (only if different!)
-    created_by_authority: Option<CreatedByAuthority>,
+    pub created_by_authority: Option<CreatedByAuthority>,
 }
 
 impl EMLElement for ManagingAuthority {
@@ -44,8 +44,10 @@ impl EMLElement for ManagingAuthority {
 /// Identifier of a managing authority.
 #[derive(Debug, Clone)]
 pub struct AuthorityIdentifier {
-    id: StringValue<XSBType>,
-    name: Option<String>,
+    /// Identifier of the managing authority
+    pub id: StringValue<XSBType>,
+    /// Name of the managing authority
+    pub name: Option<String>,
 }
 
 impl EMLElement for AuthorityIdentifier {
@@ -100,8 +102,10 @@ impl EMLElement for AuthorityAddress {
 /// Address of a managing authority.
 #[derive(Debug, Clone)]
 pub struct CreatedByAuthority {
-    id: StringValue<XSBType>,
-    name: Option<String>,
+    /// Identifier of the managing authority
+    pub id: StringValue<XSBType>,
+    /// Name of the managing authority
+    pub name: Option<String>,
 }
 
 impl EMLElement for CreatedByAuthority {

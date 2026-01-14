@@ -10,6 +10,18 @@ use crate::utils::StringValueData;
 #[repr(transparent)]
 pub struct XSBType(String);
 
+impl XSBType {
+    /// Create a new XSBType from a string, validating its format
+    pub fn new(s: impl AsRef<str>) -> Result<Self, InvalidXSBValueError> {
+        StringValueData::parse_from_str(s.as_ref())
+    }
+
+    /// Get the raw string value of the XSBType.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Error type returned when an invalid XSBType value is encountered.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[repr(transparent)]
