@@ -17,7 +17,7 @@ required-features = ["bin-tools"]
 [dependencies]
 thiserror = "2.0"
 quick-xml = "0.38.2"
-tracing = "0.1.38"
+tracing = "0.1.43"
 chrono = "0.4.42"
 regex = { version = "1.12.2", default-features = false, features = ["std", "unicode-perl"] }
 clap = { version = "4.5.54", optional = true, features = ["derive"] }
