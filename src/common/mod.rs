@@ -1,9 +1,11 @@
 //! Element definitions common to multiple EML_NL document variants.
 
 mod election_domain;
+mod election_tree;
 mod managing_authority;
 
 pub use election_domain::*;
+pub use election_tree::*;
 pub use managing_authority::*;
 
 use std::borrow::Cow;
@@ -47,14 +49,7 @@ impl EMLElement for TransactionId {
         QualifiedName::from_static("TransactionId", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let text = elem.text_without_children()?;
-
-        Ok(TransactionId(StringValue::from_maybe_parsed_err(
-            text,
-            elem.strict_value_parsing(),
-            ("TransactionId", NS_EML),
-            Some(elem.inner_span()),
-        )?))
+        Ok(TransactionId(elem.string_value()?))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -92,14 +87,7 @@ impl EMLElement for CreationDateTime {
         QualifiedName::from_static("CreationDateTime", Some(NS_KR));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let text = elem.text_without_children()?;
-
-        Ok(CreationDateTime(StringValue::from_maybe_parsed_err(
-            text,
-            elem.strict_value_parsing(),
-            ("CreationDateTime", NS_KR),
-            Some(elem.inner_span()),
-        )?))
+        Ok(CreationDateTime(elem.string_value()?))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -135,14 +123,7 @@ impl EMLElement for IssueDate {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("IssueDate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let text = elem.text_without_children()?;
-
-        Ok(IssueDate(StringValue::from_maybe_parsed_err(
-            text,
-            elem.strict_value_parsing(),
-            IssueDate::EML_NAME,
-            Some(elem.inner_span()),
-        )?))
+        Ok(IssueDate(elem.string_value()?))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {

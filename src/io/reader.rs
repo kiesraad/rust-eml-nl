@@ -10,40 +10,102 @@ use quick_xml::{
 use crate::{
     error::{EMLError, EMLErrorKind, EMLResultExt},
     io::QualifiedName,
+    utils::{StringValue, StringValueData},
 };
 
 /// Reading EML documents from a string slice.
 pub trait EMLRead {
     /// Parse an EML document from the given string slice.
     ///
-    /// The `strict_value_parsing` parameter indicates whether strict parsing of
-    /// values (e.g. dates, numbers) should be performed. If set to false, values
-    /// that cannot be parsed will be stored as raw strings instead. If set to
-    /// true, parsing errors will result in an error being returned.
-    fn parse_eml(input: &str, strict_value_parsing: bool) -> Result<Self, EMLError>
+    /// The `parsing_mode` parameter indicates whether strict parsing of values
+    /// (e.g. dates, numbers) should be performed. If set to Strict, any parsing
+    /// error will fail immediately. If set to StrictFallback, parsing errors
+    /// will be collected and the raw string value will be used instead. If set
+    /// to Loose, no parsing will be performed and all values will be stored as
+    /// raw strings.
+    fn parse_eml(input: &str, parsing_mode: EMLParsingMode) -> EMLReadResult<Self>
     where
         Self: Sized;
 }
 
+/// The result of reading an EML document, which may include non-fatal errors.
+pub enum EMLReadResult<T> {
+    /// The document was parsed successfully, with optional non-fatal errors.
+    Ok(T, Vec<EMLError>),
+    /// The document could not be parsed due to fatal errors.
+    Err(EMLError),
+}
+
+impl<T> EMLReadResult<T> {
+    /// Returns the list of errors (fatal and non-fatal)
+    pub fn errors(&self) -> &[EMLError] {
+        match self {
+            EMLReadResult::Ok(_, errors) => errors,
+            EMLReadResult::Err(EMLError::Multiple { errors }) => errors,
+            EMLReadResult::Err(err) => std::slice::from_ref(err),
+        }
+    }
+
+    /// Converts this result into a standard Result, returning the value if
+    /// successful, or the error(s) if not.
+    pub fn ok(self) -> Result<T, EMLError> {
+        self.into()
+    }
+
+    /// Converts this result into a standard Result, returning the value and
+    /// the list of non-fatal errors if successful, or the error(s) if not.
+    pub fn ok_with_errors(self) -> Result<(T, Vec<EMLError>), EMLError> {
+        self.into()
+    }
+}
+
+impl<T> From<EMLReadResult<T>> for Result<T, EMLError> {
+    fn from(value: EMLReadResult<T>) -> Self {
+        match value {
+            EMLReadResult::Ok(doc, _) => Ok(doc),
+            EMLReadResult::Err(e) => Err(e),
+        }
+    }
+}
+
+impl<T> From<EMLReadResult<T>> for Result<(T, Vec<EMLError>), EMLError> {
+    fn from(value: EMLReadResult<T>) -> Self {
+        match value {
+            EMLReadResult::Ok(doc, errors) => Ok((doc, errors)),
+            EMLReadResult::Err(e) => Err(e),
+        }
+    }
+}
+
 impl<T> EMLRead for T
 where
-    T: EMLReadElement,
+    T: EMLReadElement + 'static,
 {
-    fn parse_eml(input: &str, strict_value_parsing: bool) -> Result<Self, EMLError>
+    fn parse_eml(input: &str, parsing_mode: EMLParsingMode) -> EMLReadResult<Self>
     where
-        Self: Sized,
+        Self: Sized + 'static,
     {
-        let mut reader = EMLReader::init_from_str(input, strict_value_parsing);
-        let mut root = reader.next_element()?;
-        T::read_eml_element(&mut root)
+        let mut reader = EMLReader::init_from_str(input, parsing_mode);
+        let res = reader.with_next_element(|r| T::read_eml_element(r));
+
+        let e = match res {
+            Ok(doc) => return EMLReadResult::Ok(doc, reader.errors),
+            Err(e) => e,
+        };
+
+        if reader.errors.is_empty() {
+            EMLReadResult::Err(e)
+        } else {
+            EMLReadResult::Err(EMLError::from_vec_with_additional(reader.errors, e))
+        }
     }
 }
 
 /// This trait should be implemented by all types that can be parsed from EML files.
 pub(crate) trait EMLReadElement {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
+    fn read_eml_element<'a, 'b>(elem: &mut EMLElementReader<'a, 'b>) -> Result<Self, EMLError>
     where
-        Self: Sized;
+        Self: Sized + 'static;
 }
 
 /// A span in the input data, represented as byte offsets.
@@ -62,25 +124,48 @@ impl Span {
     }
 }
 
+impl std::fmt::Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} until {}", self.start, self.end)
+    }
+}
+
+/// The mode to use when parsing stringly values in EML files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EMLParsingMode {
+    /// Require strict parsing of all stringly values to their respective types
+    Strict,
+
+    /// Try to parse stringly values, but fall back to raw strings on failure.
+    ///
+    /// This mode will collect errors to allow reporting them later.
+    StrictFallback,
+
+    /// Do not attempt to parse stringly values, always store raw strings.
+    Loose,
+}
+
 /// The main EML XML reader.
 ///
 /// We require all EML files to be fully loaded in memory, so this reader only
 /// works on byte slices. Furthermore, all files should be encoded in UTF-8.
 pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
-    strict_value_parsing: bool,
+    parsing_mode: EMLParsingMode,
+    errors: Vec<EMLError>,
 }
 
 impl<'a> EMLReader<'a> {
     /// Create this reader from a string slice.
-    pub fn init_from_str(data: &'a str, strict_value_parsing: bool) -> EMLReader<'a> {
-        Self::from_reader(NsReader::from_str(data), strict_value_parsing)
+    pub fn init_from_str(data: &'a str, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
+        Self::from_reader(NsReader::from_str(data), parsing_mode)
     }
 
-    pub fn from_reader(reader: NsReader<&'a [u8]>, strict_value_parsing: bool) -> EMLReader<'a> {
+    pub fn from_reader(reader: NsReader<&'a [u8]>, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
         EMLReader {
             inner: reader,
-            strict_value_parsing,
+            parsing_mode,
+            errors: Vec::new(),
         }
     }
 
@@ -107,7 +192,7 @@ impl<'a> EMLReader<'a> {
         Ok((event, span))
     }
 
-    pub fn next_element<'tmp>(&'a mut self) -> Result<EMLElementReader<'tmp, 'a>, EMLError> {
+    pub fn next_element<'tmp>(&'tmp mut self) -> Result<EMLElementReader<'tmp, 'a>, EMLError> {
         loop {
             match self.next()? {
                 (Event::Start(start), span) => {
@@ -121,6 +206,14 @@ impl<'a> EMLReader<'a> {
                 }
             }
         }
+    }
+
+    pub fn with_next_element<R>(
+        &mut self,
+        f: impl for<'d, 'e> FnOnce(&mut EMLElementReader<'d, 'e>) -> Result<R, EMLError>,
+    ) -> Result<R, EMLError> {
+        let mut root = self.next_element()?;
+        f(&mut root)
     }
 }
 
@@ -257,6 +350,21 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         Ok(attributes)
     }
 
+    /// Extracts the text content of this element. If the element is an empty
+    /// element or the element contains no text, this returns None.
+    pub fn text_without_children_opt(&mut self) -> Result<Option<String>, EMLError> {
+        if self.is_empty {
+            Ok(None)
+        } else {
+            let text = self.text_without_children()?;
+            if text.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(text))
+            }
+        }
+    }
+
     /// Extracts the text content of this element, consuming all events until
     /// the end of the element. If anything other than text is found, this will
     /// return an error (not consuming everything).
@@ -312,7 +420,6 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// Returns the full span of this element up until the current event,
     /// including the start tag. If the entire element has been consumed, this
     /// will return the full span of the element.
-    #[expect(unused)]
     pub fn full_span(&self) -> Span {
         Span::new(self.span.start, self.last_span.end)
     }
@@ -326,8 +433,108 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     }
 
     /// Returns whether strict value parsing is enabled for this reader
-    pub fn strict_value_parsing(&self) -> bool {
-        self.reader.strict_value_parsing
+    pub fn parsing_mode(&self) -> EMLParsingMode {
+        self.reader.parsing_mode
+    }
+
+    /// Pushes an error to the reader's error collection.
+    pub fn push_err(&mut self, err: EMLError) {
+        self.reader.errors.push(err);
+    }
+
+    /// Maps a parsing error to an EMLError with context about this element.
+    fn map_value_error<'a, 'b, T: StringValueData>(
+        &self,
+        parsing_error: Result<StringValue<T>, T::Error>,
+        name: QualifiedName<'a, 'b>,
+        span: Span,
+    ) -> Result<StringValue<T>, EMLError> {
+        parsing_error.map_err(|e| EMLError::invalid_value(name.as_owned(), e, Some(span)))
+    }
+
+    /// Reads a StringValue of the given type from the provided text.
+    ///
+    /// The exact parsing behavior depends on the parsing mode set in the reader.
+    pub(crate) fn string_value_from_text<'a, 'b, T: StringValueData>(
+        &mut self,
+        text: String,
+        name: Option<QualifiedName<'a, 'b>>,
+        span: Span,
+    ) -> Result<StringValue<T>, EMLError> {
+        let name = name.map_or_else(|| self.name(), Ok)?;
+        match self.parsing_mode() {
+            EMLParsingMode::Strict => {
+                self.map_value_error(StringValue::<T>::from_raw_parsed(&text), name, span)
+            }
+            EMLParsingMode::StrictFallback => {
+                match self.map_value_error(StringValue::<T>::from_raw_parsed(&text), name, span) {
+                    Ok(v) => Ok(v),
+                    Err(e) => {
+                        self.push_err(e);
+                        Ok(StringValue::<T>::Raw(text))
+                    }
+                }
+            }
+            EMLParsingMode::Loose => Ok(StringValue::Raw(text)),
+        }
+    }
+
+    /// Reads the value of this element as a StringValue of the given type.
+    ///
+    /// The exact parsing behavior depends on the parsing mode set in the reader;
+    /// only in [`EMLParsingMode::Strict`] mode will value parsing errors result in
+    /// an error being returned. In [`EMLParsingMode::StrictFallback`] mode,
+    /// value parsing errors will be stored, but the raw string value will be
+    /// returned instead. In [`EMLParsingMode::Loose`] mode, no parsing will be
+    /// performed and the raw string value will be returned.
+    pub fn string_value<T: StringValueData>(&mut self) -> Result<StringValue<T>, EMLError> {
+        let text = self.text_without_children()?;
+        self.string_value_from_text(text, None, self.inner_span())
+    }
+
+    /// Reads the value of the given attribute as a StringValue of the given type.
+    ///
+    /// If the attribute does not exist, None is returned. The exact parsing
+    /// behavior depends on the parsing mode set in the reader, as described in
+    /// [`EMLElementReader::string_value`].
+    #[expect(unused)]
+    pub fn string_value_attr_opt<'a, 'b, T: StringValueData>(
+        &mut self,
+        attr_name: impl Into<QualifiedName<'a, 'b>>,
+    ) -> Result<Option<StringValue<T>>, EMLError> {
+        let attr_name = attr_name.into();
+        match self.attribute_value(attr_name.clone())? {
+            Some(value) => Ok(Some(self.string_value_from_text(
+                value.into_owned(),
+                Some(attr_name),
+                self.span(),
+            )?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Reads the value of the given attribute as a StringValue of the given type.
+    ///
+    /// If the attribute does not exist, an error is returned, unless a default
+    /// value is provided. The exact parsing behavior depends on the parsing
+    /// mode set in the reader, as described in [`EMLElementReader::string_value`].
+    pub fn string_value_attr<'a, 'b, T: StringValueData>(
+        &mut self,
+        attr_name: impl Into<QualifiedName<'a, 'b>>,
+        default_value: Option<&str>,
+    ) -> Result<StringValue<T>, EMLError> {
+        let attr_name = attr_name.into();
+        let value = self
+            .attribute_value(attr_name.clone())?
+            .or_else(|| default_value.map(Cow::Borrowed));
+        match value {
+            Some(value) => {
+                self.string_value_from_text(value.into_owned(), Some(attr_name), self.span())
+            }
+            None => {
+                Err(EMLErrorKind::MissingAttribute(attr_name.as_owned())).with_span(self.span())
+            }
+        }
     }
 
     /// Extracts the namespace URI from a ResolveResult.
@@ -515,6 +722,7 @@ macro_rules! collect_struct {
     ( @emit [$root:expr] [$ty:ident] [$($items:tt ; )*] ) => {{
         $( collect_struct!(@decl $items); )*
 
+        let elem_name = $root.name()?.as_owned();
         while let Some(mut next_child) = $root.next_child()? {
             let name = next_child.name()?.as_owned().into_inner();
             let mut handled = false;
@@ -522,6 +730,10 @@ macro_rules! collect_struct {
             $( collect_struct!(@matcher next_child, name, handled, $items); )*
 
             if !handled {
+                next_child.push_err($crate::error::EMLError::Positioned {
+                    kind: $crate::error::EMLErrorKind::UnexpectedElement(name.as_owned(), elem_name.clone()),
+                    span: next_child.span(),
+                });
                 // Unknown element at this level
                 next_child.skip()?;
             }
@@ -600,11 +812,11 @@ mod tests {
     #[test]
     fn test_unknown_namespace() {
         let document = r#"<eml:UnknownElement />"#;
-        let mut reader = EMLReader::init_from_str(document, true);
+        let mut reader = EMLReader::init_from_str(document, EMLParsingMode::Strict);
         let root = reader.next_element().unwrap();
         let error = root.name().unwrap_err();
         assert!(matches!(
-            error.kind,
+            error.kind(),
             EMLErrorKind::UnknownNamespace(ns) if ns == "eml"
         ));
     }

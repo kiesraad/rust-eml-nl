@@ -32,12 +32,7 @@ impl EMLElement for ElectionDomain {
         crate::io::QualifiedName::from_static("ElectionDomain", Some(crate::NS_KR));
 
     fn read_eml(elem: &mut crate::io::EMLElementReader<'_, '_>) -> Result<Self, crate::EMLError> {
-        let id = StringValue::from_maybe_parsed_err(
-            elem.attribute_value_req("Id")?.into_owned(),
-            elem.strict_value_parsing(),
-            "Id",
-            Some(elem.span()),
-        )?;
+        let id = elem.string_value_attr("Id", None)?;
         let name = elem.text_without_children()?;
 
         Ok(ElectionDomain { id, name })

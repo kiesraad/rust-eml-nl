@@ -7,7 +7,7 @@ use crate::utils::StringValueData;
 
 /// Regular expression for validating ElectionDomainId values.
 static ELECTION_DOMAIN_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\d{4}|([12]?[0-9])$").expect("Failed to compile Election Domain ID regex")
+    Regex::new(r"^(\d{4}|([12]?[0-9]))$").expect("Failed to compile Election Domain ID regex")
 });
 
 /// A string of type ElectionDomainId as defined in the EML_NL specification

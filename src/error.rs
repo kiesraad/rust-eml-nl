@@ -48,8 +48,8 @@ pub enum EMLErrorKind {
     MissingAttribute(OwnedQualifiedName),
 
     /// An unexpected element was found
-    #[error("Unexpected element: {0}")]
-    UnexpectedElement(OwnedQualifiedName),
+    #[error("Unexpected element: {0} inside of {1}")]
+    UnexpectedElement(OwnedQualifiedName, OwnedQualifiedName),
 
     /// A namespace was encountered that is not recognized
     #[error("Unknown namespace: {0}")]
@@ -75,7 +75,7 @@ pub enum EMLErrorKind {
     #[error("Invalid value for {0}: {1}")]
     InvalidValue(
         OwnedQualifiedName,
-        #[source] Box<dyn std::error::Error + Send + Sync>,
+        #[source] Box<dyn std::error::Error + Send + Sync + 'static>,
     ),
 
     /// Attributes cannot have the default namespace
@@ -92,12 +92,27 @@ pub enum EMLErrorKind {
 /// The error includes the kind of error as well as an optional span indicating
 /// where in the source XML the error approximately occured.
 #[derive(thiserror::Error, Debug)]
-#[error("{kind} at span {span:?}")]
-pub struct EMLError {
-    /// The error that occured
-    pub kind: EMLErrorKind,
-    /// Location in the source XML where the error occured
-    pub span: Option<Span>,
+pub enum EMLError {
+    /// An error with position information in a document
+    #[error("Error in EML: {kind} at position {span:?}")]
+    Positioned {
+        /// The kind of error that occured
+        kind: EMLErrorKind,
+        /// The span (position) in the document where the error occured
+        span: Span,
+    },
+    /// An error without position information
+    #[error("Error in EML: {kind}")]
+    UnknownPosition {
+        /// The kind of error that occured
+        kind: EMLErrorKind,
+    },
+    /// A list of multiple errors
+    #[error("Multiple errors in EML: {errors:?}")]
+    Multiple {
+        /// The list of errors that occured
+        errors: Vec<EMLError>,
+    },
 }
 
 impl EMLError {
@@ -107,16 +122,70 @@ impl EMLError {
         source: impl std::error::Error + Send + Sync + 'static,
         span: Option<Span>,
     ) -> Self {
-        EMLError {
-            kind: EMLErrorKind::InvalidValue(field, Box::new(source)),
-            span,
+        let kind = EMLErrorKind::InvalidValue(field, Box::new(source));
+        if let Some(span) = span {
+            EMLError::Positioned { kind, span }
+        } else {
+            EMLError::UnknownPosition { kind }
         }
+    }
+
+    /// Create an EMLError from a vector of errors.
+    pub(crate) fn from_vec_with_additional(mut errors: Vec<EMLError>, error: EMLError) -> Self {
+        errors.push(error);
+        if errors.len() == 1 {
+            errors
+                .into_iter()
+                .next()
+                .expect("Vec must have one element")
+        } else {
+            EMLError::Multiple { errors }
+        }
+    }
+
+    /// Returns the kind of this error.
+    ///
+    /// When this error consists of multiple errors, None is returned.
+    ///
+    /// Note: when multiple errors are present, the kind of the last error is returned.
+    pub fn kind(&self) -> &EMLErrorKind {
+        match self {
+            EMLError::Positioned { kind, .. } => kind,
+            EMLError::UnknownPosition { kind } => kind,
+            EMLError::Multiple { errors } => errors
+                .last()
+                .map(|e| e.kind())
+                .expect("Errors vec cannot be empty"),
+        }
+    }
+
+    /// Returns the span of this error, if available.
+    ///
+    /// Note: when multiple errors are present, the span of the last error is returned.
+    pub fn span(&self) -> Option<Span> {
+        match self {
+            EMLError::Positioned { span, .. } => Some(*span),
+            EMLError::UnknownPosition { .. } => None,
+            EMLError::Multiple { errors } => errors.last().and_then(|e| e.span()),
+        }
+    }
+
+    /// Returns whether this error is considered fatal.
+    ///
+    /// Note: when multiple errors are present, this only checks the last error.
+    pub fn is_fatal(&self) -> bool {
+        !matches!(
+            self.kind(),
+            EMLErrorKind::UnexpectedElement(_, _) | EMLErrorKind::InvalidValue(_, _)
+        )
     }
 }
 
 /// Extension trait for Result to add context to EMLError
 pub(crate) trait EMLResultExt<T> {
+    /// Adds span information to the error if it occurs.
     fn with_span(self, span: Span) -> Result<T, EMLError>;
+    /// Converts the error kind to an error without span information.
     fn without_span(self) -> Result<T, EMLError>;
 }
 
@@ -125,16 +194,13 @@ where
     I: Into<EMLErrorKind>,
 {
     fn with_span(self, span: Span) -> Result<T, EMLError> {
-        self.map_err(|kind| EMLError {
+        self.map_err(|kind| EMLError::Positioned {
             kind: kind.into(),
-            span: Some(span),
+            span,
         })
     }
 
     fn without_span(self) -> Result<T, EMLError> {
-        self.map_err(|kind| EMLError {
-            kind: kind.into(),
-            span: None,
-        })
+        self.map_err(|kind| EMLError::UnknownPosition { kind: kind.into() })
     }
 }

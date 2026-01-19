@@ -7,7 +7,7 @@ use crate::utils::StringValueData;
 
 /// Regular expression for validating ContestId values.
 static CONTEST_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[1-9]\d*|geen|alle|M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$")
+    Regex::new(r"^([1-9]\d*|geen|alle|M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3}))$")
         .expect("Failed to compile Contest ID regex")
 });
 

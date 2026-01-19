@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::Infallible};
 
 use crate::{
     EMLError,
-    io::{EMLElementReader, QualifiedName, Span},
+    io::{QualifiedName, Span},
 };
 
 /// Trait for data types that can be used with [`StringValue`], defines how to parse and serialize the value.
@@ -37,57 +37,6 @@ impl<T: StringValueData> StringValue<T> {
     pub fn from_raw_parsed(s: impl AsRef<str>) -> Result<Self, T::Error> {
         let v = T::parse_from_str(s.as_ref())?;
         Ok(StringValue::Parsed(v))
-    }
-
-    /// Try to create a [`StringValue`] from the given string. If the
-    /// `strict_value_parsing` parameter is true, parsing of the string will be
-    /// attempted, otherwise the string will be stored unparsed as a raw value.
-    ///
-    /// During parsing of EML document it might be useful to use the
-    /// [`StringValue::from_maybe_parsed_err`] method instead, which returns
-    /// parsing errors as [`EMLError`]s with context provided.
-    pub fn from_maybe_parsed(s: String, strict_value_parsing: bool) -> Result<Self, T::Error> {
-        if strict_value_parsing {
-            Self::from_raw_parsed(s)
-        } else {
-            Ok(StringValue::Raw(s))
-        }
-    }
-
-    /// Try to create a [`StringValue`] from the given string. If the
-    /// `strict_value_parsing` parameter is true, parsing of the string will be
-    /// attempted, otherwise the string will be stored unparsed as a raw value.
-    ///
-    /// In case of parsing errors an [`EMLError`] is returned. The `element_name`
-    /// and `span` parameters are used to provide context in the error if parsing
-    /// fails in strict mode.
-    pub fn from_maybe_parsed_err<'a, 'b>(
-        text: String,
-        strict_value_parsing: bool,
-        element_name: impl Into<QualifiedName<'a, 'b>>,
-        span: Option<Span>,
-    ) -> Result<Self, EMLError> {
-        Self::from_maybe_parsed(text, strict_value_parsing)
-            .map_err(|e| EMLError::invalid_value(element_name.into().as_owned(), e, span))
-    }
-
-    /// Given an [`EMLElementReader`], read all text from the element and put it
-    /// in a StringValue, parsing it if strict parsing is enabled.
-    ///
-    /// In case of parsing errors an [`EMLError`] is returned. The `element_name`
-    /// parameter is used to provide context in the error if parsing fails in
-    /// strict mode.
-    pub(crate) fn from_maybe_read_parsed_err<'a, 'b>(
-        elem: &mut EMLElementReader<'a, 'b>,
-        element_name: impl Into<QualifiedName<'a, 'b>>,
-    ) -> Result<Self, EMLError> {
-        let text = elem.text_without_children()?;
-        Self::from_maybe_parsed_err(
-            text,
-            elem.strict_value_parsing(),
-            element_name,
-            Some(elem.inner_span()),
-        )
     }
 
     /// Create a [`StringValue`] from a raw string.

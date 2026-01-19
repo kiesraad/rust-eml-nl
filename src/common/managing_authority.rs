@@ -60,12 +60,7 @@ impl EMLElement for AuthorityIdentifier {
         } else {
             Some(elem.text_without_children()?)
         };
-        let id = StringValue::from_maybe_parsed_err(
-            elem.attribute_value_req("Id")?.into_owned(),
-            elem.strict_value_parsing(),
-            "Id",
-            Some(elem.span()),
-        )?;
+        let id = elem.string_value_attr("Id", None)?;
         Ok(AuthorityIdentifier { id, name })
     }
 
@@ -118,12 +113,8 @@ impl EMLElement for CreatedByAuthority {
         } else {
             Some(elem.text_without_children()?)
         };
-        let id = StringValue::from_maybe_parsed_err(
-            elem.attribute_value_req("Id")?.into_owned(),
-            elem.strict_value_parsing(),
-            "Id",
-            Some(elem.span()),
-        )?;
+
+        let id = elem.string_value_attr("Id", None)?;
         Ok(CreatedByAuthority { id, name })
     }
 
