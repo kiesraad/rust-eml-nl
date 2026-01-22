@@ -8,6 +8,7 @@ use quick_xml::{
 };
 
 use crate::{
+    MultipleEMLErrors,
     error::{EMLError, EMLErrorKind, EMLResultExt},
     io::QualifiedName,
     utils::{StringValue, StringValueData},
@@ -41,7 +42,7 @@ impl<T> EMLReadResult<T> {
     pub fn errors(&self) -> &[EMLError] {
         match self {
             EMLReadResult::Ok(_, errors) => errors,
-            EMLReadResult::Err(EMLError::Multiple { errors }) => errors,
+            EMLReadResult::Err(EMLError::Multiple(MultipleEMLErrors { errors })) => errors,
             EMLReadResult::Err(err) => std::slice::from_ref(err),
         }
     }
@@ -702,6 +703,17 @@ macro_rules! collect_struct {
         ] $($tail)*)
     };
 
+        // accumulate, for a vector row
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
+        $field:ident as Vec: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $($tail:tt)*
+    ) => {
+        collect_struct!(@expand [$root] [$ty] [
+            $($items ; )*
+            (@vec [$field] [$namespaced_name] [$var] [$map]) ;
+        ] $($tail)*)
+    };
+
     // accumulate for a direct row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
         $field:ident: $value:expr ,
@@ -725,6 +737,7 @@ macro_rules! collect_struct {
         let elem_name = $root.name()?.as_owned();
         while let Some(mut next_child) = $root.next_child()? {
             let name = next_child.name()?.as_owned().into_inner();
+            #[allow(unused_mut)]
             let mut handled = false;
 
             $( collect_struct!(@matcher next_child, name, handled, $items); )*
@@ -750,6 +763,9 @@ macro_rules! collect_struct {
     (@decl (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
         let mut $field: Option<_> = None;
     };
+    (@decl (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        let mut $field: Vec<_> = Vec::new();
+    };
 
     // Emit match arms for each field
     (@matcher $next_child:ident, $name:ident, $handled:ident, (@direct [$field:ident] [$value:expr])) => {};
@@ -762,6 +778,16 @@ macro_rules! collect_struct {
         {
             let $var = &mut $next_child;
             $field = Some($map);
+            $var.skip()?;
+            $handled = true;
+        }
+    };
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+        if !$handled &&
+            &$name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref()
+        {
+            let $var = &mut $next_child;
+            $field.push($map);
             $var.skip()?;
             $handled = true;
         }
@@ -781,6 +807,12 @@ macro_rules! collect_struct {
         ], $($tail)*)
     };
     (@assign $root:expr, $ty:ident, [$($out:tt)*], (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: $field,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
         collect_struct!(@assign $root, $ty, [
             $($out)*
             $field: $field,

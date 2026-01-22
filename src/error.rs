@@ -108,11 +108,26 @@ pub enum EMLError {
         kind: EMLErrorKind,
     },
     /// A list of multiple errors
-    #[error("Multiple errors in EML: {errors:?}")]
-    Multiple {
-        /// The list of errors that occured
-        errors: Vec<EMLError>,
-    },
+    #[error("Multiple errors in EML: {0}")]
+    Multiple(MultipleEMLErrors),
+}
+
+/// An error containing multiple EMLErrors
+#[derive(Debug)]
+pub struct MultipleEMLErrors {
+    /// The list of errors
+    pub errors: Vec<EMLError>,
+}
+
+impl std::fmt::Display for MultipleEMLErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "{} non-fatal error(s) and then: {}",
+            self.errors.len() - 1,
+            self.errors.last().unwrap()
+        )
+    }
 }
 
 impl EMLError {
@@ -139,7 +154,7 @@ impl EMLError {
                 .next()
                 .expect("Vec must have one element")
         } else {
-            EMLError::Multiple { errors }
+            EMLError::Multiple(MultipleEMLErrors { errors })
         }
     }
 
@@ -152,7 +167,7 @@ impl EMLError {
         match self {
             EMLError::Positioned { kind, .. } => kind,
             EMLError::UnknownPosition { kind } => kind,
-            EMLError::Multiple { errors } => errors
+            EMLError::Multiple(MultipleEMLErrors { errors }) => errors
                 .last()
                 .map(|e| e.kind())
                 .expect("Errors vec cannot be empty"),
@@ -166,7 +181,9 @@ impl EMLError {
         match self {
             EMLError::Positioned { span, .. } => Some(*span),
             EMLError::UnknownPosition { .. } => None,
-            EMLError::Multiple { errors } => errors.last().and_then(|e| e.span()),
+            EMLError::Multiple(MultipleEMLErrors { errors }) => {
+                errors.last().and_then(|e| e.span())
+            }
         }
     }
 

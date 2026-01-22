@@ -53,8 +53,9 @@ pub(crate) const NS_XAL: &str = "urn:oasis:names:tc:ciq:xsdschema:xAL:2.0";
 /// Namespace URI for the eXtensible Name Language (xNL)
 pub(crate) const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
 
-// /// Namespace URI for XML Digital Signatures
-// pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
+/// Namespace URI for XML Digital Signatures
+pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
+
 // /// Namespace URI for XML Schema
 // pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
 // /// Namespace URI for XML

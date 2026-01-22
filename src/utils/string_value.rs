@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::Infallible};
+use std::{borrow::Cow, convert::Infallible, num::NonZeroU64};
 
 use crate::{
     EMLError,
@@ -109,5 +109,20 @@ impl StringValueData for u64 {
 
     fn to_raw_value(&self) -> String {
         self.to_string()
+    }
+}
+
+impl StringValueData for NonZeroU64 {
+    type Error = std::num::ParseIntError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        s.parse()
+    }
+
+    fn to_raw_value(&self) -> String {
+        self.get().to_string()
     }
 }

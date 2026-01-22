@@ -1,16 +1,18 @@
 //! Document variant for the EML_NL Election Definition (`110a`) document.
 
+use std::num::NonZeroU64;
+
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
     common::{
-        CreationDateTime, ElectionDomain, ElectionTree, IssueDate, ManagingAuthority, TransactionId,
+        CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
+        IssueDate, ManagingAuthority, TransactionId,
     },
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
     utils::{
-        ContestIdType, ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue,
-        VotingMethod, XsDate,
+        ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue, VotingMethod, XsDate,
     },
 };
 
@@ -21,6 +23,8 @@ pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 pub struct ElectionDefinition {
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
+    /// Canonicalization method used in this document, if present.
+    pub canonicalization_method: Option<CanonicalizationMethod>,
     /// Time this document was created.
     pub creation_date_time: CreationDateTime,
     /// Issue date of the election definition, if present.
@@ -48,6 +52,7 @@ impl EMLElement for ElectionDefinition {
 
         Ok(collect_struct!(elem, ElectionDefinition {
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
             creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
             issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
             managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
@@ -60,6 +65,11 @@ impl EMLElement for ElectionDefinition {
             .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
             .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
+            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
+            // .child_elem_option(
+            //     CanonicalizationMethod::EML_NAME,
+            //     self.canonicalization_method.as_ref(),
+            // )?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
             .child_elem_option(
@@ -127,6 +137,14 @@ impl EMLElement for ElectionDefinitionElectionEventIdentifier {
     }
 }
 
+/// Name for the number of seats element
+const EML_NAME_NUMBER_OF_SEATS: QualifiedName<'_, '_> =
+    QualifiedName::from_static("NumberOfSeats", Some(NS_KR));
+
+/// Name for the preference threshold element
+const EML_NAME_PREFERENCE_THRESHOLD: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreferenceThreshold", Some(NS_KR));
+
 /// Election details for an election definition.
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionElection {
@@ -151,8 +169,8 @@ impl EMLElement for ElectionDefinitionElection {
         Ok(collect_struct!(elem, ElectionDefinitionElection {
             identifier: ElectionDefinitionElectionIdentifier::EML_NAME => |elem| ElectionDefinitionElectionIdentifier::read_eml(elem)?,
             contest: ElectionDefinitionContest::EML_NAME => |elem| ElectionDefinitionContest::read_eml(elem)?,
-            number_of_seats: ("NumberOfSeats", NS_KR) => |elem| elem.string_value()?,
-            preference_threshold: ("PreferenceThreshold", NS_KR) => |elem| elem.string_value()?,
+            number_of_seats: EML_NAME_NUMBER_OF_SEATS => |elem| elem.string_value()?,
+            preference_threshold: EML_NAME_PREFERENCE_THRESHOLD => |elem| elem.string_value()?,
             election_tree: ElectionTree::EML_NAME => |elem| ElectionTree::read_eml(elem)?,
             registered_parties: ("RegisteredParties", NS_KR) => |elem| ElectionDefinitionRegisteredParty::read_list(elem)?,
         }))
@@ -166,10 +184,10 @@ impl EMLElement for ElectionDefinitionElection {
             )?
             .child_elem(ElectionDefinitionContest::EML_NAME, &self.contest)?
             .child_elem(ElectionTree::EML_NAME, &self.election_tree)?
-            .child(("NumberOfSeats", NS_KR), |elem| {
+            .child(EML_NAME_NUMBER_OF_SEATS, |elem| {
                 elem.text(self.number_of_seats.raw().as_ref())?.finish()
             })?
-            .child(("PreferenceThreshold", NS_KR), |elem| {
+            .child(EML_NAME_PREFERENCE_THRESHOLD, |elem| {
                 elem.text(self.preference_threshold.raw().as_ref())?
                     .finish()
             })?
@@ -249,7 +267,7 @@ pub struct ElectionDefinitionContest {
     /// Voting method used in the contest.
     pub voting_method: StringValue<VotingMethod>,
     /// Maximum number of votes allowed.
-    pub max_votes: StringValue<u64>,
+    pub max_votes: StringValue<NonZeroU64>,
 }
 
 impl EMLElement for ElectionDefinitionContest {
@@ -281,27 +299,6 @@ impl EMLElement for ElectionDefinitionContest {
                 }
             })?
             .finish()
-    }
-}
-
-/// Identifier for the contest.
-#[derive(Debug, Clone)]
-pub struct ContestIdentifier {
-    /// Id of the contest.
-    pub id: StringValue<ContestIdType>,
-}
-
-impl EMLElement for ContestIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifier { id })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Id", self.id.raw().as_ref())?.empty()
     }
 }
 

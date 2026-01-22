@@ -72,6 +72,55 @@ impl StringValueData for ContestIdType {
     }
 }
 
+/// A ContestIdType representing a fixed "geen" value
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContestIdTypeGeen;
+
+impl ContestIdTypeGeen {
+    /// The fixed string value for 'geen'
+    pub const GEEN: &str = "geen";
+
+    /// Create a new `ContestIdTypeGeen`
+    pub fn new() -> Self {
+        ContestIdTypeGeen
+    }
+
+    /// Convert to a regular [`ContestIdType`]
+    pub fn to_contest_id_type(&self) -> ContestIdType {
+        ContestIdType::geen()
+    }
+}
+
+impl Default for ContestIdTypeGeen {
+    fn default() -> Self {
+        ContestIdTypeGeen::new()
+    }
+}
+
+/// Error returned when a string could not be parsed as a ContestId
+#[derive(Debug, Clone, Error)]
+#[error("Invalid ContestId, expected 'geen': {0}")]
+pub struct InvalidContestIdGeenError(String);
+
+impl StringValueData for ContestIdTypeGeen {
+    type Error = InvalidContestIdGeenError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        if s == Self::GEEN {
+            Ok(ContestIdTypeGeen)
+        } else {
+            Err(InvalidContestIdGeenError(s.to_string()))
+        }
+    }
+
+    fn to_raw_value(&self) -> String {
+        Self::GEEN.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

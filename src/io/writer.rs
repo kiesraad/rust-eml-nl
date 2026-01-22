@@ -149,17 +149,6 @@ impl<'a> EMLElementWriter<'a> {
         })
     }
 
-    #[expect(unused)]
-    pub fn child_if<'b, 'c>(
-        self,
-        name: impl Into<QualifiedName<'b, 'c>>,
-        condition: bool,
-        child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
-    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
-        self.content()?.child_if(name, condition, child_writer)
-    }
-
-    #[expect(unused)]
     pub fn child_option<'b, 'c, T>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
@@ -198,10 +187,6 @@ impl<'a> EMLElementWriter<'a> {
         self.content()?.text(text)
     }
 
-    pub fn finish(self) -> Result<(), EMLError> {
-        self.content()?.finish()
-    }
-
     pub fn empty(self) -> Result<(), EMLError> {
         self.writer
             .writer
@@ -226,19 +211,6 @@ impl<'a> EMLElementContentWriter<'a> {
         let elem_writer = EMLElementWriter::new(self.writer, &name)?;
         child_writer(elem_writer)?;
         Ok(self)
-    }
-
-    pub fn child_if<'b, 'c>(
-        self,
-        name: impl Into<QualifiedName<'b, 'c>>,
-        condition: bool,
-        child_writer: impl FnOnce(EMLElementWriter) -> Result<(), EMLError>,
-    ) -> Result<Self, EMLError> {
-        if condition {
-            self.child(name, child_writer)
-        } else {
-            Ok(self)
-        }
     }
 
     pub fn child_option<'b, 'c, T>(

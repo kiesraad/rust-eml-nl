@@ -89,8 +89,7 @@ impl EMLElement for AuthorityAddress {
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.finish()?;
-        Ok(())
+        writer.empty()
     }
 }
 

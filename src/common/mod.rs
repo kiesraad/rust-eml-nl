@@ -1,12 +1,22 @@
 //! Element definitions common to multiple EML_NL document variants.
 
+mod canonicalization_method;
+mod contest_identifier;
 mod election_domain;
 mod election_tree;
+mod locality_name;
 mod managing_authority;
+mod postal_code;
+mod reporting_unit_identifier;
 
+pub use canonicalization_method::*;
+pub use contest_identifier::*;
 pub use election_domain::*;
 pub use election_tree::*;
+pub use locality_name::*;
 pub use managing_authority::*;
+pub use postal_code::*;
+pub use reporting_unit_identifier::*;
 
 use std::borrow::Cow;
 
