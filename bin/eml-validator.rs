@@ -59,45 +59,43 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("Failed to read EML file from stdin")?;
         handle_file(&data, parsing_mode, args.print, args.debug).await?;
-    } else {
-        if args.path.is_dir() {
-            info!("EML path is a directory, processing all .eml.xml files inside recursively");
-            let eml_files = collect_eml_files(&args.path).await?;
-            info!("Found {} EML files to process", eml_files.len());
-            let mut results = vec![];
-            for eml_file in eml_files {
-                info!("Processing EML file {:?}", eml_file);
-                results.push(process_file_and_log_errors(&eml_file).await);
-            }
-            info!("Finished processing all EML files");
-            info!(
-                "Found {} files that parsed successfully without warnings",
-                results
-                    .iter()
-                    .filter(|r| matches!(r, ProcessResult::Success))
-                    .count()
-            );
-            info!(
-                "Found {} files that parsed with warnings",
-                results
-                    .iter()
-                    .filter(|r| matches!(r, ProcessResult::WithWarnings(_)))
-                    .count()
-            );
-            info!(
-                "Found {} files that failed to parse",
-                results
-                    .iter()
-                    .filter(|r| matches!(r, ProcessResult::Error))
-                    .count()
-            );
-        } else {
-            info!("Reading EML file as UTF-8 from {:?}", args.path);
-            let content = tokio::fs::read_to_string(&args.path)
-                .await
-                .context("Failed to read EML file")?;
-            handle_file(&content, parsing_mode, args.print, args.debug).await?;
+    } else if args.path.is_dir() {
+        info!("EML path is a directory, processing all .eml.xml files inside recursively");
+        let eml_files = collect_eml_files(&args.path).await?;
+        info!("Found {} EML files to process", eml_files.len());
+        let mut results = vec![];
+        for eml_file in eml_files {
+            info!("Processing EML file {:?}", eml_file);
+            results.push(process_file_and_log_errors(&eml_file).await);
         }
+        info!("Finished processing all EML files");
+        info!(
+            "Found {} files that parsed successfully without warnings",
+            results
+                .iter()
+                .filter(|r| matches!(r, ProcessResult::Success))
+                .count()
+        );
+        info!(
+            "Found {} files that parsed with warnings",
+            results
+                .iter()
+                .filter(|r| matches!(r, ProcessResult::WithWarnings))
+                .count()
+        );
+        info!(
+            "Found {} files that failed to parse",
+            results
+                .iter()
+                .filter(|r| matches!(r, ProcessResult::Error))
+                .count()
+        );
+    } else {
+        info!("Reading EML file as UTF-8 from {:?}", args.path);
+        let content = tokio::fs::read_to_string(&args.path)
+            .await
+            .context("Failed to read EML file")?;
+        handle_file(&content, parsing_mode, args.print, args.debug).await?;
     }
 
     Ok(())
@@ -105,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
 
 enum ProcessResult {
     Success,
-    WithWarnings(usize),
+    WithWarnings,
     Error,
 }
 
@@ -118,7 +116,7 @@ async fn process_file_and_log_errors(file: impl AsRef<Path>) -> ProcessResult {
                     if warnings == 0 {
                         ProcessResult::Success
                     } else {
-                        ProcessResult::WithWarnings(warnings)
+                        ProcessResult::WithWarnings
                     }
                 }
                 Err(e) => {
@@ -149,10 +147,10 @@ async fn collect_eml_files(dir: impl AsRef<Path>) -> anyhow::Result<Vec<PathBuf>
         if path.is_dir() {
             let mut nested_files = Box::pin(collect_eml_files(&path)).await?;
             eml_files.append(&mut nested_files);
-        } else if let Some(filename) = path.file_name() {
-            if filename.to_string_lossy().ends_with(".eml.xml") {
-                eml_files.push(path);
-            }
+        } else if let Some(filename) = path.file_name()
+            && filename.to_string_lossy().ends_with(".eml.xml")
+        {
+            eml_files.push(path);
         }
     }
     Ok(eml_files)
@@ -183,7 +181,7 @@ async fn handle_file(
     );
 
     info!("Parsing EML file");
-    let (doc, errors) = EML::parse_eml(&file_content, parsing_mode)
+    let (doc, errors) = EML::parse_eml(file_content, parsing_mode)
         .ok_with_errors()
         .context("Failed to parse EML file")?;
 
