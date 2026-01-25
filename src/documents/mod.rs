@@ -3,14 +3,14 @@
 use crate::{
     EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
     documents::{
-        candidate_list::{CandidateList, EML_CANDIDATE_LIST_ID},
+        candidate_lists::{CandidateLists, EML_CANDIDATE_LISTS_ID},
         election_definition::{EML_ELECTION_DEFINITION_ID, ElectionDefinition},
         polling_stations::{EML_POLLING_STATIONS_ID, PollingStations},
     },
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
 };
 
-pub mod candidate_list;
+pub mod candidate_lists;
 pub mod election_definition;
 pub mod polling_stations;
 
@@ -25,7 +25,7 @@ pub enum EML {
     /// Representing a `110b` document, containing polling stations.
     PollingStations(Box<PollingStations>),
     /// Representing a `230b` document, containing a candidate list.
-    CandidateList(Box<CandidateList>),
+    CandidateLists(Box<CandidateLists>),
 }
 
 impl EML {
@@ -34,7 +34,7 @@ impl EML {
         match self {
             EML::ElectionDefinition(_) => EML_ELECTION_DEFINITION_ID,
             EML::PollingStations(_) => EML_POLLING_STATIONS_ID,
-            EML::CandidateList(_) => EML_CANDIDATE_LIST_ID,
+            EML::CandidateLists(_) => EML_CANDIDATE_LISTS_ID,
         }
     }
 
@@ -43,7 +43,7 @@ impl EML {
         match self {
             EML::ElectionDefinition(_) => "Election Definition",
             EML::PollingStations(_) => "Polling Stations",
-            EML::CandidateList(_) => "Candidate List",
+            EML::CandidateLists(_) => "Candidate List",
         }
     }
 
@@ -83,20 +83,20 @@ impl EML {
         }
     }
 
-    /// Create a generic EML document from a Candidate List (`230b`) document.
-    pub fn from_candidate_list_doc(cl: CandidateList) -> Self {
-        EML::CandidateList(Box::new(cl))
+    /// Create a generic EML document from a Candidate Lists (`230b`) document.
+    pub fn from_candidate_lists_doc(cl: CandidateLists) -> Self {
+        EML::CandidateLists(Box::new(cl))
     }
 
-    /// Check if this EML document is a Candidate List (`230b`) document.
-    pub fn is_candidate_list_doc(&self) -> bool {
-        matches!(self, EML::CandidateList(_))
+    /// Check if this EML document is a Candidate Lists (`230b`) document.
+    pub fn is_candidate_lists_doc(&self) -> bool {
+        matches!(self, EML::CandidateLists(_))
     }
 
-    /// Get a reference to this EML document as a Candidate List (`230b`) document, if possible.
-    pub fn as_candidate_list_doc(&self) -> Option<&CandidateList> {
+    /// Get a reference to this EML document as a Candidate Lists (`230b`) document, if possible.
+    pub fn as_candidate_lists_doc(&self) -> Option<&CandidateLists> {
         match self {
-            EML::CandidateList(cl) => Some(cl),
+            EML::CandidateLists(cl) => Some(cl),
             _ => None,
         }
     }
@@ -116,7 +116,9 @@ impl EMLElement for EML {
             EML_POLLING_STATIONS_ID => {
                 EML::PollingStations(Box::new(PollingStations::read_eml(elem)?))
             }
-            EML_CANDIDATE_LIST_ID => EML::CandidateList(Box::new(CandidateList::read_eml(elem)?)),
+            EML_CANDIDATE_LISTS_ID => {
+                EML::CandidateLists(Box::new(CandidateLists::read_eml(elem)?))
+            }
             _ => {
                 return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
                     .with_span(elem.span());
@@ -128,7 +130,7 @@ impl EMLElement for EML {
         match self {
             EML::ElectionDefinition(ed) => ed.write_eml(writer),
             EML::PollingStations(ps) => ps.write_eml(writer),
-            EML::CandidateList(cl) => cl.write_eml(writer),
+            EML::CandidateLists(cl) => cl.write_eml(writer),
         }
     }
 }
@@ -161,7 +163,7 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert!(matches!(eml, EML::CandidateList(_)));
+        assert!(matches!(eml, EML::CandidateLists(_)));
 
         let doc = include_str!("../../test-emls/election_definition/eml110a_test.eml.xml");
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)

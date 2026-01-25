@@ -23,14 +23,19 @@ pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 pub struct ElectionDefinition {
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
-    /// Canonicalization method used in this document, if present.
-    pub canonicalization_method: Option<CanonicalizationMethod>,
-    /// Time this document was created.
-    pub creation_date_time: CreationDateTime,
-    /// Issue date of the election definition, if present.
-    pub issue_date: Option<IssueDate>,
+
     /// Managing authority of the election, if present.
     pub managing_authority: Option<ManagingAuthority>,
+
+    /// Issue date of the election definition, if present.
+    pub issue_date: Option<IssueDate>,
+
+    /// Time this document was created.
+    pub creation_date_time: CreationDateTime,
+
+    /// Canonicalization method used in this document, if present.
+    pub canonicalization_method: Option<CanonicalizationMethod>,
+
     /// The election event defined in this document.
     pub election_event: ElectionDefinitionElectionEvent,
 }
@@ -52,10 +57,10 @@ impl EMLElement for ElectionDefinition {
 
         Ok(collect_struct!(elem, ElectionDefinition {
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
             managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
+            issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
             election_event: ElectionDefinitionElectionEvent::EML_NAME => |elem| ElectionDefinitionElectionEvent::read_eml(elem)?,
         }))
     }
@@ -65,17 +70,17 @@ impl EMLElement for ElectionDefinition {
             .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
             .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
+            .child_elem_option(
+                ManagingAuthority::EML_NAME,
+                self.managing_authority.as_ref(),
+            )?
+            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
+            .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
             // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
             // .child_elem_option(
             //     CanonicalizationMethod::EML_NAME,
             //     self.canonicalization_method.as_ref(),
             // )?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
-            .child_elem_option(
-                ManagingAuthority::EML_NAME,
-                self.managing_authority.as_ref(),
-            )?
             .child_elem(
                 ElectionDefinitionElectionEvent::EML_NAME,
                 &self.election_event,
