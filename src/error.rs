@@ -85,6 +85,27 @@ pub enum EMLErrorKind {
     /// Elements cannot be in no namespace when a default namespace is defined
     #[error("Elements cannot be in no namespace when a default namespace is defined")]
     ElementNamespaceError,
+
+    /// The ContestIdentifier element is missing
+    #[error("Missing the ContestIdentifier element")]
+    MissingContenstIdentifier,
+
+    /// The ElectionDate element is used without using the kiesraad namespace
+    #[error("Used ElectionDate element without using the kiesraad namespace")]
+    InvalidElectionDateNamespace,
+}
+
+impl EMLErrorKind {
+    /// Adds span information to the error.
+    pub(crate) fn add_span(self, span: Span) -> EMLError {
+        EMLError::Positioned { kind: self, span }
+    }
+
+    /// Converts the error kind to an error without span information.
+    #[expect(unused)]
+    pub(crate) fn without_span(self) -> EMLError {
+        EMLError::UnknownPosition { kind: self }
+    }
 }
 
 /// An error encountered during EML_NL processing.

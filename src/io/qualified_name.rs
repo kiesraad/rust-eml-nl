@@ -110,6 +110,21 @@ impl OwnedQualifiedName {
         ))
     }
 
+    /// Create a new qualified name from static string slices, usable in const contexts.
+    pub const fn from_static(local_name: &'static str, namespace: Option<&'static str>) -> Self {
+        if let Some(namespace) = namespace {
+            OwnedQualifiedName(QualifiedName {
+                local_name: Cow::Borrowed(local_name),
+                namespace: Some(Cow::Borrowed(namespace)),
+            })
+        } else {
+            OwnedQualifiedName(QualifiedName {
+                local_name: Cow::Borrowed(local_name),
+                namespace: None,
+            })
+        }
+    }
+
     /// Consume this owned qualified name and return the inner qualified name.
     ///
     /// The inner qualified name will own its data.

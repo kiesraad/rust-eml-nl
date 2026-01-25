@@ -66,7 +66,9 @@ async fn main() -> anyhow::Result<()> {
         let mut results = vec![];
         for eml_file in eml_files {
             info!("Processing EML file {:?}", eml_file);
-            results.push(process_file_and_log_errors(&eml_file).await);
+            results.push(
+                process_file_and_log_errors(&eml_file, parsing_mode, args.print, args.debug).await,
+            );
         }
         info!("Finished processing all EML files");
         info!(
@@ -107,24 +109,27 @@ enum ProcessResult {
     Error,
 }
 
-async fn process_file_and_log_errors(file: impl AsRef<Path>) -> ProcessResult {
+async fn process_file_and_log_errors(
+    file: impl AsRef<Path>,
+    parsing_mode: EMLParsingMode,
+    print: bool,
+    debug: bool,
+) -> ProcessResult {
     let path = file.as_ref();
     match tokio::fs::read_to_string(path).await {
-        Ok(content) => {
-            match handle_file(&content, EMLParsingMode::StrictFallback, false, false).await {
-                Ok(warnings) => {
-                    if warnings == 0 {
-                        ProcessResult::Success
-                    } else {
-                        ProcessResult::WithWarnings
-                    }
-                }
-                Err(e) => {
-                    warn!("Error processing file {:?}: {:?}", path, e);
-                    ProcessResult::Error
+        Ok(content) => match handle_file(&content, parsing_mode, print, debug).await {
+            Ok(warnings) => {
+                if warnings == 0 {
+                    ProcessResult::Success
+                } else {
+                    ProcessResult::WithWarnings
                 }
             }
-        }
+            Err(e) => {
+                warn!("Error processing file {:?}: {:?}", path, e);
+                ProcessResult::Error
+            }
+        },
         Err(e) => {
             warn!("Error reading file {:?}: {:?}", path, e);
             ProcessResult::Error

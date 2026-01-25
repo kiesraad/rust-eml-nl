@@ -146,6 +146,13 @@ pub enum EMLParsingMode {
     Loose,
 }
 
+impl EMLParsingMode {
+    /// Returns whether the parsing mode is `Strict`.
+    pub fn is_strict(&self) -> bool {
+        matches!(self, EMLParsingMode::Strict)
+    }
+}
+
 /// The main EML XML reader.
 ///
 /// We require all EML files to be fully loaded in memory, so this reader only

@@ -32,6 +32,21 @@ pub struct ContestIdentifierGeen {
     pub id: StringValue<ContestIdTypeGeen>,
 }
 
+impl ContestIdentifierGeen {
+    /// Create a new `ContestIdentifierGeen`.
+    pub fn new() -> Self {
+        ContestIdentifierGeen {
+            id: StringValue::Parsed(ContestIdTypeGeen::new()),
+        }
+    }
+}
+
+impl Default for ContestIdentifierGeen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EMLElement for ContestIdentifierGeen {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ContestIdentifier", Some(NS_EML));

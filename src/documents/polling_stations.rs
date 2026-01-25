@@ -11,7 +11,10 @@ use crate::{
     },
     documents::accepted_root,
     error::{EMLErrorKind, EMLResultExt},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{
+        EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName, QualifiedName,
+        collect_struct,
+    },
     utils::{
         ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue, VotingChannelType,
         VotingMethod, XsDate,
@@ -196,6 +199,16 @@ pub struct PollingStationsElectionIdentifier {
     pub election_date: StringValue<XsDate>,
 }
 
+struct PollingStationsElectionIdentifierInternal {
+    id: StringValue<ElectionIdType>,
+    name: Option<String>,
+    category: StringValue<ElectionCategory>,
+    subcategory: Option<StringValue<ElectionSubcategory>>,
+    domain: Option<ElectionDomain>,
+    election_date: Option<StringValue<XsDate>>,
+    election_date_eml: Option<StringValue<XsDate>>,
+}
+
 impl EMLElement for PollingStationsElectionIdentifier {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
@@ -204,17 +217,49 @@ impl EMLElement for PollingStationsElectionIdentifier {
     where
         Self: Sized,
     {
-        Ok(collect_struct!(
+        let data = collect_struct!(
             elem,
-            PollingStationsElectionIdentifier {
+            PollingStationsElectionIdentifierInternal {
                 id: elem.string_value_attr("Id", None)?,
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
-                election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
+                election_date as Option: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
+                election_date_eml as Option: ("ElectionDate", NS_EML) => |elem| {
+                    if elem.parsing_mode().is_strict() {
+                        let err = EMLErrorKind::InvalidElectionDateNamespace.add_span(elem.span());
+                        return Err(err);
+                    } else {
+                        elem.push_err(EMLErrorKind::InvalidElectionDateNamespace.add_span(elem.span()));
+                    }
+                    elem.string_value()?
+                },
             }
-        ))
+        );
+
+        let election_date = match (data.election_date, data.election_date_eml) {
+            (Some(date), _) => date,
+            (None, Some(date)) => date,
+            (None, None) => {
+                return Err(
+                    EMLErrorKind::MissingElement(OwnedQualifiedName::from_static(
+                        "ElectionDate",
+                        Some(NS_KR),
+                    ))
+                    .add_span(elem.full_span()),
+                );
+            }
+        };
+
+        Ok(PollingStationsElectionIdentifier {
+            id: data.id,
+            name: data.name,
+            category: data.category,
+            subcategory: data.subcategory,
+            domain: data.domain,
+            election_date,
+        })
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -256,12 +301,20 @@ pub struct PollingStationsContest {
     pub polling_places: Vec<PollingPlace>,
 }
 
+struct PollingStationsContestInternal {
+    pub identifier: Option<ContestIdentifierGeen>,
+    pub reporting_unit: PollingStationsReportingUnit,
+    pub voting_method: StringValue<VotingMethod>,
+    pub max_votes: StringValue<NonZeroU64>,
+    pub polling_places: Vec<PollingPlace>,
+}
+
 impl EMLElement for PollingStationsContest {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, PollingStationsContest {
-            identifier: ContestIdentifierGeen::EML_NAME => |elem| ContestIdentifierGeen::read_eml(elem)?,
+        let data = collect_struct!(elem, PollingStationsContestInternal {
+            identifier as Option: ContestIdentifierGeen::EML_NAME => |elem| ContestIdentifierGeen::read_eml(elem)?,
             reporting_unit: PollingStationsReportingUnit::EML_NAME => |elem| PollingStationsReportingUnit::read_eml(elem)?,
             voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
@@ -269,7 +322,28 @@ impl EMLElement for PollingStationsContest {
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
             polling_places as Vec: PollingPlace::EML_NAME => |elem| PollingPlace::read_eml(elem)?,
-        }))
+        });
+
+        // Some municipalities omit the ContestIdentifier element, even though it is required.
+        let identifier = if let Some(identifier) = data.identifier {
+            identifier
+        } else {
+            let err = EMLErrorKind::MissingContenstIdentifier.add_span(elem.span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+                ContestIdentifierGeen::default()
+            }
+        };
+
+        Ok(PollingStationsContest {
+            identifier,
+            reporting_unit: data.reporting_unit,
+            voting_method: data.voting_method,
+            max_votes: data.max_votes,
+            polling_places: data.polling_places,
+        })
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
