@@ -310,7 +310,7 @@ impl EMLElement for ElectionDefinitionContest {
 /// A registered party in the election definition.
 ///
 /// In election definitions this is just a party name, for full party details and
-/// candidates see the [`CandidateList`](crate::documents::candidate_list::CandidateList)
+/// candidates see the [`CandidateLists`](crate::documents::candidate_lists::CandidateLists)
 /// document.
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionRegisteredParty {
