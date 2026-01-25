@@ -1,6 +1,9 @@
 //! Document variant for the EML_NL Polling Stations (`110b`) document.
 
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, sync::LazyLock};
+
+use regex::Regex;
+use thiserror::Error;
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
@@ -16,8 +19,8 @@ use crate::{
         collect_struct,
     },
     utils::{
-        ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue, VotingChannelType,
-        VotingMethod, XsDate,
+        ElectionCategory, ElectionIdType, ElectionSubcategory, StringValue, StringValueData,
+        VotingChannelType, VotingMethod, XsDate,
     },
 };
 
@@ -503,20 +506,74 @@ impl EMLElement for PhysicalLocationLocality {
 
 /// Polling station information of a physical location.
 #[derive(Debug, Clone)]
-pub struct PhysicalLocationPollingStation {}
+pub struct PhysicalLocationPollingStation {
+    /// Identifier of the polling station.
+    pub id: StringValue<PhysicalLocationPollingStationId>,
+    /// Additional data of the polling station.
+    pub data: String,
+}
 
 impl EMLElement for PhysicalLocationPollingStation {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("PollingStation", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO
-        elem.skip()?;
-        Ok(PhysicalLocationPollingStation {})
+        Ok(collect_struct!(
+            elem,
+            PhysicalLocationPollingStation {
+                id: elem.string_value_attr("Id", None)?,
+                data: elem.text_without_children()?,
+            }
+        ))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        // TODO
-        writer.empty()
+        writer
+            .attr("Id", self.id.raw().as_ref())?
+            .text(self.data.as_ref())?
+            .finish()
+    }
+}
+
+/// Identifier for a physical location polling station.
+#[derive(Debug, Clone)]
+pub struct PhysicalLocationPollingStationId(String);
+
+/// Error returned when a string could not be parsed as a PhysicalLocationPollingStationId
+#[derive(Debug, Clone, Error)]
+#[error("Invalid polling stations id: {0}")]
+pub struct PhysicalLocationPollingStationIdError(String);
+
+/// Regular expression for validating ContestId values.
+static PHYSICAL_LOCATION_PS_ID: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(\d+)$").expect("Failed to compile Physical Location Polling Station ID regex")
+});
+
+impl StringValueData for PhysicalLocationPollingStationId {
+    type Error = PhysicalLocationPollingStationIdError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        if PHYSICAL_LOCATION_PS_ID.is_match(s) {
+            Ok(PhysicalLocationPollingStationId(s.to_string()))
+        } else {
+            Err(PhysicalLocationPollingStationIdError(s.to_string()))
+        }
+    }
+
+    fn to_raw_value(&self) -> String {
+        self.0.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_physical_location_ps_id_regex_compiles() {
+        LazyLock::force(&PHYSICAL_LOCATION_PS_ID);
     }
 }
