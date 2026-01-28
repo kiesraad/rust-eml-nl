@@ -505,7 +505,6 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// If the attribute does not exist, None is returned. The exact parsing
     /// behavior depends on the parsing mode set in the reader, as described in
     /// [`EMLElementReader::string_value`].
-    #[expect(unused)]
     pub fn string_value_attr_opt<'a, 'b, T: StringValueData>(
         &mut self,
         attr_name: impl Into<QualifiedName<'a, 'b>>,

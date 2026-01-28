@@ -1,5 +1,7 @@
 use std::{borrow::Cow, convert::Infallible, num::NonZeroU64};
 
+use thiserror::Error;
+
 use crate::{
     EMLError,
     io::{QualifiedName, Span},
@@ -124,5 +126,29 @@ impl StringValueData for NonZeroU64 {
 
     fn to_raw_value(&self) -> String {
         self.get().to_string()
+    }
+}
+
+/// Error returned when parsing a boolean value fails.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("Failed to parse boolean value")]
+pub struct ParseBoolError;
+
+impl StringValueData for bool {
+    type Error = ParseBoolError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        Ok(match s {
+            "0" | "false" => false,
+            "1" | "true" => true,
+            _ => return Err(ParseBoolError),
+        })
+    }
+
+    fn to_raw_value(&self) -> String {
+        self.to_string()
     }
 }

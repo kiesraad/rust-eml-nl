@@ -133,6 +133,18 @@ impl<'a> EMLElementWriter<'a> {
         Ok(self)
     }
 
+    pub fn attr_opt<'b, 'c>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        value: Option<impl AsRef<str>>,
+    ) -> Result<Self, EMLError> {
+        if let Some(v) = value {
+            self.attr(name, v.as_ref())
+        } else {
+            Ok(self)
+        }
+    }
+
     fn attr_raw<'b>(mut self, attr: impl Into<Attribute<'b>>) -> Self {
         self.start_tag.push_attribute(attr);
         self
@@ -174,7 +186,6 @@ impl<'a> EMLElementWriter<'a> {
         self.content()?.child_elem(name, value)
     }
 
-    #[expect(unused)]
     pub fn child_elem_option<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,

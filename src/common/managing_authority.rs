@@ -84,8 +84,7 @@ impl EMLElement for AuthorityAddress {
         QualifiedName::from_static("AuthorityAddress", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        elem.skip()?;
-        Ok(AuthorityAddress {})
+        Ok(collect_struct!(elem, AuthorityAddress {}))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
