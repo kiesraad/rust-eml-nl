@@ -19,7 +19,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - run: rustup show active-toolchain
     - run: rustc --version
     - run: cargo --version
@@ -31,7 +31,7 @@ jobs:
   doc:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - run: rustup show active-toolchain
     - run: rustc --version
     - run: cargo --version
@@ -47,7 +47,7 @@ jobs:
     name: test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - run: rustup show active-toolchain
       - run: rustc --version
       - run: cargo --version
@@ -77,7 +77,7 @@ jobs:
     name: msrv test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - run: echo "TARGET_RUST_VERSION=$(grep rust-version Cargo.toml | grep MSRV | cut -d'"' -f2)" >> $GITHUB_ENV
       - run: rustup toolchain install ${{ env.TARGET_RUST_VERSION }} --profile minimal --no-self-update
       - run: rustup toolchain install nightly --profile minimal --no-self-update
