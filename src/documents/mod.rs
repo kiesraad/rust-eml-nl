@@ -14,6 +14,7 @@ use crate::{
         election_result::{
             EML_ELECTION_RESULT_ID, ElectionResult, ElectionResultElectionIdentifier,
         },
+        nomination::{EML_NOMINATION_ID, Nomination, NominationElectionIdentifier},
         polling_stations::{
             EML_POLLING_STATIONS_ID, PollingStations, PollingStationsElectionIdentifier,
         },
@@ -26,6 +27,7 @@ pub mod candidate_lists;
 pub mod election_count;
 pub mod election_definition;
 pub mod election_result;
+pub mod nomination;
 pub mod polling_stations;
 
 /// Generic EML document that can represent any of the supported EML variants.
@@ -39,6 +41,9 @@ pub enum EML {
 
     /// Representing a `110b` document, containing polling stations.
     PollingStations(Box<PollingStations>),
+
+    /// Representing a `210` document, containing a nomination.
+    Nomination(Box<Nomination>),
 
     /// Representing a `230b` document, containing a candidate list.
     CandidateLists(Box<CandidateLists>),
@@ -56,6 +61,7 @@ impl EML {
         match self {
             EML::ElectionDefinition(_) => EML_ELECTION_DEFINITION_ID,
             EML::PollingStations(_) => EML_POLLING_STATIONS_ID,
+            EML::Nomination(_) => EML_NOMINATION_ID,
             EML::CandidateLists(cl) => cl.lists_type.to_eml_id(),
             EML::ElectionCount(c) => c.count_type.to_eml_id(),
             EML::ElectionResult(_) => EML_ELECTION_RESULT_ID,
@@ -67,6 +73,7 @@ impl EML {
         match self {
             EML::ElectionDefinition(_) => "Election Definition",
             EML::PollingStations(_) => "Polling Stations",
+            EML::Nomination(_) => "Nomination",
             EML::CandidateLists(cl) => cl.lists_type.to_friendly_name(),
             EML::ElectionCount(c) => c.count_type.to_friendly_name(),
             EML::ElectionResult(_) => "Result",
@@ -105,6 +112,24 @@ impl EML {
     pub fn as_polling_stations_doc(&self) -> Option<&PollingStations> {
         match self {
             EML::PollingStations(ps) => Some(ps),
+            _ => None,
+        }
+    }
+
+    /// Create a generic EML document from a Nomination (`210`) document.
+    pub fn from_nomination_doc(nom: Nomination) -> Self {
+        EML::Nomination(Box::new(nom))
+    }
+
+    /// Check if this EML document is a Nomination (`210`) document.
+    pub fn is_nomination_doc(&self) -> bool {
+        matches!(self, EML::Nomination(_))
+    }
+
+    /// Get a reference to this EML document as a Nomination (`210`) document, if possible.
+    pub fn as_nomination_doc(&self) -> Option<&Nomination> {
+        match self {
+            EML::Nomination(nom) => Some(nom),
             _ => None,
         }
     }
@@ -181,6 +206,7 @@ impl EMLElement for EML {
             EML_ELECTION_RESULT_ID => {
                 EML::ElectionResult(Box::new(ElectionResult::read_eml(elem)?))
             }
+            EML_NOMINATION_ID => EML::Nomination(Box::new(Nomination::read_eml(elem)?)),
             id if CandidateListsType::is_valid_eml_id(id) => {
                 EML::CandidateLists(Box::new(CandidateLists::read_eml(elem)?))
             }
@@ -198,6 +224,7 @@ impl EMLElement for EML {
         match self {
             EML::ElectionDefinition(ed) => ed.write_eml(writer),
             EML::PollingStations(ps) => ps.write_eml(writer),
+            EML::Nomination(nom) => nom.write_eml(writer),
             EML::CandidateLists(cl) => cl.write_eml(writer),
             EML::ElectionCount(c) => c.write_eml(writer),
             EML::ElectionResult(r) => r.write_eml(writer),
@@ -214,6 +241,12 @@ impl From<ElectionDefinition> for EML {
 impl From<PollingStations> for EML {
     fn from(ps: PollingStations) -> Self {
         EML::from_polling_stations_doc(ps)
+    }
+}
+
+impl From<Nomination> for EML {
+    fn from(nom: Nomination) -> Self {
+        EML::from_nomination_doc(nom)
     }
 }
 
@@ -344,6 +377,38 @@ impl ElectionIdentifierBuilder {
     pub fn nomination_date(mut self, date: impl Into<XsDate>) -> Self {
         self.nomination_date = Some(StringValue::from_value(date.into()));
         self
+    }
+
+    /// Build an election identifier for nomination documents.
+    ///
+    /// Requires specifying [`Self::id`], [`Self::category`], [`Self::election_date`]
+    /// and [`Self::nomination_date`]. Optionally, [`Self::name`], [`Self::subcategory`]
+    /// and [`Self::domain`] may be specified as well.
+    pub fn build_for_nomination(self) -> Result<NominationElectionIdentifier, EMLError> {
+        let category = self
+            .category
+            .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
+        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+
+        let election_date = self
+            .election_date
+            .ok_or(EMLErrorKind::MissingBuildProperty("election_date").without_span())?;
+        let nomination_date = self
+            .nomination_date
+            .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
+        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+
+        Ok(NominationElectionIdentifier {
+            id: self
+                .id
+                .ok_or(EMLErrorKind::MissingBuildProperty("id").without_span())?,
+            name: self.name,
+            category,
+            subcategory: self.subcategory,
+            domain: self.domain,
+            election_date,
+            nomination_date,
+        })
     }
 
     /// Build an election identifier for candidate lists.
@@ -533,6 +598,12 @@ mod tests {
 
     #[test]
     fn test_parsing_arbitrary_eml_documents() {
+        let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
+        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+            .ok()
+            .expect("Failed to parse EML document");
+        assert!(matches!(eml, EML::Nomination(_)));
+
         let doc = include_str!("../../test-emls/candidate_lists/eml230b_test.eml.xml");
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
@@ -562,6 +633,21 @@ mod tests {
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionResult(_)));
+    }
+
+    #[test]
+    fn parse_and_write_210_eml_document_should_not_fail() {
+        let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
+        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+            .ok()
+            .expect("Failed to parse EML document");
+        assert_eq!(eml.to_eml_id(), "210");
+        assert_eq!(eml.to_friendly_name(), "Nomination");
+        assert!(eml.is_nomination_doc());
+        assert!(!eml.is_election_definition_doc());
+        assert!(eml.as_nomination_doc().is_some());
+        assert!(eml.as_election_definition_doc().is_none());
+        assert!(eml.write_eml_root_str(true, true).is_ok());
     }
 
     #[test]
