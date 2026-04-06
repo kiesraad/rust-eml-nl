@@ -24,7 +24,7 @@ jobs:
     - run: rustc --version
     - run: cargo --version
     - run: rustup component add clippy rustfmt
-    - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+    - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
     - run: cargo fmt --all -- --check
     - run: cargo clippy --workspace --all-targets --all-features
 
@@ -35,7 +35,7 @@ jobs:
     - run: rustup show active-toolchain
     - run: rustc --version
     - run: cargo --version
-    - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+    - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
     - run: cargo test --workspace --all-features --doc
     - run: cargo doc --workspace --all-features --document-private-items --no-deps
 
@@ -55,16 +55,16 @@ jobs:
       - uses: taiki-e/install-action@d850aa816998e5cf15f67a78c7b933f2a5033f8a # v2.63.3
         with:
           tool: cargo-llvm-cov,nextest
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: cargo llvm-cov nextest --workspace --all-features --lib --bins --examples --tests --lcov --output-path lcov.info
       - run: cargo test --doc --workspace --all-features
-      - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: target/nextest/default/junit.xml
           report_type: test_results
           disable_search: true
-      - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
@@ -89,6 +89,6 @@ jobs:
       - uses: taiki-e/install-action@d850aa816998e5cf15f67a78c7b933f2a5033f8a # v2.63.3
         with:
           tool: nextest
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: cargo +nightly update -Z direct-minimal-versions
       - run: cargo nextest run --workspace --all-features --lib --bins --examples --tests
