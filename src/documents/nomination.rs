@@ -19,7 +19,7 @@ use crate::{
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        StringValue, XsDate, XsDateOrDateTime, XsDateTime,
+        NominationJobTitle, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -283,6 +283,11 @@ impl EMLElement for Nomination {
             )?
             .child_elem(IssueDate::EML_NAME, &self.issue_date)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
+            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
+            // .child_elem_option(
+            //     CanonicalizationMethod::EML_NAME,
+            //     self.canonicalization_method.as_ref(),
+            // )?
             .child_elem(NominationData::EML_NAME, &self.nomination_data)?
             .finish()
     }
@@ -923,7 +928,7 @@ pub struct NominationProposer {
     /// Valid values: "inleveraar", "plaatsvervanger van de inleveraar",
     /// "gemachtigde voor het aangaan van lijstencombinaties",
     /// "plaatsvervanger voor het aangaan van lijstencombinaties"
-    pub job_title: String,
+    pub job_title: StringValue<NominationJobTitle>,
 
     /// Optional identifier for the proposer (mandatory if deputy).
     pub id: Option<String>,
@@ -939,7 +944,7 @@ impl EMLElement for NominationProposer {
         Ok(collect_struct!(elem, NominationProposer {
             name: ("Name", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             contact: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            job_title: ("JobTitle", NS_EML) => |elem| elem.text_without_children()?,
+            job_title: ("JobTitle", NS_EML) => |elem| elem.string_value()?,
             id as Option: ("Id", NS_EML) => |elem| elem.text_without_children()?,
             living_address as Option: LivingAddress::EML_NAME => |elem| LivingAddress::read_eml(elem)?,
         }))
@@ -950,7 +955,7 @@ impl EMLElement for NominationProposer {
             .child(("Name", NS_EML), write_eml_element(&self.name))?
             .child_elem(NominationContact::EML_NAME, &self.contact)?
             .child(("JobTitle", NS_EML), |elem| {
-                elem.text(self.job_title.as_ref())?.finish()
+                elem.text(self.job_title.raw().as_ref())?.finish()
             })?
             .child_option(("Id", NS_EML), self.id.as_ref(), |elem, value| {
                 elem.text(value.as_ref())?.finish()
