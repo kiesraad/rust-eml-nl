@@ -1039,8 +1039,152 @@ impl EMLElement for NominationProposer {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{NaiveDate, NaiveDateTime};
+
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, EMLWrite as _};
+    use crate::{
+        common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
+        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        utils::{
+            AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
+            ElectionDomainId, ElectionId, ElectionSubcategory, Gender, StringValue, XsDate,
+            XsDateTime,
+        },
+    };
+
+    #[test]
+    fn nomination_construction() {
+        let nomination = Nomination::builder()
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(
+                AuthorityIdentifier::new(AuthorityId::new("0000").unwrap()).with_name("Test"),
+            ))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(XsDateTime::new_without_tz(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2024, 6, 10).unwrap(),
+                chrono::NaiveTime::from_hms_milli_opt(12, 0, 0, 0).unwrap(),
+            )))
+            .election_identifier(
+                NominationElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .category(ElectionCategory::GR)
+                    .subcategory(ElectionSubcategory::GR2)
+                    .domain(ElectionDomain::new(
+                        Some(ElectionDomainId::new("0000").unwrap()),
+                        "Test",
+                    ))
+                    .election_date(XsDate::from_date(2026, 3, 18).unwrap())
+                    .nomination_date(XsDate::from_date(2026, 2, 2).unwrap())
+                    .build_for_nomination()
+                    .unwrap(),
+            )
+            .contest_identifier(NominationContestIdentifier::new(
+                ContestId::new("geen").unwrap(),
+                "Test Contest",
+            ))
+            .affiliation(NominationAffiliation {
+                registered_name: "Test Party".to_string(),
+                affiliation_type: StringValue::from_value(AffiliationType::StandAloneList),
+                list_data: ListData::new(true),
+                candidates: vec![
+                    NominationCandidate {
+                        identifier: CandidateIdentifier::new(CandidateId::new("1").unwrap()),
+                        full_name: PersonName::new("Tansen")
+                            .with_initials("J.")
+                            .with_first_name("Jan")
+                            .with_name_prefix("van")
+                            .into(),
+                        date_of_birth: Some(StringValue::from_value(
+                            XsDate::from_date(1980, 1, 15).unwrap(),
+                        )),
+                        gender: StringValue::from_value(Gender::Male),
+                        qualifying_address: QualifyingAddress::Locality(
+                            QualifyingAddressLocality::new("Amsterdam"),
+                        ),
+                        contact: None,
+                        agent: None,
+                        date_of_birth_annex: None,
+                        national_identification_number: None,
+                    },
+                    NominationCandidate {
+                        identifier: CandidateIdentifier::new(CandidateId::new("2").unwrap()),
+                        full_name: PersonName::new("Bakker")
+                            .with_initials("A.B.")
+                            .with_first_name("Anna")
+                            .into(),
+                        date_of_birth: Some(StringValue::from_value(
+                            XsDate::from_date(1990, 7, 22).unwrap(),
+                        )),
+                        gender: StringValue::from_value(Gender::Female),
+                        qualifying_address: QualifyingAddress::Country(
+                            QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
+                        ),
+                        contact: Some(NominationContact {
+                            mailing_address: MailingAddress::new(QualifyingAddress::Locality(
+                                QualifyingAddressLocality::new("Rotterdam"),
+                            )),
+                        }),
+                        agent: Some(NominationAgent {
+                            role: Some("H10".to_string()),
+                            agent_identifier: AgentIdentifier::new(
+                                PersonName::new("Groot")
+                                    .with_initials("P.")
+                                    .with_first_name("Pieter"),
+                            ),
+                            contact: None,
+                            living_address: LivingAddress::new("Den Haag"),
+                        }),
+                        date_of_birth_annex: Some("XX-07-1990".to_string()),
+                        national_identification_number: Some("123456789".to_string()),
+                    },
+                ],
+            })
+            .nominate(NominationNominate::new(vec![
+                NominationProposer {
+                    name: PersonName::new("Janssen")
+                        .with_initials("K.")
+                        .with_first_name("Karel")
+                        .into(),
+                    contact: NominationContact {
+                        mailing_address: MailingAddress::new(QualifyingAddress::Locality(
+                            QualifyingAddressLocality::new("Amsterdam"),
+                        )),
+                    },
+                    job_title: StringValue::from_value(NominationJobTitle::Submitter),
+                    id: None,
+                    living_address: None,
+                },
+                NominationProposer {
+                    name: PersonName::new("Vries")
+                        .with_initials("M.")
+                        .with_first_name("Maria")
+                        .with_name_prefix("de")
+                        .into(),
+                    contact: NominationContact {
+                        mailing_address: MailingAddress::new(QualifyingAddress::Locality(
+                            QualifyingAddressLocality::new("Utrecht"),
+                        )),
+                    },
+                    job_title: StringValue::from_value(NominationJobTitle::DeputySubmitter),
+                    id: Some("PV001".to_string()),
+                    living_address: Some(
+                        LivingAddress::new("Utrecht").with_country_name_code("NL"),
+                    ),
+                },
+            ]))
+            .build()
+            .unwrap();
+
+        let xml = nomination.write_eml_root_str(true, true).unwrap();
+        assert_eq!(
+            xml,
+            include_str!("../../test-emls/nomination/eml210_construction_output.eml.xml")
+        );
+
+        let parsed = Nomination::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        assert_eq!(xml, xml2);
+    }
 
     #[test]
     fn test_nomination_parse_and_write_roundtrip() {
