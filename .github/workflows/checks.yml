@@ -54,7 +54,7 @@ jobs:
       - run: rustc --version
       - run: cargo --version
       - run: rustup component add llvm-tools
-      - uses: taiki-e/install-action@d0f23220b09a75c6db730f13bb37c4f8144b4382 # v2.75.9
+      - uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: cargo-llvm-cov,nextest
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -88,7 +88,7 @@ jobs:
       - run: rustup show active-toolchain
       - run: rustc --version
       - run: cargo --version
-      - uses: taiki-e/install-action@d0f23220b09a75c6db730f13bb37c4f8144b4382 # v2.75.9
+      - uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2.75.26
         with:
           tool: nextest
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
