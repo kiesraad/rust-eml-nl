@@ -1039,6 +1039,8 @@ impl EMLElement for NominationProposer {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use chrono::{NaiveDate, NaiveDateTime};
 
     use super::*;
@@ -1088,7 +1090,9 @@ mod tests {
                 list_data: ListData::new(true),
                 candidates: vec![
                     NominationCandidate {
-                        identifier: CandidateIdentifier::new(CandidateId::new("1").unwrap()),
+                        identifier: CandidateIdentifier::new(CandidateId::new(
+                            NonZeroU64::new(1).unwrap(),
+                        )),
                         full_name: PersonName::new("Tansen")
                             .with_initials("J.")
                             .with_first_name("Jan")
@@ -1107,7 +1111,9 @@ mod tests {
                         national_identification_number: None,
                     },
                     NominationCandidate {
-                        identifier: CandidateIdentifier::new(CandidateId::new("2").unwrap()),
+                        identifier: CandidateIdentifier::new(CandidateId::new(
+                            NonZeroU64::new(2).unwrap(),
+                        )),
                         full_name: PersonName::new("Bakker")
                             .with_initials("A.B.")
                             .with_first_name("Anna")

@@ -2085,7 +2085,7 @@ mod tests {
                 .total_votes_selections([
                     ElectionCountSelection::builder()
                         .affiliation(AffiliationSelection::new(
-                            AffiliationId::new("1").unwrap(),
+                            AffiliationId::new(NonZeroU64::new(1).unwrap()),
                             "Example",
                         ))
                         .valid_votes(16u64)
@@ -2094,7 +2094,7 @@ mod tests {
                     ElectionCountSelection::builder()
                         .candidate(
                             CandidateSelection::builder()
-                                .identifier(CandidateId::new("1").unwrap())
+                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
                                 .name(PersonName::new("Smid").with_first_name("Example"))
                                 .build()
                                 .unwrap(),
@@ -2116,7 +2116,7 @@ mod tests {
                     .selections([
                         ElectionCountSelection::builder()
                             .affiliation(AffiliationSelection::new(
-                                AffiliationId::new("1").unwrap(),
+                                AffiliationId::new(NonZeroU64::new(1).unwrap()),
                                 "Example",
                             ))
                             .valid_votes(16u64)
@@ -2125,7 +2125,7 @@ mod tests {
                         ElectionCountSelection::builder()
                             .candidate(
                                 CandidateSelection::builder()
-                                    .identifier(CandidateId::new("1").unwrap())
+                                    .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
                                     .name(PersonName::new("Smid").with_first_name("Example"))
                                     .build()
                                     .unwrap(),

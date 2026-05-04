@@ -1,37 +1,58 @@
-use std::sync::LazyLock;
+use std::{
+    num::{NonZeroU64, ParseIntError},
+    str::FromStr,
+};
 
-use regex::Regex;
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt, utils::StringValueData};
 
-/// Regular expression for validating candidate id values.
-static CANDIDATE_ID_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^([1-9]\d*)$").expect("Failed to compile Candidate ID regex"));
-
 /// A string of type candidate id as defined in the EML_NL specification
 ///
 /// Called CandidateIdType in the schema.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct CandidateId(String);
+pub struct CandidateId(NonZeroU64);
 
 impl CandidateId {
-    /// Create a new CandidateId from a string, validating its format
-    pub fn new(s: impl AsRef<str>) -> Result<Self, EMLError> {
-        StringValueData::parse_from_str(s.as_ref()).wrap_value_error()
+    /// Create a new CandidateId.
+    pub fn new(value: NonZeroU64) -> Self {
+        CandidateId(value)
     }
 
-    /// Get the raw string value of the CandidateId.
-    pub fn value(&self) -> &str {
-        &self.0
+    /// Create a new CandidateId from a u64 value.
+    pub fn from_u64(value: u64) -> Result<Self, InvalidCandidateIdError> {
+        let value = NonZeroU64::new(value).ok_or(InvalidCandidateIdError::ZeroInteger)?;
+        Ok(CandidateId::new(value))
+    }
+
+    /// Get the value of the CandidateId.
+    pub fn value(&self) -> NonZeroU64 {
+        self.0
+    }
+}
+
+impl FromStr for CandidateId {
+    type Err = EMLError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        StringValueData::parse_from_str(s).wrap_value_error()
     }
 }
 
 /// Error returned when a string could not be parsed as a CandidateId
 #[derive(Debug, Clone, Error)]
-#[error("Invalid candidate id: {0}")]
-pub struct InvalidCandidateIdError(String);
+pub enum InvalidCandidateIdError {
+    /// An invalid string was passed for parsing as an candidate id
+    #[error("Failed to parse candidate id: {0}")]
+    ParseError(ParseIntError),
+    /// The value was a zero integer, which is not allowed for candidate ids
+    #[error("Candidate id must be a non-zero positive integer")]
+    ZeroInteger,
+    /// Candidate id cannot start with a zero
+    #[error("Candidate id cannot start with a zero")]
+    StartsWithZero,
+}
 
 impl StringValueData for CandidateId {
     type Error = InvalidCandidateIdError;
@@ -40,15 +61,17 @@ impl StringValueData for CandidateId {
     where
         Self: Sized,
     {
-        if CANDIDATE_ID_RE.is_match(s) {
-            Ok(CandidateId(s.to_string()))
-        } else {
-            Err(InvalidCandidateIdError(s.to_string()))
+        if s.starts_with("0") {
+            return Err(InvalidCandidateIdError::StartsWithZero);
         }
+
+        let value = u64::from_str(s).map_err(InvalidCandidateIdError::ParseError)?;
+        let value = NonZeroU64::new(value).ok_or(InvalidCandidateIdError::ZeroInteger)?;
+        Ok(CandidateId::new(value))
     }
 
     fn to_raw_value(&self) -> String {
-        self.0.clone()
+        self.0.to_string()
     }
 }
 
@@ -57,16 +80,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_candidate_id_regex_compiles() {
-        LazyLock::force(&CANDIDATE_ID_RE);
-    }
-
-    #[test]
     fn test_valid_candidate_ids() {
         let valid_ids = ["1", "12345"];
         for id in valid_ids {
             assert!(
-                CandidateId::new(id).is_ok(),
+                CandidateId::from_str(id).is_ok(),
                 "CandidateId should accept valid id: {}",
                 id
             );
@@ -75,10 +93,10 @@ mod tests {
 
     #[test]
     fn test_invalid_candidate_ids() {
-        let invalid_ids = ["", "0", "0123", "abc", "123abc", "-1"];
+        let invalid_ids = ["", "0", " 123", "0123", "abc", "123abc", "-1"];
         for id in invalid_ids {
             assert!(
-                CandidateId::new(id).is_err(),
+                CandidateId::from_str(id).is_err(),
                 "CandidateId should reject invalid id: {}",
                 id
             );

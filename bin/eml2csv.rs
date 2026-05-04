@@ -375,7 +375,7 @@ fn process(
                 last_part
             };
 
-            candidate_names.insert((aff_id.clone(), cand_id), name);
+            candidate_names.insert((aff_id, cand_id), name);
         }
     }
 
@@ -390,10 +390,10 @@ fn process(
             let mut map = HashMap::new();
             for av in &sels {
                 let aff_id = av.affiliation.id.cloned_value()?;
-                map.insert((aff_id.clone(), None), av.valid_votes);
+                map.insert((aff_id, None), av.valid_votes);
                 for cv in &av.candidates {
                     let cand_id = cv.candidate.identifier.id.cloned_value()?;
-                    map.insert((aff_id.clone(), Some(cand_id)), cv.valid_votes);
+                    map.insert((aff_id, Some(cand_id)), cv.valid_votes);
                 }
             }
             Ok(map)
@@ -408,12 +408,12 @@ fn process(
     // Vote data rows (parties and candidates in document order from total_votes)
     for av in &total_selections {
         let aff_id = av.affiliation.id.cloned_value()?;
-        let aff_name = &av.affiliation.name;
+        let aff_name = &av.affiliation.name[..];
 
         // output row for affiliation
         output.row(
             [
-                Cow::Borrowed(aff_id.value()),
+                Cow::Owned(aff_id.to_raw_value()),
                 Cow::Borrowed(aff_name),
                 Cow::Borrowed(""),
                 Cow::Borrowed(""),
@@ -421,7 +421,7 @@ fn process(
             ]
             .into_iter()
             .chain(station_maps.iter().map(|sm| {
-                sm.get(&(aff_id.clone(), None))
+                sm.get(&(aff_id, None))
                     .copied()
                     .unwrap_or(0)
                     .to_string()
@@ -432,7 +432,7 @@ fn process(
         for cv in &av.candidates {
             let cand_id = cv.candidate.identifier.id.cloned_value()?;
             let cand_name = candidate_names
-                .get(&(aff_id.clone(), cand_id.clone()))
+                .get(&(aff_id, cand_id))
                 .map(|s| s.as_str())
                 .context("Failed to retrieve candidate name")?;
 
@@ -447,7 +447,7 @@ fn process(
                 ]
                 .into_iter()
                 .chain(station_maps.iter().map(|sm| {
-                    sm.get(&(aff_id.clone(), Some(cand_id.clone())))
+                    sm.get(&(aff_id, Some(cand_id)))
                         .copied()
                         .unwrap_or(0)
                         .to_string()

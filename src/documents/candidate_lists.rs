@@ -1565,7 +1565,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             affiliation_identifier.id,
-            StringValue::Parsed(AffiliationId::new("1").unwrap())
+            StringValue::Parsed(AffiliationId::new(NonZeroU64::new(1).unwrap()))
         );
         assert_eq!(
             affiliation_identifier.registered_name,
@@ -1591,7 +1591,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             affiliation_identifier.id,
-            StringValue::Parsed(AffiliationId::new("2").unwrap())
+            StringValue::Parsed(AffiliationId::new(NonZeroU64::new(2).unwrap()))
         );
         assert_eq!(affiliation_identifier.registered_name, None);
 
@@ -1733,12 +1733,12 @@ mod tests {
             .contests([CandidateListsContest::builder()
                 .identifier(ContestIdentifier::geen())
                 .affiliations([CandidateListsAffiliation::builder()
-                    .id(AffiliationId::new("1").unwrap())
+                    .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
                     .registered_name("Affiliation 1")
                     .affiliation_type(AffiliationType::StandAloneList)
                     .publish_gender(true)
                     .candidates([CandidateListsCandidate::builder()
-                        .identifier(CandidateId::new("1").unwrap())
+                        .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
                         .full_name(
                             PersonName::new("Pietersen")
                                 .with_initials("P.")

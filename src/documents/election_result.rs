@@ -941,6 +941,8 @@ impl EMLElement for AffiliationSelection {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use chrono::TimeZone as _;
 
     use crate::{
@@ -973,7 +975,7 @@ mod tests {
                 [
                     ElectionResultSelection::builder()
                         .affiliation(AffiliationSelection::new(
-                            AffiliationId::new("1").unwrap(),
+                            AffiliationId::new(NonZeroU64::new(1).unwrap()),
                             "Example",
                         ))
                         .elected(true)
@@ -982,7 +984,7 @@ mod tests {
                     ElectionResultSelection::builder()
                         .candidate(
                             CandidateSelection::builder()
-                                .identifier(CandidateId::new("1").unwrap())
+                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
                                 .name(PersonName::new("Smid").with_first_name("Example"))
                                 .locality_name("Locality")
                                 .country_name_code("NL")
@@ -996,7 +998,7 @@ mod tests {
                     ElectionResultSelection::builder()
                         .candidate(
                             CandidateSelection::builder()
-                                .identifier(CandidateId::new("2").unwrap())
+                                .identifier(CandidateId::new(NonZeroU64::new(2).unwrap()))
                                 .name(PersonName::new("Test").with_first_name("Example"))
                                 .locality_name("Locality")
                                 .country_name_code("NL")

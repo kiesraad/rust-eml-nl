@@ -121,7 +121,7 @@ mod tests {
         let can_id = CandidateIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(
             can_id.id,
-            StringValue::Parsed(CandidateId::new("1").unwrap())
+            StringValue::Parsed(CandidateId::new(NonZeroU64::new(1).unwrap()))
         );
         assert_eq!(can_id.display_order, None);
         assert_eq!(can_id.short_code, None);
@@ -141,7 +141,7 @@ mod tests {
         let can_id = CandidateIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(
             can_id.id,
-            StringValue::Parsed(CandidateId::new("2254").unwrap())
+            StringValue::Parsed(CandidateId::new(NonZeroU64::new(2254).unwrap()))
         );
         assert_eq!(
             can_id.display_order,
@@ -162,13 +162,13 @@ mod tests {
 
     #[test]
     fn test_candidate_identifier_construction() {
-        let can_id = CandidateIdentifier::new(CandidateId::new("5678").unwrap())
+        let can_id = CandidateIdentifier::new(CandidateId::new(NonZeroU64::new(5678).unwrap()))
             .with_display_order(NonZeroU64::new(3).unwrap())
             .with_short_code(NameShortCode::new("9876").unwrap())
             .with_expected_confirmation_reference("reference");
         assert_eq!(
             can_id.id,
-            StringValue::Parsed(CandidateId::new("5678").unwrap())
+            StringValue::Parsed(CandidateId::new(NonZeroU64::new(5678).unwrap()))
         );
         assert_eq!(
             can_id.display_order,
