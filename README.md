@@ -28,6 +28,14 @@ rust docs. For the newest released version you can check these on [docs.rs][3].
 
 [3]: https://docs.rs/eml-nl
 
+## Existing EML_NL data
+The Kiesraad releases EML_NL documents for each election. To find these, you can
+visit [data.overheid.nl][4] and go to the Kiesraad organization page. Once you 
+find the election you are interested in, you can download the EML_NL documents 
+from the 'Databronnen' page (look for EML in the title of the data source).
+
+[4]: https://data.overheid.nl/community/organization/kiesraad
+
 ## Utilities
 Aside from the library this repository also includes some helpful tools that
 use the library to offer separate functionality. These tools are described
