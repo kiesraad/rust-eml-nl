@@ -795,6 +795,17 @@ mod tests {
     }
 
     #[test]
+    fn test_election_definition_with_max_votes_empty() {
+        let xml = include_str!(
+            "../../test-emls/election_definition/eml110a_test.eml.xml"
+        );
+
+        let parsed = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).unwrap();
+        // empty MaxVotes should be parsed to 1, because that's the default value according to the EML standard
+        assert_eq!(parsed.election_event.election.contest.max_votes, StringValue::Parsed(NonZeroU64::new(1).unwrap()));
+    }
+
+    #[test]
     fn test_invalid_election_date_format() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_date_format.eml.xml"
