@@ -625,6 +625,7 @@ impl EMLElement for ElectionDefinitionContest {
             identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
             voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
+                // Default value of MaxVotes in EML is 1
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
@@ -639,6 +640,7 @@ impl EMLElement for ElectionDefinitionContest {
             })?
             .child(("MaxVotes", NS_EML), |elem| {
                 let raw_text = self.max_votes.raw();
+                // Default value of MaxVotes in EML is 1
                 if raw_text == "1" {
                     elem.empty()
                 } else {
