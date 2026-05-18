@@ -795,14 +795,51 @@ mod tests {
     }
 
     #[test]
-    fn test_election_definition_with_max_votes_empty() {
+    fn test_read_election_definition_with_max_votes_empty() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_test.eml.xml"
         );
 
         let parsed = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).unwrap();
-        // empty MaxVotes should be parsed to 1, because that's the default value according to the EML standard
+        // empty MaxVotes should be parsed to 1, because 1 is the default value according to the EML standard
         assert_eq!(parsed.election_event.election.contest.max_votes, StringValue::Parsed(NonZeroU64::new(1).unwrap()));
+    }
+
+    #[test]
+    fn test_write_election_definition_with_max_votes_empty() {
+        let election_definition = ElectionDefinition::builder()
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                ElectionDefinitionElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .name("Test election")
+                    .category(ElectionCategory::GR)
+                    .subcategory(ElectionSubcategory::GR1)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_definition()
+                    .unwrap(),
+            )
+            .contest_identifier(ContestIdentifier::geen())
+            .voting_method(VotingMethod::SPV)
+            .max_votes(NonZeroU64::new(1).unwrap())
+            .number_of_seats(10u32)
+            .preference_threshold(50u32)
+            .push_registered_party("Party a")
+            .push_registered_party("Party one")
+            .build()
+            .unwrap();
+
+        let xml = election_definition.write_eml_root_str(true, true).unwrap();
+        // max_votes of 1 should result in an empty MaxVotes tag, because 1 is the default value according to the EML standard
+        assert!(xml.contains("<MaxVotes/>"))
     }
 
     #[test]
