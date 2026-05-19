@@ -1109,6 +1109,63 @@ mod tests {
     }
 
     #[test]
+    fn test_read_polling_stations_with_max_votes_empty() {
+        let xml =
+            include_str!("../../test-emls/polling_stations/eml110b_empty_number_of_voters.eml.xml");
+
+        let parsed = PollingStations::parse_eml(xml, EMLParsingMode::Strict).unwrap();
+        // empty MaxVotes should be parsed to 1, because 1 is the default value according to the EML standard
+        assert_eq!(
+            parsed.election_event.election.contests[0].max_votes,
+            StringValue::Parsed(NonZeroU64::new(1).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_write_polling_stations_with_max_votes_empty() {
+        let ps = PollingStations::builder()
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(
+                AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Test"),
+            )
+            .issue_date(XsDate::from_date(2024, 1, 1).unwrap())
+            .creation_date_time(chrono::Utc.with_ymd_and_hms(2024, 1, 1, 12, 0, 0).unwrap())
+            .election_identifier(
+                PollingStationsElectionIdentifier::builder()
+                    .id(ElectionId::new("TK2025").unwrap())
+                    .name("Tweede Kamerverkiezingen 2025")
+                    .category(ElectionCategory::TK)
+                    .subcategory(ElectionSubcategory::TK)
+                    .election_date(XsDate::from_date(2025, 3, 17).unwrap())
+                    .build_for_polling_stations()
+                    .unwrap(),
+            )
+            .contests([PollingStationsContest::builder()
+                .reporting_unit(ReportingUnitIdentifier::new(
+                    ReportingUnitIdentifierId::new("1234").unwrap(),
+                    "Test",
+                ))
+                .max_votes(NonZeroU64::new(1).unwrap())
+                .voting_method(VotingMethod::SPV)
+                .polling_places([PollingPlace::builder()
+                    .locality_name("Amsterdam")
+                    .postal_code("1234 AB")
+                    .channel(VotingChannelType::Polling)
+                    .polling_station_data("123456")
+                    .polling_station_id(PhysicalLocationPollingStationId::new("1234").unwrap())
+                    .build()
+                    .unwrap()])
+                .build()
+                .unwrap()])
+            .build()
+            .unwrap();
+
+        let xml = ps.write_eml_root_str(true, true).unwrap();
+        // max_votes of 1 should result in an empty MaxVotes tag, because 1 is the default value according to the EML standard
+        assert!(xml.contains("<MaxVotes/>"))
+    }
+
+    #[test]
     fn test_empty_polling_stations() {
         assert!(
             PollingStations::parse_eml(
