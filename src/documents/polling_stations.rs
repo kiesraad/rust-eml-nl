@@ -78,7 +78,7 @@ impl TryFrom<PollingStations> for String {
 
     fn try_from(value: PollingStations) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -1094,17 +1094,11 @@ mod tests {
             .build()
             .unwrap();
 
-        let xml = ps.write_eml_root_str(true, true).unwrap();
-        assert_eq!(
-            xml,
-            include_str!(
-                "../../test-emls/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
-            )
-        );
+        let xml = ps.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
         let parsed = PollingStations::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }
 

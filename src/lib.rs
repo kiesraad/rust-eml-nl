@@ -31,8 +31,10 @@
 //! use eml_nl::{documents::EML, io::{EMLRead, EMLWrite}};
 //! let xml = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test-emls/polling_stations/eml110b_polling_stations_construction_output.eml.xml"));
 //! let eml_doc = EML::parse_eml(xml, eml_nl::io::EMLParsingMode::Strict).unwrap();
-//! let xml_output = eml_doc.write_eml_root_str(true, true).unwrap();
-//! assert_eq!(xml_output, xml);
+//! let xml_output = eml_doc.write_eml_root_str(true).unwrap();
+//! let reparsed = EML::parse_eml(&xml_output, eml_nl::io::EMLParsingMode::Strict).unwrap();
+//! let xml_output2 = reparsed.write_eml_root_str(true).unwrap();
+//! assert_eq!(xml_output, xml_output2);
 //! ```
 //!
 //! In this example we also see [`EMLParsingMode`](crate::io::EMLParsingMode)

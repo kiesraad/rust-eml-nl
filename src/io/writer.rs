@@ -311,7 +311,6 @@ pub(crate) trait EMLWriteInternal {
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
-        pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError>;
 
@@ -320,7 +319,6 @@ pub(crate) trait EMLWriteInternal {
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
-        pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError>;
 }
@@ -334,7 +332,6 @@ where
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
-        pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError> {
         // default values are for EML root element
@@ -358,11 +355,7 @@ where
             namespace_definitions,
         };
 
-        let mut writer = if pretty_print {
-            Writer::new_with_indent(Vec::new(), b' ', 4)
-        } else {
-            Writer::new(Vec::new())
-        };
+        let mut writer = Writer::new(Vec::new());
 
         if include_declaration {
             writer
@@ -382,13 +375,6 @@ where
         }
         self.write_eml_element(element)?;
 
-        // Add a final newline for properly formatted output if pretty_print is enabled
-        if pretty_print {
-            eml_writer
-                .writer
-                .write_event(Event::Text(BytesText::new("\n")))
-                .without_span()?;
-        }
         Ok(eml_writer.writer.into_inner())
     }
 
@@ -397,14 +383,12 @@ where
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
-        pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError> {
         String::from_utf8(self.write_root(
             root_name,
             default_namespace_uri,
             namespace_definitions,
-            pretty_print,
             include_declaration,
         )?)
         .without_span()
@@ -419,49 +403,30 @@ where
 /// so location information would be of limited use anyway.
 pub trait EMLWrite {
     /// Writes an EML document with an EML root element to a byte vector.
-    fn write_eml_root(
-        &self,
-        pretty_print: bool,
-        include_declaration: bool,
-    ) -> Result<Vec<u8>, EMLError>;
+    fn write_eml_root(&self, include_declaration: bool) -> Result<Vec<u8>, EMLError>;
 
     /// Writes an EML document with an EML root element to a string.
-    fn write_eml_root_str(
-        &self,
-        pretty_print: bool,
-        include_declaration: bool,
-    ) -> Result<String, EMLError>;
+    fn write_eml_root_str(&self, include_declaration: bool) -> Result<String, EMLError>;
 }
 
 impl<T> EMLWrite for T
 where
     T: EMLWriteInternal,
 {
-    fn write_eml_root(
-        &self,
-        pretty_print: bool,
-        include_declaration: bool,
-    ) -> Result<Vec<u8>, EMLError> {
+    fn write_eml_root(&self, include_declaration: bool) -> Result<Vec<u8>, EMLError> {
         self.write_root(
             None::<QualifiedName<'_, '_>>,
             None,
             None,
-            pretty_print,
             include_declaration,
         )
     }
 
-    /// Writes an EML document with an EML root element to a string.
-    fn write_eml_root_str(
-        &self,
-        pretty_print: bool,
-        include_declaration: bool,
-    ) -> Result<String, EMLError> {
+    fn write_eml_root_str(&self, include_declaration: bool) -> Result<String, EMLError> {
         self.write_root_str(
             None::<QualifiedName<'_, '_>>,
             None,
             None,
-            pretty_print,
             include_declaration,
         )
     }
@@ -511,7 +476,6 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
         Some(T::EML_NAME),
         default_namespace_uri,
         Some(namespace_definitions),
-        true,
         false,
     )
 }

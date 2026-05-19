@@ -307,7 +307,7 @@ impl TryFrom<EML> for String {
 
     fn try_from(value: EML) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -647,7 +647,7 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_nomination_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 
     #[test]
@@ -662,7 +662,7 @@ mod tests {
         assert!(!eml.is_result_doc());
         assert!(eml.as_election_definition_doc().is_some());
         assert!(eml.as_result_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 
     #[test]
@@ -677,7 +677,7 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_polling_stations_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 
     #[test]
@@ -692,7 +692,7 @@ mod tests {
         assert!(!eml.is_polling_stations_doc());
         assert!(eml.as_candidate_lists_doc().is_some());
         assert!(eml.as_polling_stations_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 
     #[test]
@@ -707,7 +707,7 @@ mod tests {
         assert!(!eml.is_candidate_lists_doc());
         assert!(eml.as_count_doc().is_some());
         assert!(eml.as_candidate_lists_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 
     #[test]
@@ -722,6 +722,6 @@ mod tests {
         assert!(!eml.is_count_doc());
         assert!(eml.as_result_doc().is_some());
         assert!(eml.as_count_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        assert!(eml.write_eml_root_str(true).is_ok());
     }
 }

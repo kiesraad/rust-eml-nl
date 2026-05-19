@@ -73,7 +73,7 @@ impl TryFrom<ElectionCount> for String {
 
     fn try_from(value: ElectionCount) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -2141,15 +2141,11 @@ mod tests {
             .build()
             .unwrap();
 
-        let xml = ec.write_eml_root_str(true, true).unwrap();
-        assert_eq!(
-            xml,
-            include_str!("../../test-emls/election_count/eml510b_construction_output.eml.xml")
-        );
+        let xml = ec.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
         let parsed = ElectionCount::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }
 

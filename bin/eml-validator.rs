@@ -259,7 +259,7 @@ async fn handle_file(
     if print {
         info!("Outputting parsed EML document back to XML:");
         let xml = doc
-            .write_eml_root_str(true, true)
+            .write_eml_root_str(true)
             .context("Failed to serialize EML document back to XML")?;
         info!("EML XML output:\n{}", xml);
     }

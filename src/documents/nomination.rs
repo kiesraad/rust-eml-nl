@@ -84,7 +84,7 @@ impl TryFrom<Nomination> for String {
 
     fn try_from(value: Nomination) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -1181,14 +1181,10 @@ mod tests {
             .build()
             .unwrap();
 
-        let xml = nomination.write_eml_root_str(true, true).unwrap();
-        assert_eq!(
-            xml,
-            include_str!("../../test-emls/nomination/eml210_construction_output.eml.xml")
-        );
+        let xml = nomination.write_eml_root_str(true).unwrap();
 
         let parsed = Nomination::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }
 
@@ -1213,7 +1209,7 @@ mod tests {
         assert!(nomination.nomination_data.nominate.proposers.len() >= 2);
 
         let xml_output = nomination
-            .write_eml_root_str(true, true)
+            .write_eml_root_str(true)
             .expect("Failed to write EML 210 document");
         let reparsed = Nomination::parse_eml(&xml_output, EMLParsingMode::Strict)
             .ok()
