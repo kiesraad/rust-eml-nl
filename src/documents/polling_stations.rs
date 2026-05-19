@@ -1,23 +1,22 @@
 //! Document variant for the EML_NL Polling Stations (`110b`) document.
 
-use std::{num::NonZeroU64, str::FromStr, sync::LazyLock};
+use std::{fmt, num::NonZeroU64, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
 use thiserror::Error;
 
+use instant_xml::ToXml;
+
 use crate::{
     EML_SCHEMA_VERSION, EMLError, EMLValueResultExt, NS_EML, NS_KR,
     common::{
-        CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
-        ElectionDomain, IssueDate, LocalityName, ManagingAuthority, PostalCode,
-        ReportingUnitIdentifier, TransactionId,
+        CanonicalizationMethod, ContestIdentifierGeen, CreationDateTime, ElectionDomain, IssueDate,
+        LocalityName, ManagingAuthority, PostalCode, ReportingUnitIdentifier, TransactionId,
     },
     documents::{ElectionIdentifierBuilder, accepted_root},
+    eml_ns_context,
     error::{EMLErrorKind, EMLResultExt},
-    io::{
-        EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName, QualifiedName,
-        collect_struct,
-    },
+    io::{EMLElement, EMLElementReader, OwnedQualifiedName, QualifiedName, collect_struct},
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, StringValueData,
         VotingChannelType, VotingMethod, XsDate, XsDateOrDateTime, XsDateTime,
@@ -230,6 +229,28 @@ impl Default for PollingStationsBuilder {
     }
 }
 
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for PollingStations {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", EML_POLLING_STATIONS_ID)?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+        self.transaction_id.serialize(None, serializer)?;
+        self.managing_authority.serialize(None, serializer)?;
+        if let Some(id) = &self.issue_date {
+            id.serialize(None, serializer)?;
+        }
+        self.creation_date_time.serialize(None, serializer)?;
+        self.election_event.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for PollingStations {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
@@ -253,25 +274,6 @@ impl EMLElement for PollingStations {
             canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
             election_event: PollingStationsElectionEvent::EML_NAME => |elem| PollingStationsElectionEvent::read_eml(elem)?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), EML_POLLING_STATIONS_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
-            .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(PollingStationsElectionEvent::EML_NAME, &self.election_event)?
-            .finish()?;
-
-        Ok(())
     }
 }
 
@@ -297,6 +299,32 @@ impl From<PollingStationsElection> for PollingStationsElectionEvent {
     }
 }
 
+// Custom: injects empty `<EventIdentifier/>` element not present in the struct.
+impl ToXml for PollingStationsElectionEvent {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start(
+            "ElectionEvent",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_start()?;
+        let _ = serializer.write_start(
+            "EventIdentifier",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_empty()?;
+        self.election.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for PollingStationsElectionEvent {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ElectionEvent", Some(NS_EML));
@@ -310,22 +338,18 @@ impl EMLElement for PollingStationsElectionEvent {
             election: PollingStationsElection::EML_NAME => |elem| PollingStationsElection::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("EventIdentifier", NS_EML), |w| w.empty())?
-            .child_elem(PollingStationsElection::EML_NAME, &self.election)?
-            .finish()
-    }
 }
 
 /// Election definition containing polling stations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Election", ns(NS_EML))]
 pub struct PollingStationsElection {
     /// Identifier of the election.
+    #[xml(rename = "ElectionIdentifier")]
     pub identifier: PollingStationsElectionIdentifier,
 
     /// Contests containing the polling stations.
+    #[xml(rename = "Contest")]
     pub contests: Vec<PollingStationsContest>,
 }
 
@@ -364,37 +388,34 @@ impl EMLElement for PollingStationsElection {
             contests as Vec: PollingStationsContest::EML_NAME => |elem| PollingStationsContest::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(
-                PollingStationsElectionIdentifier::EML_NAME,
-                &self.identifier,
-            )?
-            .child_elems(PollingStationsContest::EML_NAME, &self.contests)?
-            .finish()
-    }
 }
 
 /// Identifier of an election in the polling stations document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct PollingStationsElectionIdentifier {
     /// Election id.
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Election name, if present.
+    #[xml(rename = "ElectionName")]
     pub name: Option<String>,
 
     /// Election category.
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Election subcategory, if present.
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: Option<StringValue<ElectionSubcategory>>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 }
 
@@ -463,29 +484,6 @@ impl EMLElement for PollingStationsElectionIdentifier {
             domain: data.domain,
             election_date,
         })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child_option(
-                ("ElectionName", NS_EML),
-                self.name.as_ref(),
-                |elem, value| elem.text(value)?.finish(),
-            )?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child_option(
-                ("ElectionSubcategory", NS_KR),
-                self.subcategory.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .finish()
     }
 }
 
@@ -605,6 +603,47 @@ impl Default for PollingStationsContestBuilder {
     }
 }
 
+// Custom: `<MaxVotes>` uses empty-element when value is "1", otherwise with content.
+impl ToXml for PollingStationsContest {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Contest", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+
+        self.identifier.serialize(None, serializer)?;
+        self.reporting_unit.serialize(None, serializer)?;
+
+        self.voting_method.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "VotingMethod",
+            }),
+            serializer,
+        )?;
+
+        let raw_text = self.max_votes.raw();
+        let mv_prefix =
+            serializer.write_start("MaxVotes", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        if raw_text == "1" {
+            serializer.end_empty()?;
+        } else {
+            serializer.end_start()?;
+            serializer.write_str(raw_text.as_ref())?;
+            serializer.write_close(mv_prefix)?;
+        }
+
+        for place in &self.polling_places {
+            place.serialize(None, serializer)?;
+        }
+
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for PollingStationsContest {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
 
@@ -686,31 +725,14 @@ impl EMLElement for PollingStationsContest {
             polling_places: data.polling_places,
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
-            .child_elem(PollingStationsReportingUnit::EML_NAME, &self.reporting_unit)?
-            .child(("VotingMethod", NS_EML), |elem| {
-                elem.text(self.voting_method.raw().as_ref())?.finish()
-            })?
-            .child(("MaxVotes", NS_EML), |elem| {
-                let raw_text = self.max_votes.raw();
-                if raw_text == "1" {
-                    elem.empty()
-                } else {
-                    elem.text(raw_text.as_ref())?.finish()
-                }
-            })?
-            .child_elems(PollingPlace::EML_NAME, &self.polling_places)?
-            .finish()
-    }
 }
 
 /// Reporting unit for the contest
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "ReportingUnit", ns(NS_EML))]
 pub struct PollingStationsReportingUnit {
     /// Identifier of the reporting unit.
+    #[xml(rename = "ReportingUnitIdentifier")]
     pub identifier: ReportingUnitIdentifier,
 }
 
@@ -738,21 +760,18 @@ impl EMLElement for PollingStationsReportingUnit {
             identifier: ReportingUnitIdentifier::EML_NAME => |elem| ReportingUnitIdentifier::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ReportingUnitIdentifier::EML_NAME, &self.identifier)?
-            .finish()
-    }
 }
 
 /// A polling place in the polling stations document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "PollingPlace", rename_all = "PascalCase", ns(NS_EML))]
 pub struct PollingPlace {
     /// Voting channel used at this polling place.
+    #[xml(attribute)]
     pub channel: StringValue<VotingChannelType>,
 
     /// Physical location of the polling place.
+    #[xml(rename = "PhysicalLocation")]
     pub physical_location: PhysicalLocation,
 }
 
@@ -864,22 +883,18 @@ impl EMLElement for PollingPlace {
             channel: elem.string_value_attr("Channel", None)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Channel", self.channel.raw().as_ref())?
-            .child_elem(PhysicalLocation::EML_NAME, &self.physical_location)?
-            .finish()
-    }
 }
 
 /// Physical location of a polling place.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "PhysicalLocation", ns(NS_EML))]
 pub struct PhysicalLocation {
     /// Address of the physical location.
+    #[xml(rename = "Address")]
     pub address: PhysicalLocationAddress,
 
     /// Polling station information of the physical location.
+    #[xml(rename = "PollingStation")]
     pub polling_station: PhysicalLocationPollingStation,
 }
 
@@ -893,22 +908,14 @@ impl EMLElement for PhysicalLocation {
             polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| PhysicalLocationPollingStation::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(PhysicalLocationAddress::EML_NAME, &self.address)?
-            .child_elem(
-                PhysicalLocationPollingStation::EML_NAME,
-                &self.polling_station,
-            )?
-            .finish()
-    }
 }
 
 /// Address of a physical location.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Address", ns(NS_EML))]
 pub struct PhysicalLocationAddress {
     /// Locality of the physical location.
+    #[xml(rename = "Locality")]
     pub locality: PhysicalLocationLocality,
 }
 
@@ -920,21 +927,18 @@ impl EMLElement for PhysicalLocationAddress {
             locality: PhysicalLocationLocality::EML_NAME => |elem| PhysicalLocationLocality::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(PhysicalLocationLocality::EML_NAME, &self.locality)?
-            .finish()
-    }
 }
 
 /// Locality of a physical location.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Locality", ns(NS_EML))]
 pub struct PhysicalLocationLocality {
     /// Name of the locality.
+    #[xml(rename = "LocalityName")]
     pub locality_name: LocalityName,
 
     /// Postal code of the locality.
+    #[xml(rename = "PostalCode")]
     pub postal_code: Option<PostalCode>,
 }
 
@@ -947,22 +951,18 @@ impl EMLElement for PhysicalLocationLocality {
             postal_code as Option: PostalCode::EML_NAME => |elem| PostalCode::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(LocalityName::EML_NAME, &self.locality_name)?
-            .child_elem_option(PostalCode::EML_NAME, self.postal_code.as_ref())?
-            .finish()
-    }
 }
 
 /// Polling station information of a physical location.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "PollingStation", rename_all = "PascalCase", ns(NS_EML))]
 pub struct PhysicalLocationPollingStation {
     /// Identifier of the polling station.
+    #[xml(attribute)]
     pub id: StringValue<PhysicalLocationPollingStationId>,
 
     /// Additional data of the polling station.
+    #[xml(direct)]
     pub data: String,
 }
 
@@ -975,13 +975,6 @@ impl EMLElement for PhysicalLocationPollingStation {
             id: elem.string_value_attr("Id", None)?,
             data: elem.text_without_children()?,
         })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .text(self.data.as_ref())?
-            .finish()
     }
 }
 

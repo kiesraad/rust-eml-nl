@@ -1,15 +1,20 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Affiliation type used in the election.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum AffiliationType {
     /// lijstengroep
+    #[xml(rename = "lijstengroep")]
     GroupOfLists,
     /// stel gelijkluidende lijsten
+    #[xml(rename = "stel gelijkluidende lijsten")]
     SetOfEqualLists,
     /// op zichzelf staande lijst
+    #[xml(rename = "op zichzelf staande lijst")]
     StandAloneList,
 }
 

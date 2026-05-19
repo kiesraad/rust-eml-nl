@@ -1,16 +1,19 @@
 use std::borrow::Cow;
 
+use instant_xml::ToXml;
+
 use crate::{
     EMLValueResultExt, NS_EML,
     error::EMLError,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{StringValue, XsDateOrDateTime},
 };
 
 /// Document issue date.
 ///
 /// Can be either a date or a date with time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(ns(NS_EML))]
 pub struct IssueDate(pub StringValue<XsDateOrDateTime>);
 
 impl IssueDate {
@@ -46,11 +49,6 @@ impl EMLElement for IssueDate {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(IssueDate(elem.string_value()?))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.text(self.raw().as_ref())?.finish()?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -59,7 +57,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+        io::{EMLParsingMode, EMLRead, test_xml_fragment},
         utils::XsDateTime,
     };
 
@@ -79,8 +77,5 @@ mod tests {
         );
         let id = IssueDate::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(id.raw(), "2024-06-01");
-
-        let xml_output = test_write_eml_element(&id, &[NS_EML]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

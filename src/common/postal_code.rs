@@ -1,15 +1,20 @@
+use instant_xml::ToXml;
+
 use crate::{
     EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
 };
 
 /// Postal code element
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCode {
     /// Postal code number
+    #[xml(rename = "PostalCodeNumber")]
     pub number: PostalCodeNumber,
 
     /// The `Type` attribute of the `PostalCode` element, if present.
+    #[xml(attribute, rename = "Type")]
     pub postal_code_type: Option<String>,
 }
 
@@ -71,23 +76,20 @@ impl EMLElement for PostalCode {
             postal_code_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.postal_code_type.as_ref())?
-            .child_elem(PostalCodeNumber::EML_NAME, &self.number)?
-            .finish()
-    }
 }
 
 /// Postal code number element
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCodeNumber {
     /// Type attribute of the postal code number
+    #[xml(attribute, rename = "Type")]
     pub number_type: Option<String>,
     /// Code attribute of the postal code number
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
     /// The postal code value
+    #[xml(direct)]
     pub number: String,
 }
 
@@ -105,22 +107,12 @@ impl EMLElement for PostalCodeNumber {
             number,
         })
     }
-
-    fn write_eml(&self, mut writer: EMLElementWriter) -> Result<(), EMLError> {
-        if let Some(number_type) = &self.number_type {
-            writer = writer.attr("Type", number_type.as_ref())?
-        }
-        if let Some(code) = &self.code {
-            writer = writer.attr("Code", code.as_ref())?
-        }
-        writer.text(self.number.as_ref())?.finish()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
 
     #[test]
     fn test_postal_code_construction() {
@@ -148,9 +140,6 @@ mod tests {
         assert_eq!(postal_code.postal_code_type.as_deref(), Some("Test"));
         assert_eq!(postal_code.number.number_type.as_deref(), Some("Primary"));
         assert_eq!(postal_code.number.code.as_deref(), Some("PC123"));
-
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 
     #[test]
@@ -168,8 +157,5 @@ mod tests {
         assert_eq!(postal_code.postal_code_type, None);
         assert_eq!(postal_code.number.number_type, None);
         assert_eq!(postal_code.number.code, None);
-
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

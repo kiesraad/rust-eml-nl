@@ -1,6 +1,8 @@
 //! Document variant for the EML_NL Count (`510a`, `510b`, `510c` or `510d`) document.
 
-use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
+use std::{collections::BTreeMap, fmt, num::NonZeroU64, str::FromStr};
+
+use instant_xml::{FromXml, ToXml, ser::Context};
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, NS_EML,
@@ -11,10 +13,8 @@ use crate::{
         ReportingUnitIdentifier, TransactionId,
     },
     documents::{ElectionIdentifierBuilder, accepted_root},
-    io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement,
-        QualifiedName, collect_struct,
-    },
+    eml_ns_context,
+    io::{EMLElement, EMLElementReader, EMLReadElement as _, QualifiedName, collect_struct},
     utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
         StringValue, XsDate, XsDateTime,
@@ -220,6 +220,25 @@ impl Default for ElectionCountBuilder {
     }
 }
 
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for ElectionCount {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", self.count_type.to_eml_id())?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+        self.transaction_id.serialize(None, serializer)?;
+        self.managing_authority.serialize(None, serializer)?;
+        self.creation_date_time.serialize(None, serializer)?;
+        self.count.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionCount {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
@@ -238,22 +257,6 @@ impl EMLElement for ElectionCount {
             canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
             count: ElectionCountCount::EML_NAME => |elem| ElectionCountCount::read_eml(elem)?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), self.count_type.to_eml_id())?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(ElectionCountCount::EML_NAME, &self.count)?
-            .finish()
     }
 }
 
@@ -352,6 +355,22 @@ impl From<ElectionCountElection> for ElectionCountCount {
     }
 }
 
+// Custom: injects empty `<EventIdentifier/>` element not present in the struct.
+impl ToXml for ElectionCountCount {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("Count", NS_EML, None::<Context<0>>)?;
+        serializer.end_start()?;
+        let _ = serializer.write_start("EventIdentifier", NS_EML, None::<Context<0>>)?;
+        serializer.end_empty()?;
+        self.election.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionCountCount {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Count", Some(NS_EML));
 
@@ -360,13 +379,6 @@ impl EMLElement for ElectionCountCount {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
             election: ElectionCountElection::EML_NAME => |elem| ElectionCountElection::read_eml(elem)?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("EventIdentifier", NS_EML), |w| w.empty())?
-            .child_elem(ElectionCountElection::EML_NAME, &self.election)?
-            .finish()
     }
 }
 
@@ -390,6 +402,28 @@ impl ElectionCountElection {
             identifier: identifier.into(),
             contests: contests.into(),
         }
+    }
+}
+
+// Custom: wraps contests in a `<Contests>` wrapper element not present in the struct.
+impl ToXml for ElectionCountElection {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("Election", NS_EML, None::<Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+
+        let contests_prefix = serializer.write_start("Contests", NS_EML, None::<Context<0>>)?;
+        serializer.end_start()?;
+        for contest in &self.contests {
+            contest.serialize(None, serializer)?;
+        }
+
+        serializer.write_close(contests_prefix)?;
+        serializer.write_close(prefix)
     }
 }
 
@@ -424,38 +458,34 @@ impl EMLElement for ElectionCountElection {
 
         Ok(data)
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ElectionCountElectionIdentifier::EML_NAME, &self.identifier)?
-            .child(("Contests", NS_EML), |writer| {
-                writer
-                    .child_elems(ElectionCountContest::EML_NAME, &self.contests)?
-                    .finish()
-            })?
-            .finish()
-    }
 }
 
 /// Identifier for the election in this count.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct ElectionCountElectionIdentifier {
     /// Id of the election
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
+    #[xml(rename = "ElectionName")]
     pub name: Option<String>,
 
     /// Category of the election
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Subcategory of the election
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: Option<StringValue<ElectionSubcategory>>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 }
 
@@ -480,41 +510,22 @@ impl EMLElement for ElectionCountElectionIdentifier {
             election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child_option(
-                ("ElectionName", NS_EML),
-                self.name.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child_option(
-                ("ElectionSubcategory", NS_KR),
-                self.subcategory.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .finish()
-    }
 }
 
 /// A contest within the election count.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Contest", ns(NS_EML))]
 pub struct ElectionCountContest {
     /// Identifier for the contest.
+    #[xml(rename = "ContestIdentifier")]
     pub identifier: ContestIdentifier,
 
     /// Total votes in this contest, if present.
+    #[xml(rename = "TotalVotes")]
     pub total_votes: Option<TotalVotes>,
 
     /// Votes per reporting unit in this contest.
+    #[xml(rename = "ReportingUnitVotes")]
     pub reporting_unit_votes: Vec<ReportingUnitVotes>,
 }
 
@@ -717,14 +728,6 @@ impl EMLElement for ElectionCountContest {
             reporting_unit_votes as Vec: ReportingUnitVotes::EML_NAME => |elem| ReportingUnitVotes::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
-            .child_elem_option(TotalVotes::EML_NAME, self.total_votes.as_ref())?
-            .child_elems(ReportingUnitVotes::EML_NAME, &self.reporting_unit_votes)?
-            .finish()
-    }
 }
 
 const REJECTED_VOTES_EML_NAME: QualifiedName<'_, '_> =
@@ -790,6 +793,55 @@ impl TotalVotes {
     }
 }
 
+// Custom: serializes vote maps as elements with ReasonCode attributes.
+impl ToXml for TotalVotes {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("TotalVotes", NS_EML, None::<Context<0>>)?;
+        serializer.end_start()?;
+        for selection in &self.selections {
+            selection.serialize(None, serializer)?;
+        }
+
+        self.eligible_voter_count.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "Cast",
+            }),
+            serializer,
+        )?;
+
+        self.candidate_votes_count.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "TotalCounted",
+            }),
+            serializer,
+        )?;
+
+        for (reason, count) in &self.rejected_votes {
+            let rv_prefix = serializer.write_start("RejectedVotes", NS_EML, None::<Context<0>>)?;
+            serializer.write_attr("ReasonCode", "", reason.to_eml_value())?;
+            serializer.end_start()?;
+            serializer.write_str(count.raw().as_ref())?;
+            serializer.write_close(rv_prefix)?;
+        }
+
+        for (reason, count) in &self.uncounted_votes {
+            let uv_prefix = serializer.write_start("UncountedVotes", NS_EML, None::<Context<0>>)?;
+            serializer.write_attr("ReasonCode", "", reason.to_eml_value())?;
+            serializer.end_start()?;
+            serializer.write_str(count.raw().as_ref())?;
+            serializer.write_close(uv_prefix)?;
+        }
+
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for TotalVotes {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("TotalVotes", Some(NS_EML));
 
@@ -839,40 +891,6 @@ impl EMLElement for TotalVotes {
         }
 
         Ok(data)
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elems(ElectionCountSelection::EML_NAME, &self.selections)?
-            .child(("Cast", NS_EML), |elem| {
-                elem.text(self.eligible_voter_count.raw().as_ref())?
-                    .finish()
-            })?
-            .child(("TotalCounted", NS_EML), |elem| {
-                elem.text(self.candidate_votes_count.raw().as_ref())?
-                    .finish()
-            })?
-            .child_elems_map(
-                REJECTED_VOTES_EML_NAME,
-                &self.rejected_votes,
-                |elem, (reason, count)| {
-                    let reason_code = reason.to_eml_value();
-                    elem.attr("ReasonCode", reason_code.as_ref())?
-                        .text(count.raw().as_ref())?
-                        .finish()
-                },
-            )?
-            .child_elems_map(
-                UNCOUNTED_VOTES_EML_NAME,
-                &self.uncounted_votes,
-                |elem, (reason, count)| {
-                    let reason_code = reason.to_eml_value();
-                    elem.attr("ReasonCode", reason_code.as_ref())?
-                        .text(count.raw().as_ref())?
-                        .finish()
-                },
-            )?
-            .finish()
     }
 }
 
@@ -1161,6 +1179,71 @@ const REPORTING_UNIT_INVESTIGATIONS_EML_NAME: QualifiedName<'_, '_> =
 const INVESTIGATION_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("Investigation", Some(NS_KR));
 
+// Custom: conditional `<ReportingUnitInvestigations>` wrapper; vote maps with ReasonCode attributes.
+impl ToXml for ReportingUnitVotes {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("ReportingUnitVotes", NS_EML, None::<Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+        for selection in &self.selections {
+            selection.serialize(None, serializer)?;
+        }
+
+        self.eligible_voter_count.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "Cast",
+            }),
+            serializer,
+        )?;
+
+        self.candidate_votes_count.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "TotalCounted",
+            }),
+            serializer,
+        )?;
+
+        for (reason, count) in &self.rejected_votes {
+            let rv_prefix = serializer.write_start("RejectedVotes", NS_EML, None::<Context<0>>)?;
+            serializer.write_attr("ReasonCode", "", reason.to_eml_value())?;
+            serializer.end_start()?;
+            serializer.write_str(count.raw().as_ref())?;
+            serializer.write_close(rv_prefix)?;
+        }
+
+        for (reason, count) in &self.uncounted_votes {
+            let uv_prefix = serializer.write_start("UncountedVotes", NS_EML, None::<Context<0>>)?;
+            serializer.write_attr("ReasonCode", "", reason.to_eml_value())?;
+            serializer.end_start()?;
+            serializer.write_str(count.raw().as_ref())?;
+            serializer.write_close(uv_prefix)?;
+        }
+
+        if !self.investigations.is_empty() {
+            let inv_prefix =
+                serializer.write_start("ReportingUnitInvestigations", NS_KR, None::<Context<0>>)?;
+            serializer.end_start()?;
+            for (reason, investigated) in &self.investigations {
+                let reason_prefix =
+                    serializer.write_start("Investigation", NS_KR, None::<Context<0>>)?;
+                serializer.write_attr("ReasonCode", "", reason.to_eml_value())?;
+                serializer.end_start()?;
+                serializer.write_str(investigated.raw().as_ref())?;
+                serializer.write_close(reason_prefix)?;
+            }
+            serializer.write_close(inv_prefix)?;
+        }
+
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ReportingUnitVotes {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ReportingUnitVotes", Some(NS_EML));
@@ -1248,79 +1331,29 @@ impl EMLElement for ReportingUnitVotes {
             investigations: data.investigations.unwrap_or_default(),
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ReportingUnitIdentifier::EML_NAME, &self.identifier)?
-            .child_elems(ElectionCountSelection::EML_NAME, &self.selections)?
-            .child(("Cast", NS_EML), |elem| {
-                elem.text(self.eligible_voter_count.raw().as_ref())?
-                    .finish()
-            })?
-            .child(("TotalCounted", NS_EML), |elem| {
-                elem.text(self.candidate_votes_count.raw().as_ref())?
-                    .finish()
-            })?
-            .child_elems_map(
-                REJECTED_VOTES_EML_NAME,
-                &self.rejected_votes,
-                |elem, (reason, count)| {
-                    let reason_code = reason.to_eml_value();
-                    elem.attr("ReasonCode", reason_code.as_ref())?
-                        .text(count.raw().as_ref())?
-                        .finish()
-                },
-            )?
-            .child_elems_map(
-                UNCOUNTED_VOTES_EML_NAME,
-                &self.uncounted_votes,
-                |elem, (reason, count)| {
-                    let reason_code = reason.to_eml_value();
-                    elem.attr("ReasonCode", reason_code.as_ref())?
-                        .text(count.raw().as_ref())?
-                        .finish()
-                },
-            )?
-            .child_option(
-                REPORTING_UNIT_INVESTIGATIONS_EML_NAME,
-                if self.investigations.is_empty() {
-                    None
-                } else {
-                    Some(&self.investigations)
-                },
-                |elem, value| {
-                    let mut elem = elem.content()?;
-
-                    for (reason, investigated) in value {
-                        elem = elem.child(INVESTIGATION_EML_NAME, |elem| {
-                            let reason_code = reason.to_eml_value();
-                            elem.attr("ReasonCode", reason_code.as_ref())?
-                                .text(investigated.raw().as_ref())?
-                                .finish()
-                        })?;
-                    }
-
-                    elem.finish()
-                },
-            )?
-            .finish()
-    }
 }
 
 /// Reason code for a specific investigation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum InvestigationReason {
     /// onderzocht vanwege onverklaard verschil
+    #[xml(rename = "onderzocht vanwege onverklaard verschil")]
     UnexplainedDifference,
     /// onderzocht vanwege andere fout
+    #[xml(rename = "onderzocht vanwege andere fout")]
     OtherError,
     /// uitslag gecorrigeerd
+    #[xml(rename = "uitslag gecorrigeerd")]
     ResultCorrected,
     /// toegelaten kiezers opnieuw vastgesteld
+    #[xml(rename = "toegelaten kiezers opnieuw vastgesteld")]
     AdmittedVotersReestablished,
     /// onderzocht vanwege andere reden
+    #[xml(rename = "onderzocht vanwege andere reden")]
     OtherReason,
     /// stembiljetten deels herteld
+    #[xml(rename = "stembiljetten deels herteld")]
     PartiallyRecountedBallots,
 }
 
@@ -1364,35 +1397,50 @@ impl InvestigationReason {
 pub struct InvalidInvestigationReasonError(String);
 
 /// Reason code for a specific uncounted votes entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum UncountedVotesReason {
     /// geldige stempassen
+    #[xml(rename = "geldige stempassen")]
     ValidPollCards,
     /// geldige volmachtbewijzen
+    #[xml(rename = "geldige volmachtbewijzen")]
     ValidProxyCertificates,
     /// geldige kiezerspassen
+    #[xml(rename = "geldige kiezerspassen")]
     ValidVoterCards,
     /// toegelaten kiezers
+    #[xml(rename = "toegelaten kiezers")]
     AdmittedVoters,
     /// meer getelde stembiljetten
+    #[xml(rename = "meer getelde stembiljetten")]
     MoreBallotsCounted,
     /// minder getelde stembiljetten
+    #[xml(rename = "minder getelde stembiljetten")]
     FewerBallotsCounted,
     /// meegenomen stembiljetten
+    #[xml(rename = "meegenomen stembiljetten")]
     BallotsTaken,
     /// te weinig uitgereikte stembiljetten
+    #[xml(rename = "te weinig uitgereikte stembiljetten")]
     TooFewBallotsIssued,
     /// te veel uitgereikte stembiljetten
+    #[xml(rename = "te veel uitgereikte stembiljetten")]
     TooManyBallotsIssued,
     /// geen briefstembiljetten
+    #[xml(rename = "geen briefstembiljetten")]
     NoPostalBallots,
     /// te veel briefstembiljetten
+    #[xml(rename = "te veel briefstembiljetten")]
     TooManyPostalBallots,
     /// kwijtgeraakte stembiljetten
+    #[xml(rename = "kwijtgeraakte stembiljetten")]
     LostBallots,
     /// geen verklaring
+    #[xml(rename = "geen verklaring")]
     NoExplanation,
     /// andere verklaring
+    #[xml(rename = "andere verklaring")]
     OtherExplanation,
 }
 
@@ -1445,11 +1493,14 @@ impl UncountedVotesReason {
 pub struct InvalidUncountedVotesReasonError(String);
 
 /// Reason code for rejected votes entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum RejectedVotesReason {
     /// Blank votes ("blanco")
+    #[xml(rename = "blanco")]
     Blank,
     /// Invalid votes ("ongeldig")
+    #[xml(rename = "ongeldig")]
     Invalid,
 }
 
@@ -1479,7 +1530,8 @@ impl RejectedVotesReason {
 pub struct InvalidRejectedVotesReasonError(String);
 
 /// A selection within the reporting unit votes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Selection", rename_all = "PascalCase", ns(NS_EML))]
 pub struct ElectionCountSelection {
     /// Type of selection.
     pub selection_type: ElectionCountSelectionType,
@@ -1488,9 +1540,11 @@ pub struct ElectionCountSelection {
     pub valid_votes: StringValue<u64>,
 
     /// Value of the `Value` attribute, if present.
+    #[xml(attribute)]
     pub value: Option<String>,
 
     /// Value of the `Category` attribute, if present.
+    #[xml(attribute)]
     pub category: Option<String>,
 }
 
@@ -1645,35 +1699,11 @@ impl EMLElement for ElectionCountSelection {
             category,
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = writer
-            .attr_opt("Value", self.value.as_deref())?
-            .attr_opt("Category", self.category.as_deref())?;
-        let writer = match &self.selection_type {
-            ElectionCountSelectionType::Candidate(candidate_selection) => {
-                writer.child_elem(CandidateSelection::EML_NAME, candidate_selection.as_ref())?
-            }
-            ElectionCountSelectionType::Affiliation(affiliation_selection) => writer.child_elem(
-                AffiliationSelection::EML_NAME,
-                affiliation_selection.as_ref(),
-            )?,
-            ElectionCountSelectionType::ReferendumOption(referendum_option_selection) => writer
-                .child_elem(
-                    ReferendumOptionSelection::EML_NAME,
-                    referendum_option_selection.as_ref(),
-                )?,
-        };
-        writer
-            .child(("ValidVotes", NS_EML), |elem| {
-                elem.text(self.valid_votes.raw().as_ref())?.finish()
-            })?
-            .finish()
-    }
 }
 
 /// The type of selection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(forward)]
 pub enum ElectionCountSelectionType {
     /// Selection of a candidate.
     Candidate(Box<CandidateSelection>),
@@ -1730,18 +1760,23 @@ impl ElectionCountSelectionType {
 }
 
 /// Selection of a candidate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Candidate", ns(NS_EML))]
 pub struct CandidateSelection {
     /// Identifier of the candidate.
+    #[xml(rename = "CandidateIdentifier")]
     pub identifier: CandidateIdentifier,
 
     /// Name of the candidate.
+    #[xml(rename = "CandidateFullName")]
     pub name: Option<PersonNameStructure>,
 
     /// Gender of the candidate.
+    #[xml(rename = "Gender")]
     pub gender: Option<StringValue<Gender>>,
 
     /// Qualified address of the candidate, if present.
+    #[xml(rename = "QualifyingAddress")]
     pub qualifying_address: Option<MinimalQualifyingAddress>,
 }
 
@@ -1892,33 +1927,18 @@ impl EMLElement for CandidateSelection {
             qualifying_address as Option: MinimalQualifyingAddress::EML_NAME => |elem| MinimalQualifyingAddress::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child_option(
-                ("CandidateFullName", NS_EML),
-                self.name.as_ref(),
-                |elem, value| value.write_eml_element(elem),
-            )?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
-            .child_elem_option(
-                MinimalQualifyingAddress::EML_NAME,
-                self.qualifying_address.as_ref(),
-            )?
-            .finish()
-    }
 }
 
 /// Selection of an affiliation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "AffiliationIdentifier", ns(NS_EML))]
 pub struct AffiliationSelection {
     /// Id of the affiliation.
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<AffiliationId>,
 
     /// Name of the affiliation.
+    #[xml(rename = "RegisteredName")]
     pub name: String,
 }
 
@@ -1942,34 +1962,35 @@ impl EMLElement for AffiliationSelection {
             name: ("RegisteredName", NS_EML) => |elem| elem.text_without_children()?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child(("RegisteredName", NS_EML), |elem| {
-                elem.text(self.name.as_ref())?.finish()
-            })?
-            .finish()
-    }
 }
 
 /// Selection of a referendum option.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(
+    rename = "ReferendumOptionIdentifier",
+    rename_all = "PascalCase",
+    ns(NS_EML)
+)]
 pub struct ReferendumOptionSelection {
-    /// Value of the referendum option.
-    pub value: String,
-
     /// Id of the referendum option, if present.
+    #[xml(attribute)]
     pub id: Option<String>,
 
     /// Display order of the referendum option, if present.
+    #[xml(attribute)]
     pub display_order: Option<StringValue<NonZeroU64>>,
 
     /// Short code of the referendum option, if present.
+    #[xml(attribute)]
     pub short_code: Option<String>,
 
     /// Expected confirmation reference of the referendum option, if present.
+    #[xml(attribute)]
     pub expected_confirmation_reference: Option<String>,
+
+    /// Value of the referendum option.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl ReferendumOptionSelection {
@@ -2026,19 +2047,6 @@ impl EMLElement for ReferendumOptionSelection {
                 .attribute_value("ExpectedConfirmationReference")?
                 .map(|s| s.into_owned()),
         })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Id", self.id.as_deref())?
-            .attr_opt("DisplayOrder", self.display_order.as_ref().map(|s| s.raw()))?
-            .attr_opt("ShortCode", self.short_code.as_deref())?
-            .attr_opt(
-                "ExpectedConfirmationReference",
-                self.expected_confirmation_reference.as_deref(),
-            )?
-            .text(self.value.as_ref())?
-            .finish()
     }
 }
 

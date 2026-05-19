@@ -16,17 +16,6 @@ pub(crate) trait EMLElement {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
     where
         Self: Sized;
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError>;
-}
-
-impl<T> EMLWriteElement for T
-where
-    T: EMLElement,
-{
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        self.write_eml(writer)
-    }
 }
 
 impl<T> EMLReadElement for T

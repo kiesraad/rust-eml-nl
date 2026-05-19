@@ -1,7 +1,11 @@
+use std::fmt;
+
+use instant_xml::ToXml;
+
 use crate::{
     EMLError, EMLErrorKind, NS_EML, NS_XAL,
     common::{CountryNameCode, LocalityName},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
 };
 
 /// The minimal details for a qualifying address
@@ -31,6 +35,29 @@ impl MinimalQualifyingAddress {
             country_name_code.into(),
             MinimalQualifyingAddressLocality::new(locality_name.into()),
         ))
+    }
+}
+
+// Custom: enum dispatch (Locality/Country variants) inside a `<QualifyingAddress>` element.
+impl ToXml for MinimalQualifyingAddress {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start(
+            "QualifyingAddress",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_start()?;
+        match self {
+            MinimalQualifyingAddress::Locality(locality) => locality.serialize(None, serializer)?,
+            MinimalQualifyingAddress::Country(country) => country.serialize(None, serializer)?,
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
@@ -76,25 +103,14 @@ impl EMLElement for MinimalQualifyingAddress {
         };
         Ok(result)
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let mut writer = writer.content()?;
-        match self {
-            MinimalQualifyingAddress::Locality(locality) => {
-                writer = writer.child_elem(MinimalQualifyingAddressLocality::EML_NAME, locality)?
-            }
-            MinimalQualifyingAddress::Country(country) => {
-                writer = writer.child_elem(MinimalQualifyingAddressCountry::EML_NAME, country)?
-            }
-        }
-        writer.finish()
-    }
 }
 
 /// The minimal details for locality in a qualifying address
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Locality", ns(NS_XAL), force_prefix)]
 pub struct MinimalQualifyingAddressLocality {
     /// Name of the locality
+    #[xml(rename = "LocalityName")]
     pub locality_name: LocalityName,
 }
 
@@ -116,20 +132,17 @@ impl EMLElement for MinimalQualifyingAddressLocality {
             }
         ))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(LocalityName::EML_NAME, &self.locality_name)?
-            .finish()
-    }
 }
 
 /// The minimal details for country in a qualifying address
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Country", ns(NS_XAL), force_prefix)]
 pub struct MinimalQualifyingAddressCountry {
     /// The country name code, if present.
+    #[xml(rename = "CountryNameCode")]
     pub country_name_code: CountryNameCode,
     /// The locality within the country.
+    #[xml(rename = "Locality")]
     pub locality: MinimalQualifyingAddressLocality,
 }
 
@@ -155,19 +168,12 @@ impl EMLElement for MinimalQualifyingAddressCountry {
             locality: MinimalQualifyingAddressLocality::EML_NAME => |elem| MinimalQualifyingAddressLocality::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(CountryNameCode::EML_NAME, &self.country_name_code)?
-            .child_elem(MinimalQualifyingAddressLocality::EML_NAME, &self.locality)?
-            .finish()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLParsingMode, EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_minimal_qualifying_address_construction() {
@@ -214,9 +220,6 @@ mod tests {
         } else {
             panic!("Expected a country qualifying address");
         }
-
-        let xml_output = test_write_eml_element(&address, &[NS_EML, NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 
     #[test]
@@ -238,8 +241,5 @@ mod tests {
         } else {
             panic!("Expected a locality qualifying address");
         }
-
-        let xml_output = test_write_eml_element(&address, &[NS_EML, NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

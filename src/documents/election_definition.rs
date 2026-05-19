@@ -1,6 +1,8 @@
 //! Document variant for the EML_NL Election Definition (`110a`) document.
 
-use std::{num::NonZeroU64, str::FromStr};
+use std::{fmt, num::NonZeroU64, str::FromStr};
+
+use instant_xml::ToXml;
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
@@ -9,8 +11,9 @@ use crate::{
         IssueDate, ManagingAuthority, TransactionId,
     },
     documents::{ElectionIdentifierBuilder, accepted_root},
+    eml_ns_context,
     error::{EMLErrorKind, EMLResultExt},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, VotingMethod, XsDate,
         XsDateOrDateTime, XsDateTime,
@@ -348,6 +351,33 @@ impl Default for ElectionDefinitionBuilder {
     }
 }
 
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for ElectionDefinition {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", EML_ELECTION_DEFINITION_ID)?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+        self.transaction_id.serialize(None, serializer)?;
+
+        if let Some(ma) = &self.managing_authority {
+            ma.serialize(None, serializer)?;
+        }
+
+        self.creation_date_time.serialize(None, serializer)?;
+        if let Some(id) = &self.issue_date {
+            id.serialize(None, serializer)?;
+        }
+
+        self.election_event.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionDefinition {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
@@ -371,29 +401,6 @@ impl EMLElement for ElectionDefinition {
             canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
             election_event: ElectionDefinitionElectionEvent::EML_NAME => |elem| ElectionDefinitionElectionEvent::read_eml(elem)?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem_option(
-                ManagingAuthority::EML_NAME,
-                self.managing_authority.as_ref(),
-            )?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(
-                ElectionDefinitionElectionEvent::EML_NAME,
-                &self.election_event,
-            )?
-            .finish()
     }
 }
 
@@ -419,6 +426,32 @@ impl From<ElectionDefinitionElection> for ElectionDefinitionElectionEvent {
     }
 }
 
+// Custom: injects empty `<EventIdentifier/>` element not present in the struct.
+impl ToXml for ElectionDefinitionElectionEvent {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start(
+            "ElectionEvent",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_start()?;
+        let _ = serializer.write_start(
+            "EventIdentifier",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_empty()?;
+        self.election.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionDefinitionElectionEvent {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("ElectionEvent", Some(NS_EML));
@@ -428,13 +461,6 @@ impl EMLElement for ElectionDefinitionElectionEvent {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
             election: ElectionDefinitionElection::EML_NAME => |elem| ElectionDefinitionElection::read_eml(elem)?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("EventIdentifier", NS_EML), |w| w.empty())?
-            .child_elem(ElectionDefinitionElection::EML_NAME, &self.election)?
-            .finish()
     }
 }
 
@@ -468,6 +494,56 @@ pub struct ElectionDefinitionElection {
     pub registered_parties: Vec<ElectionDefinitionRegisteredParty>,
 }
 
+// Custom: wraps parties in `<RegisteredParties>` wrapper; empty-element when list is empty.
+impl ToXml for ElectionDefinitionElection {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Election", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+        self.contest.serialize(None, serializer)?;
+        self.election_tree.serialize(None, serializer)?;
+
+        self.number_of_seats.serialize(
+            Some(instant_xml::Id {
+                ns: NS_KR,
+                name: "NumberOfSeats",
+            }),
+            serializer,
+        )?;
+
+        self.preference_threshold.serialize(
+            Some(instant_xml::Id {
+                ns: NS_KR,
+                name: "PreferenceThreshold",
+            }),
+            serializer,
+        )?;
+
+        let rp_prefix = serializer.write_start(
+            "RegisteredParties",
+            NS_KR,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        if self.registered_parties.is_empty() {
+            serializer.end_empty()?;
+        } else {
+            serializer.end_start()?;
+            for party in &self.registered_parties {
+                party.serialize(None, serializer)?;
+            }
+            serializer.write_close(rp_prefix)?;
+        }
+
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionDefinitionElection {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Election", Some(NS_EML));
 
@@ -491,51 +567,38 @@ impl EMLElement for ElectionDefinitionElection {
 
         Ok(data)
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(
-                ElectionDefinitionElectionIdentifier::EML_NAME,
-                &self.identifier,
-            )?
-            .child_elem(ElectionDefinitionContest::EML_NAME, &self.contest)?
-            .child_elem(ElectionTree::EML_NAME, &self.election_tree)?
-            .child(EML_NAME_NUMBER_OF_SEATS, |elem| {
-                elem.text(self.number_of_seats.raw().as_ref())?.finish()
-            })?
-            .child(EML_NAME_PREFERENCE_THRESHOLD, |elem| {
-                elem.text(self.preference_threshold.raw().as_ref())?
-                    .finish()
-            })?
-            .child(("RegisteredParties", NS_KR), |elem| {
-                ElectionDefinitionRegisteredParty::write_list(&self.registered_parties, elem)
-            })?
-            .finish()
-    }
 }
 
 /// Identifier for the election.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct ElectionDefinitionElectionIdentifier {
     /// Id of the election
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
+    #[xml(rename = "ElectionName")]
     pub name: String,
 
     /// Category of the election
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Subcategory of the election
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: StringValue<ElectionSubcategory>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 
     /// Nomination date for the election
+    #[xml(rename = "NominationDate", ns(NS_KR))]
     pub nomination_date: StringValue<XsDate>,
 }
 
@@ -564,28 +627,6 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
         ))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child(("ElectionName", NS_EML), |elem| {
-                elem.text(self.name.as_ref())?.finish()
-            })?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child(("ElectionSubcategory", NS_KR), |elem| {
-                elem.text(self.subcategory.raw().as_ref())?.finish()
-            })?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .child(("NominationDate", NS_KR), |elem| {
-                elem.text(self.nomination_date.raw().as_ref())?.finish()
-            })?
-            .finish()
     }
 }
 
@@ -617,6 +658,41 @@ impl ElectionDefinitionContest {
     }
 }
 
+// Custom: `<MaxVotes>` uses empty-element when value is "1", otherwise with content.
+impl ToXml for ElectionDefinitionContest {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Contest", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+
+        self.voting_method.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "VotingMethod",
+            }),
+            serializer,
+        )?;
+
+        let raw_text = self.max_votes.raw();
+        let mv_prefix =
+            serializer.write_start("MaxVotes", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        if raw_text == "1" {
+            serializer.end_empty()?;
+        } else {
+            serializer.end_start()?;
+            serializer.write_str(raw_text.as_ref())?;
+            serializer.write_close(mv_prefix)?;
+        }
+
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionDefinitionContest {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
 
@@ -630,23 +706,6 @@ impl EMLElement for ElectionDefinitionContest {
             },
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
-            .child(("VotingMethod", NS_EML), |elem| {
-                elem.text(self.voting_method.raw().as_ref())?.finish()
-            })?
-            .child(("MaxVotes", NS_EML), |elem| {
-                let raw_text = self.max_votes.raw();
-                if raw_text == "1" {
-                    elem.empty()
-                } else {
-                    elem.text(raw_text.as_ref())?.finish()
-                }
-            })?
-            .finish()
-    }
 }
 
 /// A registered party in the election definition.
@@ -654,7 +713,13 @@ impl EMLElement for ElectionDefinitionContest {
 /// In election definitions this is just a party name, for full party details and
 /// candidates see the [`CandidateLists`](crate::documents::candidate_lists::CandidateLists)
 /// document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(
+    rename = "RegisteredParty",
+    rename_all = "PascalCase",
+    ns(NS_KR),
+    force_prefix
+)]
 pub struct ElectionDefinitionRegisteredParty {
     /// Name of the registered party (as registered at the CSB)
     pub registered_appellation: String,
@@ -701,21 +766,6 @@ impl ElectionDefinitionRegisteredParty {
         }
         Ok(parties)
     }
-
-    pub(crate) fn write_list(
-        parties: &[ElectionDefinitionRegisteredParty],
-        writer: EMLElementWriter,
-    ) -> Result<(), EMLError> {
-        if parties.is_empty() {
-            return writer.empty();
-        }
-
-        let mut content = writer.content()?;
-        for party in parties {
-            content = content.child_elem(ElectionDefinitionRegisteredParty::EML_NAME, party)?;
-        }
-        content.finish()
-    }
 }
 
 impl EMLElement for ElectionDefinitionRegisteredParty {
@@ -726,14 +776,6 @@ impl EMLElement for ElectionDefinitionRegisteredParty {
         Ok(collect_struct!(elem, ElectionDefinitionRegisteredParty {
             registered_appellation: ("RegisteredAppellation", NS_KR) => |elem| elem.text_without_children()?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("RegisteredAppellation", NS_KR), |elem| {
-                elem.text(self.registered_appellation.as_ref())?.finish()
-            })?
-            .finish()
     }
 }
 

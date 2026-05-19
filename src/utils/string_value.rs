@@ -1,5 +1,6 @@
-use std::{borrow::Cow, convert::Infallible, num::NonZeroU64};
+use std::{borrow::Cow, convert::Infallible, fmt, num::NonZeroU64};
 
+use instant_xml::{Id, Serializer, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _};
@@ -128,6 +129,16 @@ impl<T: StringValueData + Copy> StringValue<T> {
     /// This is only available for types that implement [`Copy`].
     pub fn copied_value(&self) -> Result<T, EMLError> {
         self.copied_value_err().wrap_value_error()
+    }
+}
+
+impl<T: StringValueData> ToXml for StringValue<T> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        self.raw().serialize(field, serializer)
     }
 }
 

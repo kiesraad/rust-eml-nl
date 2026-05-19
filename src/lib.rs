@@ -96,6 +96,31 @@ pub(crate) const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
 /// Namespace URI for XML Digital Signatures
 pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
 
+/// Namespace context for EML root elements, defining the standard prefix mappings.
+pub(crate) fn eml_ns_context() -> instant_xml::ser::Context<4> {
+    let mut ctx = instant_xml::ser::Context::<4>::default();
+    ctx.default_ns = NS_EML;
+    ctx.prefixes = [
+        instant_xml::ser::Prefix {
+            prefix: "kr",
+            ns: NS_KR,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "xal",
+            ns: NS_XAL,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "xnl",
+            ns: NS_XNL,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "ds",
+            ns: NS_DS,
+        },
+    ];
+    ctx
+}
+
 // /// Namespace URI for XML Schema
 // pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
 // /// Namespace URI for XML

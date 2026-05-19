@@ -2,6 +2,8 @@
 
 use std::str::FromStr;
 
+use instant_xml::ToXml;
+
 use crate::{
     EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
     common::ElectionDomain,
@@ -19,7 +21,7 @@ use crate::{
             EML_POLLING_STATIONS_ID, PollingStations, PollingStationsElectionIdentifier,
         },
     },
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{ElectionCategory, ElectionId, ElectionSubcategory, StringValue, XsDate},
 };
 
@@ -189,6 +191,24 @@ impl EML {
     }
 }
 
+// Custom: enum dispatch across six document type variants.
+impl ToXml for EML {
+    fn serialize<W: std::fmt::Write + ?Sized>(
+        &self,
+        field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        match self {
+            EML::ElectionDefinition(ed) => ed.serialize(field, serializer),
+            EML::PollingStations(ps) => ps.serialize(field, serializer),
+            EML::Nomination(nom) => nom.serialize(field, serializer),
+            EML::CandidateLists(cl) => cl.serialize(field, serializer),
+            EML::ElectionCount(c) => c.serialize(field, serializer),
+            EML::ElectionResult(r) => r.serialize(field, serializer),
+        }
+    }
+}
+
 impl EMLElement for EML {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
@@ -218,17 +238,6 @@ impl EMLElement for EML {
                     .with_span(elem.span());
             }
         })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        match self {
-            EML::ElectionDefinition(ed) => ed.write_eml(writer),
-            EML::PollingStations(ps) => ps.write_eml(writer),
-            EML::Nomination(nom) => nom.write_eml(writer),
-            EML::CandidateLists(cl) => cl.write_eml(writer),
-            EML::ElectionCount(c) => c.write_eml(writer),
-            EML::ElectionResult(r) => r.write_eml(writer),
-        }
     }
 }
 
@@ -647,7 +656,7 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_nomination_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
@@ -662,7 +671,7 @@ mod tests {
         assert!(!eml.is_result_doc());
         assert!(eml.as_election_definition_doc().is_some());
         assert!(eml.as_result_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
@@ -677,7 +686,7 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_polling_stations_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
@@ -692,7 +701,7 @@ mod tests {
         assert!(!eml.is_polling_stations_doc());
         assert!(eml.as_candidate_lists_doc().is_some());
         assert!(eml.as_polling_stations_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
@@ -707,7 +716,7 @@ mod tests {
         assert!(!eml.is_candidate_lists_doc());
         assert!(eml.as_count_doc().is_some());
         assert!(eml.as_candidate_lists_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
@@ -722,6 +731,9 @@ mod tests {
         assert!(!eml.is_count_doc());
         assert!(eml.as_result_doc().is_some());
         assert!(eml.as_count_doc().is_none());
-        assert!(eml.write_eml_root_str(true).is_ok());
+        // Also test via the inner type to compare
+        let inner = eml.as_result_doc().unwrap();
+        inner.write_eml_root_str(true).expect("inner failed");
+        eml.write_eml_root_str(true).expect("eml failed");
     }
 }

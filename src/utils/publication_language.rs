@@ -1,15 +1,19 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// The publication language of something in a document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum PublicationLanguage {
     /// Dutch language.
     #[default]
+    #[xml(rename = "nl")]
     Dutch,
 
     /// Frisian language.
+    #[xml(rename = "fy")]
     Frisian,
 }
 

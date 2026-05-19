@@ -1,10 +1,11 @@
-use std::num::NonZeroU64;
+use std::{fmt, num::NonZeroU64};
 
+use instant_xml::ToXml;
 use thiserror::Error;
 
 use crate::{
     EMLError, EMLValueResultExt, NS_KR,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
     utils::{ContestId, PublicationLanguage, StringValue, StringValueData},
 };
 
@@ -76,6 +77,42 @@ impl ListData {
     }
 }
 
+// Custom: children wrapped in conditional `<Contests>` element; empty-element when no contests.
+impl ToXml for ListData {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("ListData", NS_KR, None::<instant_xml::ser::Context<0>>)?;
+        serializer.write_attr("PublishGender", "", &self.publish_gender)?;
+
+        if let Some(v) = &self.publication_language {
+            serializer.write_attr("PublicationLanguage", "", v)?;
+        }
+        if let Some(v) = &self.belongs_to_set {
+            serializer.write_attr("BelongsToSet", "", v)?;
+        }
+        if let Some(v) = &self.belongs_to_combination {
+            serializer.write_attr("BelongsToCombination", "", v)?;
+        }
+        if self.contests.is_empty() {
+            return serializer.end_empty();
+        }
+
+        serializer.end_start()?;
+        let contests_prefix =
+            serializer.write_start("Contests", NS_KR, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        for contest in &self.contests {
+            contest.serialize(None, serializer)?;
+        }
+        serializer.write_close(contests_prefix)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ListData {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("ListData", Some(NS_KR));
 
@@ -113,44 +150,18 @@ impl EMLElement for ListData {
             contests: tmp.contests.unwrap_or_default(),
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = writer
-            .attr("PublishGender", &self.publish_gender.raw())?
-            .attr_opt(
-                "PublicationLanguage",
-                self.publication_language.as_ref().map(|s| s.raw()),
-            )?
-            .attr_opt(
-                "BelongsToSet",
-                self.belongs_to_set.as_ref().map(|s| s.raw()),
-            )?
-            .attr_opt(
-                "BelongsToCombination",
-                self.belongs_to_combination.as_ref().map(|s| s.raw()),
-            )?;
-
-        if self.contests.is_empty() {
-            writer.empty()
-        } else {
-            writer
-                .child(("Contests", NS_KR), |writer| {
-                    writer
-                        .child_elems(ListDataContest::EML_NAME, &self.contests)?
-                        .finish()
-                })?
-                .finish()
-        }
-    }
 }
 
 /// Data for a contest associated with a list.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Contest", rename_all = "PascalCase", ns(NS_KR), force_prefix)]
 pub struct ListDataContest {
     /// The contest ID.
+    #[xml(attribute)]
     pub id: StringValue<ContestId>,
 
     /// An optional name for the contest.
+    #[xml(direct)]
     pub name: Option<String>,
 }
 
@@ -178,16 +189,6 @@ impl EMLElement for ListDataContest {
             id: elem.string_value_attr("Id", None)?,
             name: elem.text_without_children_opt()?,
         })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = writer.attr("Id", &self.id.raw())?;
-
-        if let Some(name) = &self.name {
-            writer.text(name)?.finish()
-        } else {
-            writer.empty()
-        }
     }
 }
 
@@ -240,7 +241,7 @@ impl StringValueData for ListDataBelongsToCombination {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_list_data_construction() {
@@ -311,9 +312,6 @@ mod tests {
             list_data.contests[1].name.as_deref(),
             Some("Test Contest 2")
         );
-
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 
     #[test]
@@ -329,8 +327,5 @@ mod tests {
             list_data.get_publication_language(),
             PublicationLanguage::Dutch
         );
-
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

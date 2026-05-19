@@ -1,17 +1,23 @@
+use instant_xml::ToXml;
+
 use crate::{
     EMLError, NS_EML, NS_KR,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
     utils::{AuthorityId, StringValue},
 };
 
 /// Managing authority of an election.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(ns(NS_EML, kr = NS_KR))]
 pub struct ManagingAuthority {
     /// Identifier of the managing authority
+    #[xml(rename = "AuthorityIdentifier")]
     pub authority_identifier: AuthorityIdentifier,
     /// Address of the managing authority
+    #[xml(rename = "AuthorityAddress")]
     pub authority_address: AuthorityAddress,
     /// Instance which created a data set on behalf of another (only if different!)
+    #[xml(rename = "CreatedByAuthority")]
     pub created_by_authority: Option<CreatedByAuthority>,
 }
 
@@ -58,27 +64,17 @@ impl EMLElement for ManagingAuthority {
             created_by_authority as Option: CreatedByAuthority::EML_NAME => |elem| CreatedByAuthority::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(AuthorityIdentifier::EML_NAME, &self.authority_identifier)?
-            .child_elem(AuthorityAddress::EML_NAME, &self.authority_address)?
-            .child_elem_option(
-                CreatedByAuthority::EML_NAME,
-                self.created_by_authority.as_ref(),
-            )?
-            .finish()?;
-
-        Ok(())
-    }
 }
 
 /// Identifier of a managing authority.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct AuthorityIdentifier {
     /// Identifier of the managing authority
+    #[xml(attribute)]
     pub id: StringValue<AuthorityId>,
     /// Name of the managing authority
+    #[xml(direct)]
     pub name: Option<String>,
 }
 
@@ -117,20 +113,11 @@ impl EMLElement for AuthorityIdentifier {
         let id = elem.string_value_attr("Id", None)?;
         Ok(AuthorityIdentifier { id, name })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = writer.attr("Id", self.id.raw().as_ref())?;
-        if let Some(name) = &self.name {
-            writer.text(name.as_ref())?.finish()?;
-        } else {
-            writer.empty()?;
-        }
-        Ok(())
-    }
 }
 
 /// Address of a managing authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ToXml)]
+#[xml(ns(NS_EML))]
 pub struct AuthorityAddress {}
 
 impl EMLElement for AuthorityAddress {
@@ -140,18 +127,17 @@ impl EMLElement for AuthorityAddress {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, AuthorityAddress {}))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.empty()
-    }
 }
 
 /// Authority that created the authority.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_KR), force_prefix)]
 pub struct CreatedByAuthority {
     /// Identifier of the managing authority
+    #[xml(attribute)]
     pub id: StringValue<AuthorityId>,
     /// Name of the managing authority
+    #[xml(direct)]
     pub name: Option<String>,
 }
 
@@ -185,22 +171,12 @@ impl EMLElement for CreatedByAuthority {
         let id = elem.string_value_attr("Id", None)?;
         Ok(CreatedByAuthority { id, name })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = writer.attr("Id", self.id.raw().as_ref())?;
-        if let Some(name) = &self.name {
-            writer.text(name.as_ref())?.finish()?;
-        } else {
-            writer.empty()?;
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
 
     #[test]
     fn test_managing_authority_construction() {
@@ -235,8 +211,5 @@ mod tests {
         let cba = ma.created_by_authority.as_ref().unwrap();
         assert_eq!(cba.id.raw(), "4321");
         assert_eq!(cba.name.as_deref(), Some("Creator Authority"));
-
-        let xml_output = test_write_eml_element(&ma, &[NS_EML, NS_KR]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

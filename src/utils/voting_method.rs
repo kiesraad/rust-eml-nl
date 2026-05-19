@@ -1,9 +1,11 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Voting method used in the election.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum VotingMethod {
     /// Additional Member System
     AMS,
@@ -22,18 +24,25 @@ pub enum VotingMethod {
     /// Single Transferable Vote
     STV,
     /// Cumulative Voting
+    #[xml(rename = "cumulative")]
     Cumulative,
     /// Approval Voting
+    #[xml(rename = "approval")]
     Approval,
     /// Block Voting
+    #[xml(rename = "block")]
     Block,
     /// Supporter List Voting
+    #[xml(rename = "supporterlist")]
     SupporterList,
     /// Partisan Voting
+    #[xml(rename = "partisan")]
     Partisan,
     /// Supplementary Vote
+    #[xml(rename = "supplementaryvote")]
     SupplementaryVote,
     /// Other Voting Method
+    #[xml(rename = "other")]
     Other,
 }
 

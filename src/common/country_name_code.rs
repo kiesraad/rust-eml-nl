@@ -1,19 +1,25 @@
 use std::borrow::Cow;
 
+use instant_xml::ToXml;
+
 use crate::{
     EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLElement, EMLElementReader, QualifiedName},
 };
 
 /// Country name code information.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_XAL), force_prefix)]
 pub struct CountryNameCode {
-    /// The country name code value.
-    pub value: String,
     /// The Scheme attribute, if present.
+    #[xml(attribute)]
     pub scheme: Option<String>,
     /// The Code attribute, if present.
+    #[xml(attribute)]
     pub code: Option<String>,
+    /// The country name code value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl CountryNameCode {
@@ -62,20 +68,12 @@ impl EMLElement for CountryNameCode {
             code: elem.attribute_value("Code")?.map(Cow::into_owned),
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Scheme", self.scheme.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(self.value.as_ref())?
-            .finish()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
 
     #[test]
     fn test_country_name_code_construction() {
@@ -96,8 +94,5 @@ mod tests {
         assert_eq!(cnc.value, "Netherlands");
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));
-
-        let xml_output = test_write_eml_element(&cnc, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

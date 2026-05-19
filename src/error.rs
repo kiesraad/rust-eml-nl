@@ -23,6 +23,10 @@ pub enum EMLErrorKind {
     #[error("Encoding error: {0}")]
     EncodingError(#[from] quick_xml::encoding::EncodingError),
 
+    /// An error from instant-xml serialization/deserialization
+    #[error("instant-xml error: {0}")]
+    InstantXmlError(#[from] instant_xml::Error),
+
     /// An error converting from UTF-8
     #[error("UTF-8 conversion error: {0}")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),

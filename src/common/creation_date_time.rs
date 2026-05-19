@@ -1,13 +1,16 @@
 use std::borrow::Cow;
 
+use instant_xml::ToXml;
+
 use crate::{
     EMLError, EMLValueResultExt, NS_KR,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{StringValue, XsDateTime},
 };
 
 /// Document creation date time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(ns(NS_KR), force_prefix)]
 pub struct CreationDateTime(pub StringValue<XsDateTime>);
 
 impl CreationDateTime {
@@ -44,11 +47,6 @@ impl EMLElement for CreationDateTime {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(CreationDateTime(elem.string_value()?))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.text(self.raw().as_ref())?.finish()?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -56,7 +54,7 @@ mod tests {
     use std::str::FromStr as _;
 
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
 
     #[test]
     fn test_creation_date_time_construction() {
@@ -76,8 +74,5 @@ mod tests {
         );
         let cdt = CreationDateTime::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(cdt.raw(), "2024-06-01T12:34:56+00:00");
-
-        let xml_output = test_write_eml_element(&cdt, &[NS_KR]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

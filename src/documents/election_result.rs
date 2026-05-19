@@ -2,6 +2,8 @@
 
 use std::{ops::Deref, str::FromStr};
 
+use instant_xml::{FromXml, ToXml};
+
 use crate::{
     EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, NS_KR,
     common::{
@@ -10,10 +12,8 @@ use crate::{
         TransactionId,
     },
     documents::{ElectionIdentifierBuilder, accepted_root},
-    io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement as _,
-        QualifiedName, collect_struct,
-    },
+    eml_ns_context,
+    io::{EMLElement, EMLElementReader, EMLReadElement as _, QualifiedName, collect_struct},
     utils::{
         AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, StringValue,
         StringValueData, XsDate, XsDateTime,
@@ -205,6 +205,25 @@ impl Default for ElectionResultBuilder {
     }
 }
 
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for ElectionResult {
+    fn serialize<W: std::fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", EML_ELECTION_RESULT_ID)?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+        self.transaction_id.serialize(None, serializer)?;
+        self.managing_authority.serialize(None, serializer)?;
+        self.creation_date_time.serialize(None, serializer)?;
+        self.result.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
+
 impl EMLElement for ElectionResult {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
@@ -229,28 +248,14 @@ impl EMLElement for ElectionResult {
             result: ElectionResultResult::EML_NAME => |elem| ElectionResultResult::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), EML_ELECTION_RESULT_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(ElectionResultResult::EML_NAME, &self.result)?
-            .finish()
-    }
 }
 
 /// The result data of an election result document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Result", ns(NS_EML))]
 pub struct ElectionResultResult {
     /// The election for which the result applies.
+    #[xml(rename = "Election")]
     pub election: ElectionResultElection,
 }
 
@@ -271,21 +276,18 @@ impl EMLElement for ElectionResultResult {
             election: ElectionResultElection::EML_NAME => |elem| ElectionResultElection::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ElectionResultElection::EML_NAME, &self.election)?
-            .finish()
-    }
 }
 
 /// The election for which the result applies.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Election", ns(NS_EML))]
 pub struct ElectionResultElection {
     /// Identifier for the election.
+    #[xml(rename = "ElectionIdentifier")]
     pub identifier: ElectionResultElectionIdentifier,
 
     /// Contests within the election.
+    #[xml(rename = "Contest")]
     pub contests: Vec<ElectionResultContest>,
 }
 
@@ -311,34 +313,34 @@ impl EMLElement for ElectionResultElection {
             contests as Vec: ElectionResultContest::EML_NAME => |elem| ElectionResultContest::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ElectionResultElectionIdentifier::EML_NAME, &self.identifier)?
-            .child_elems(ElectionResultContest::EML_NAME, &self.contests)?
-            .finish()
-    }
 }
 
 /// Identifier for the election for which the result applies.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct ElectionResultElectionIdentifier {
     /// Id of the election
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
+    #[xml(rename = "ElectionName")]
     pub name: Option<String>,
 
     /// Category of the election
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Subcategory of the election
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: Option<StringValue<ElectionSubcategory>>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 }
 
@@ -366,38 +368,18 @@ impl EMLElement for ElectionResultElectionIdentifier {
             }
         ))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child_option(
-                ("ElectionName", NS_EML),
-                self.name.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child_option(
-                ("ElectionSubcategory", NS_KR),
-                self.subcategory.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .finish()
-    }
 }
 
 /// A contest within an election result.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Contest", ns(NS_EML))]
 pub struct ElectionResultContest {
     /// Identifier of the contest.
+    #[xml(rename = "ContestIdentifier")]
     pub identifier: ContestIdentifier,
 
     /// Selections within the contest.
+    #[xml(rename = "Selection")]
     pub selections: Vec<ElectionResultSelection>,
 }
 
@@ -423,21 +405,17 @@ impl EMLElement for ElectionResultContest {
             selections as Vec: ElectionResultSelection::EML_NAME => |elem| ElectionResultSelection::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
-            .child_elems(ElectionResultSelection::EML_NAME, &self.selections)?
-            .finish()
-    }
 }
 
 /// The ranking of a selection.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum RankingType {
     /// First ranked selection.
+    #[xml(rename = "1")]
     First,
     /// Second ranked selection.
+    #[xml(rename = "2")]
     Second,
 }
 
@@ -543,7 +521,8 @@ impl StringValueData for YesNoType {
 }
 
 /// A selection within an election contest.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Selection", rename_all = "PascalCase", ns(NS_EML))]
 pub struct ElectionResultSelection {
     /// The type of selection.
     pub selection_type: ElectionResultSelectionType,
@@ -700,39 +679,11 @@ impl EMLElement for ElectionResultSelection {
             elected,
         })
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let writer = match &self.selection_type {
-            ElectionResultSelectionType::Candidate(candidate_selection) => {
-                writer.child_elem(CandidateSelection::EML_NAME, candidate_selection.as_ref())?
-            }
-            ElectionResultSelectionType::Affiliation(affiliation_selection) => writer.child_elem(
-                AffiliationSelection::EML_NAME,
-                affiliation_selection.as_ref(),
-            )?,
-        };
-        let writer = writer
-            .child_option(VOTES_EML_NAME, self.votes.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
-            .child_option(RANKING_EML_NAME, self.ranking.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?;
-
-        if self.elected.copied_value().ok() == Some(YesNoType(true)) {
-            writer
-                .child(ELECTED_EML_NAME, |elem| {
-                    elem.text(self.elected.raw().as_ref())?.finish()
-                })?
-                .finish()
-        } else {
-            writer.finish()
-        }
-    }
 }
 
 /// The type of selection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(forward)]
 pub enum ElectionResultSelectionType {
     /// Selection of a candidate.
     Candidate(Box<CandidateSelection>),
@@ -741,18 +692,23 @@ pub enum ElectionResultSelectionType {
 }
 
 /// Selection of a candidate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "Candidate", ns(NS_EML))]
 pub struct CandidateSelection {
     /// Identifier of the candidate.
+    #[xml(rename = "CandidateIdentifier")]
     pub identifier: CandidateIdentifier,
 
     /// Name of the candidate.
+    #[xml(rename = "CandidateFullName")]
     pub name: PersonNameStructure,
 
     /// Gender of the candidate.
+    #[xml(rename = "Gender")]
     pub gender: Option<StringValue<Gender>>,
 
     /// The minimal qualifying address of the candidate, if present.
+    #[xml(rename = "QualifyingAddress")]
     pub qualifying_address: MinimalQualifyingAddress,
 }
 
@@ -883,28 +839,18 @@ impl EMLElement for CandidateSelection {
             qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| MinimalQualifyingAddress::read_eml(elem)?,
         }))
     }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(("CandidateFullName", NS_EML), |elem| {
-                self.name.write_eml_element(elem)
-            })?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
-            .child_elem(MinimalQualifyingAddress::EML_NAME, &self.qualifying_address)?
-            .finish()
-    }
 }
 
 /// Selection of an affiliation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ToXml)]
+#[xml(rename = "AffiliationIdentifier", ns(NS_EML))]
 pub struct AffiliationSelection {
     /// Id of the affiliation.
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<AffiliationId>,
 
     /// Name of the affiliation.
+    #[xml(rename = "RegisteredName")]
     pub name: String,
 }
 
@@ -927,15 +873,6 @@ impl EMLElement for AffiliationSelection {
             id: elem.string_value_attr("Id", None)?,
             name: ("RegisteredName", NS_EML) => |elem| elem.text_without_children()?,
         }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child(("RegisteredName", NS_EML), |elem| {
-                elem.text(self.name.as_ref())?.finish()
-            })?
-            .finish()
     }
 }
 

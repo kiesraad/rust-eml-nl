@@ -1,13 +1,17 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Voting channel used in the election.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum VotingChannelType {
     /// A physical polling station
+    #[xml(rename = "polling")]
     Polling,
     /// Votes by mail
+    #[xml(rename = "postal")]
     Postal,
 }
 
