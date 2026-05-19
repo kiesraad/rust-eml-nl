@@ -216,6 +216,7 @@ impl ElectionDefinitionBuilder {
     }
 
     /// Set the maximum number of votes for the election (number of eligible voters).
+    /// EML specifies the default value as 1, so providing the value of 1 will result in an empty xml tag.
     pub fn max_votes(mut self, max_votes: impl Into<NonZeroU64>) -> Self {
         self.max_votes = Some(StringValue::from_value(max_votes.into()));
         self
@@ -599,6 +600,7 @@ pub struct ElectionDefinitionContest {
     pub voting_method: StringValue<VotingMethod>,
 
     /// Maximum number of votes allowed.
+    /// EML specifies the default value as 1, so an empty tag will be parsed as 1 and vice versa.
     pub max_votes: StringValue<NonZeroU64>,
 }
 
