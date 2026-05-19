@@ -638,6 +638,7 @@ impl EMLElement for PollingStationsContest {
                 }
             },
             max_votes: ("MaxVotes", NS_EML) => |elem| {
+                // Default value of MaxVotes in EML is 1
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
@@ -698,6 +699,7 @@ impl EMLElement for PollingStationsContest {
             })?
             .child(("MaxVotes", NS_EML), |elem| {
                 let raw_text = self.max_votes.raw();
+                // Default value of MaxVotes in EML is 1
                 if raw_text == "1" {
                     elem.empty()
                 } else {
