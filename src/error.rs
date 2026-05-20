@@ -3,29 +3,13 @@ use crate::io::{OwnedQualifiedName, Span};
 /// Different kinds of errors that can occur during EML_NL processing.
 #[derive(thiserror::Error, Debug)]
 pub enum EMLErrorKind {
-    /// An error originanting from the XML parser
-    #[error("XML error: {0}")]
-    XmlError(#[from] quick_xml::Error),
-
     /// An input/output error
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
-    /// An error during escaping/unescaping XML content
-    #[error("Escape error: {0}")]
-    EscapeError(#[from] quick_xml::escape::EscapeError),
-
-    /// An error related to parsing XML attributes
-    #[error("Attribute error: {0}")]
-    AttributeError(#[from] quick_xml::events::attributes::AttrError),
-
-    /// An error related to XML encoding/decoding
-    #[error("Encoding error: {0}")]
-    EncodingError(#[from] quick_xml::encoding::EncodingError),
-
     /// An error from instant-xml serialization/deserialization
     #[error("instant-xml error: {0}")]
-    InstantXmlError(#[from] instant_xml::Error),
+    XmlError(#[from] instant_xml::Error),
 
     /// An error converting from UTF-8
     #[error("UTF-8 conversion error: {0}")]

@@ -83,7 +83,7 @@ where
     {
         match instant_xml::from_str(input) {
             Ok(doc) => EMLReadResult::Ok(doc, vec![]),
-            Err(e) => EMLReadResult::Err(EMLErrorKind::InstantXmlError(e).without_span()),
+            Err(e) => EMLReadResult::Err(EMLErrorKind::XmlError(e).without_span()),
         }
     }
 }
