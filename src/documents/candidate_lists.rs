@@ -57,7 +57,7 @@ impl FromStr for CandidateLists {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -66,7 +66,7 @@ impl TryFrom<&str> for CandidateLists {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -1415,7 +1415,7 @@ mod tests {
     use crate::{
         common::PersonName,
         documents::EML,
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _, test_xml_fragment},
+        io::{EMLRead as _, EMLWrite as _, test_xml_fragment},
         utils::{AuthorityId, CandidateId},
     };
 
@@ -1429,9 +1429,7 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml).ok().unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(1).unwrap()))
@@ -1452,9 +1450,7 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml).ok().unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(2).unwrap()))
@@ -1555,9 +1551,7 @@ mod tests {
             "#,
         );
 
-        let qualifying_address = QualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let qualifying_address = QualifyingAddress::parse_eml(&xml).ok().unwrap();
         match &qualifying_address {
             QualifyingAddress::Country(country) => {
                 assert_eq!(country.country_name_code, None);
@@ -1615,7 +1609,7 @@ mod tests {
         let xml = cl.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml
             .as_candidate_lists_doc()
             .expect("expected candidate lists variant");
@@ -1627,12 +1621,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_document_type() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_document_type.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_document_type.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1642,12 +1633,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_empty_affiliates() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1657,12 +1645,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_empty_candidates() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1672,12 +1657,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_incorrect_election_date() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1687,12 +1669,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_incorrect_election_domain() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1706,7 +1685,6 @@ mod tests {
                 include_str!(
                     "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_category.eml.xml"
                 ),
-                EMLParsingMode::Strict
             )
             .ok_with_errors()
             .is_err()
@@ -1716,12 +1694,9 @@ mod tests {
     #[test]
     fn test_incorrect_missing_authority() {
         assert!(
-            CandidateLists::parse_eml(
-                include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            CandidateLists::parse_eml(include_str!(
+                "../../test-emls/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         );
@@ -1729,10 +1704,9 @@ mod tests {
 
     #[test]
     fn test_with_missing_addresses() {
-        let eml = EML::parse_eml(
-            include_str!("../../test-emls/candidate_lists/eml230b_test_without_addresses.eml.xml"),
-            EMLParsingMode::Strict,
-        )
+        let eml = EML::parse_eml(include_str!(
+            "../../test-emls/candidate_lists/eml230b_test_without_addresses.eml.xml"
+        ))
         .ok_with_errors();
         assert!(eml.unwrap().0.as_candidate_lists_doc().is_some());
     }

@@ -61,7 +61,7 @@ impl FromStr for Nomination {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -70,7 +70,7 @@ impl TryFrom<&str> for Nomination {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -1036,7 +1036,7 @@ mod tests {
     use crate::{
         common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
         documents::EML,
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        io::{EMLRead as _, EMLWrite as _},
         utils::{
             AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
             ElectionDomainId, ElectionId, ElectionSubcategory, Gender, StringValue, XsDate,
@@ -1176,7 +1176,7 @@ mod tests {
         let xml = nomination.write_eml_root_str(true).unwrap();
         eprintln!("DEBUG XML:\n{}", &xml);
 
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml
             .as_nomination_doc()
             .expect("expected nomination variant");
@@ -1187,7 +1187,7 @@ mod tests {
     #[test]
     fn test_nomination_parse_and_write_roundtrip() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML 210 document");
         let nomination = eml
@@ -1210,7 +1210,7 @@ mod tests {
         let xml_output = nomination
             .write_eml_root_str(true)
             .expect("Failed to write EML 210 document");
-        let eml2 = EML::parse_eml(&xml_output, EMLParsingMode::Strict)
+        let eml2 = EML::parse_eml(&xml_output)
             .ok()
             .expect("Failed to re-parse written EML 210 document");
         let reparsed = eml2

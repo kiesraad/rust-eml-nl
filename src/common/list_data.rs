@@ -347,7 +347,7 @@ mod tests {
             "#,
         );
 
-        let list_data = ListData::parse_eml(&xml, crate::io::EMLParsingMode::Strict).unwrap();
+        let list_data = ListData::parse_eml(&xml).unwrap();
 
         assert_eq!(
             list_data.belongs_to_combination,
@@ -383,7 +383,7 @@ mod tests {
             r#"<kr:ListData xmlns:kr="http://www.kiesraad.nl/extensions" PublishGender="false"/>"#,
         );
 
-        let list_data = ListData::parse_eml(&xml, crate::io::EMLParsingMode::Strict).unwrap();
+        let list_data = ListData::parse_eml(&xml).unwrap();
 
         assert!(!list_data.publish_gender.value().unwrap().into_owned());
         assert_eq!(

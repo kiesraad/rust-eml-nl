@@ -54,7 +54,7 @@ impl FromStr for ElectionCount {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -63,7 +63,7 @@ impl TryFrom<&str> for ElectionCount {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -2198,7 +2198,7 @@ mod tests {
     use crate::{
         common::{AuthorityIdentifier, PersonName},
         documents::EML,
-        io::{EMLParsingMode, EMLRead, EMLWrite},
+        io::{EMLRead, EMLWrite},
         utils::{AuthorityId, CandidateId, ReportingUnitIdentifierId},
     };
 
@@ -2294,7 +2294,7 @@ mod tests {
         let xml = ec.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml.as_count_doc().expect("expected election count variant");
         let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
@@ -2304,7 +2304,7 @@ mod tests {
     fn test_parse_510b() {
         let xml = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
 
-        let eml = EML::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let eml = EML::parse_eml(xml).ok_with_errors();
         assert!(eml.unwrap().0.as_count_doc().is_some());
     }
 
@@ -2312,7 +2312,7 @@ mod tests {
     fn test_parse_510d() {
         let xml = include_str!("../../test-emls/election_count/deserialize_eml510d_test.eml.xml");
 
-        let eml = EML::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let eml = EML::parse_eml(xml).ok_with_errors();
         assert!(eml.unwrap().0.as_count_doc().is_some());
     }
 
@@ -2321,7 +2321,7 @@ mod tests {
         let xml =
             include_str!("../../test-emls/election_count/eml510b_with_investigations.eml.xml");
 
-        let eml = EML::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let eml = EML::parse_eml(xml).ok_with_errors();
         assert!(eml.unwrap().0.as_count_doc().is_some());
     }
 }

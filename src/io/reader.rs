@@ -6,14 +6,7 @@ use crate::{
 /// Reading EML documents from a string slice.
 pub trait EMLRead {
     /// Parse an EML document from the given string slice.
-    ///
-    /// The `parsing_mode` parameter indicates whether strict parsing of values
-    /// (e.g. dates, numbers) should be performed. If set to Strict, any parsing
-    /// error will fail immediately. If set to StrictFallback, parsing errors
-    /// will be collected and the raw string value will be used instead. If set
-    /// to Loose, no parsing will be performed and all values will be stored as
-    /// raw strings.
-    fn parse_eml(input: &str, parsing_mode: EMLParsingMode) -> EMLReadResult<Self>
+    fn parse_eml(input: &str) -> EMLReadResult<Self>
     where
         Self: Sized;
 }
@@ -84,7 +77,7 @@ impl<T> EMLRead for T
 where
     T: for<'xml> instant_xml::FromXml<'xml>,
 {
-    fn parse_eml(input: &str, _parsing_mode: EMLParsingMode) -> EMLReadResult<Self>
+    fn parse_eml(input: &str) -> EMLReadResult<Self>
     where
         Self: Sized,
     {
@@ -114,36 +107,5 @@ impl Span {
 impl std::fmt::Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} until {}", self.start, self.end)
-    }
-}
-
-/// The mode to use when parsing values in EML files.
-///
-/// This enum defines how strict the library handles parsing of several values
-/// and known issues in EML files. In strict mode any issue will immediately
-/// cause a parsing error and parsing will fail right away. With fallback,
-/// whenever we encounter an issue that is recoverable we continue parsing.
-/// With loose mode many parsing operations aren't even attempted and many
-/// values are just stored as raw strings. Also take a look at the documentation
-/// for [`StringValue`] for more information on how these string/parsed values
-/// are handled in the different modes and how to use them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EMLParsingMode {
-    /// Require strict parsing of all stringly values to their respective types
-    Strict,
-
-    /// Try to parse stringly values, but fall back to raw strings on failure.
-    ///
-    /// This mode will collect errors to allow reporting them later.
-    StrictFallback,
-
-    /// Do not attempt to parse stringly values, always store raw strings.
-    Loose,
-}
-
-impl EMLParsingMode {
-    /// Returns whether the parsing mode is `Strict`.
-    pub fn is_strict(&self) -> bool {
-        matches!(self, EMLParsingMode::Strict)
     }
 }

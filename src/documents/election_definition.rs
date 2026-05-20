@@ -55,7 +55,7 @@ impl FromStr for ElectionDefinition {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -64,7 +64,7 @@ impl TryFrom<&str> for ElectionDefinition {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -998,7 +998,7 @@ mod tests {
 
     use crate::{
         documents::EML,
-        io::{EMLParsingMode, EMLRead as _, EMLWrite},
+        io::{EMLRead as _, EMLWrite},
         utils::AuthorityId,
     };
 
@@ -1039,7 +1039,7 @@ mod tests {
         let xml = election_definition.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml
             .as_election_definition_doc()
             .expect("expected election definition variant");
@@ -1054,7 +1054,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_date_format.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1065,7 +1065,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_date_nomination_format.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1076,7 +1076,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1087,7 +1087,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold_small_election.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1097,7 +1097,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_election_missing_election_domain.eml.xml"
         );
 
-        let eml = EML::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let eml = EML::parse_eml(xml).ok_with_errors();
         assert!(eml.unwrap().0.as_election_definition_doc().is_some());
     }
 
@@ -1107,7 +1107,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_election_tree.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1117,7 +1117,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_nomination_date.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1127,7 +1127,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_number_of_seats.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1137,7 +1137,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_preference_threshold.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1147,7 +1147,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_subcategory.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1158,7 +1158,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_number_of_seats.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1169,7 +1169,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_subcategory.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -1180,7 +1180,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_voting_method.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 }

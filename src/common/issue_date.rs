@@ -48,7 +48,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        io::{EMLParsingMode, EMLRead, test_xml_fragment},
+        io::{EMLRead, test_xml_fragment},
         utils::XsDateTime,
     };
 
@@ -66,7 +66,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<IssueDate xmlns="urn:oasis:names:tc:evs:schema:eml">2024-06-01</IssueDate>"#,
         );
-        let id = IssueDate::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let id = IssueDate::parse_eml(&xml).unwrap();
         assert_eq!(id.raw(), "2024-06-01");
     }
 }

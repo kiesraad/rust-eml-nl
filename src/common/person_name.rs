@@ -491,7 +491,7 @@ impl LastName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_xml_fragment};
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_person_name_construction() {
@@ -602,7 +602,7 @@ mod tests {
             "#,
         );
 
-        let person_name = PersonName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let person_name = PersonName::parse_eml(&xml).unwrap();
         assert_eq!(person_name.last_name.value, "Test");
         assert_eq!(person_name.name_line_initials.as_ref().unwrap().value, "J.");
         assert_eq!(person_name.first_name.as_ref().unwrap().value, "Jan");

@@ -25,16 +25,9 @@ pub trait StringValueData: Clone {
 /// serialize the value. This type is used whenever an EML_NL document element or attribute
 /// contains a string value that could be parsed, but where strict parsing is not always desired.
 ///
-/// Depending on the parsing mode used when parsing a document, [`StringValue`]
-/// instances may either contain the raw string or the parsed value. When
-/// [`EMLParsingMode::Strict`](crate::io::EMLParsingMode::Strict) is used, all
-/// [`StringValue`] instances will contain the parsed value. When
-/// [`EMLParsingMode::StrictFallback`](crate::io::EMLParsingMode::StrictFallback)
-/// is used, the library will attempt to parse values but will fall back to
-/// storing the raw string if parsing fails. When
-/// [`EMLParsingMode::Loose`](crate::io::EMLParsingMode::Loose) is used, the
-/// library will not even attempt to parse values and will store all values as
-/// raw strings.
+/// During parsing, the library will attempt to parse values into their
+/// respective types. If parsing fails, the raw string value will be stored
+/// instead.
 ///
 /// In most cases you will want to use the parsed value by using one of the
 /// value retrieving methods:

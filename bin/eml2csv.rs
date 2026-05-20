@@ -16,7 +16,7 @@ use eml_nl::{
             UncountedVotesReason,
         },
     },
-    io::{EMLParsingMode, EMLRead as _},
+    io::EMLRead as _,
     utils::{AffiliationId, CandidateId, ElectionCategory, ElectionId, StringValueData as _},
 };
 use regex::Regex;
@@ -574,7 +574,7 @@ fn load_and_parse(path: impl AsRef<Path>) -> Result<EML, anyhow::Error> {
         .with_context(|| format!("Failed to read EML file: {}", path.as_ref().display()))?;
     debug!("Successfully read EML file, size: {} bytes", xml.len());
     debug!("Parsing EML file");
-    let eml = EML::parse_eml(&xml, EMLParsingMode::Strict)
+    let eml = EML::parse_eml(&xml)
         .ok()
         .with_context(|| format!("Failed to parse file as EML: {}", path.as_ref().display()))?;
     info!(

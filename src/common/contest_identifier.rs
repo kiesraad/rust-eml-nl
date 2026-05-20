@@ -76,7 +76,7 @@ impl Default for ContestIdentifierGeen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_contest_identifier_construction() {
@@ -101,7 +101,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ContestIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1234"/>"#,
         );
-        let contest_id = ContestIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let contest_id = ContestIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(contest_id.id.raw(), "1234");
     }
 
@@ -116,8 +116,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ContestIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="geen"/>"#,
         );
-        let contest_id_geen =
-            ContestIdentifierGeen::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let contest_id_geen = ContestIdentifierGeen::parse_eml(&xml).unwrap();
         assert_eq!(contest_id_geen.id.raw(), "geen");
     }
 }

@@ -30,19 +30,15 @@
 //! ```rust
 //! use eml_nl::{documents::EML, io::{EMLRead, EMLWrite}};
 //! let xml = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test-emls/polling_stations/eml110b_polling_stations_construction_output.eml.xml"));
-//! let eml_doc = EML::parse_eml(xml, eml_nl::io::EMLParsingMode::Strict).unwrap();
+//! let eml_doc = EML::parse_eml(xml).unwrap();
 //! let xml_output = eml_doc.write_eml_root_str(true).unwrap();
-//! let reparsed = EML::parse_eml(&xml_output, eml_nl::io::EMLParsingMode::Strict).unwrap();
+//! let reparsed = EML::parse_eml(&xml_output).unwrap();
 //! let xml_output2 = reparsed.write_eml_root_str(true).unwrap();
 //! assert_eq!(xml_output, xml_output2);
 //! ```
 //!
-//! In this example we also see [`EMLParsingMode`](crate::io::EMLParsingMode)
-//! being used. This enum defines how strict parsing of several values and elements
-//! should be. Take a look at the documenation for the enum for more information.
-//!
 //! Many times when parsing specific values from EML documents, such as dates or
-//! identifiers, depending on the parsing mode, the values may be stored as the
+//! identifiers, the values may be stored as the
 //! raw string or the parsed value. To handle this, we use the
 //! [`StringValue`](crate::utils::StringValue) type, which can contain either
 //! the raw string or the parsed value. Take a look at the documentation for

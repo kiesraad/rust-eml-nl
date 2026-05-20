@@ -30,7 +30,7 @@ impl ReportingUnitIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_xml_fragment};
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_reporting_unit_identifier_construction() {
@@ -48,8 +48,7 @@ mod tests {
             <ReportingUnitIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1234">Test</ReportingUnitIdentifier>
             "#,
         );
-        let reporting_unit_identifier =
-            ReportingUnitIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let reporting_unit_identifier = ReportingUnitIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
         assert_eq!(reporting_unit_identifier.name, "Test");
     }

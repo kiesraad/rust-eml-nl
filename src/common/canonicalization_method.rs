@@ -22,7 +22,7 @@ impl CanonicalizationMethod {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_canonicalization_method_construction() {
@@ -35,7 +35,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="test-algorithm"/>"#,
         );
-        let method = CanonicalizationMethod::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let method = CanonicalizationMethod::parse_eml(&xml).unwrap();
         assert_eq!(method.algorithm, "test-algorithm");
     }
 }

@@ -71,7 +71,7 @@ impl From<CandidateId> for CandidateIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_xml_fragment};
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_simple_candidate_identifier() {
@@ -80,7 +80,7 @@ mod tests {
             <CandidateIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1"/>
             "#,
         );
-        let can_id = CandidateIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let can_id = CandidateIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(
             can_id.id,
             StringValue::Parsed(CandidateId::new(NonZeroU64::new(1).unwrap()))
@@ -97,7 +97,7 @@ mod tests {
             <CandidateIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="2254" DisplayOrder="2" ShortCode="1234" ExpectedConfirmationReference="Ref123"/>
             "#,
         );
-        let can_id = CandidateIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let can_id = CandidateIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(
             can_id.id,
             StringValue::Parsed(CandidateId::new(NonZeroU64::new(2254).unwrap()))

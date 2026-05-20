@@ -35,7 +35,7 @@ impl ElectionDomain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_election_domain_construction() {
@@ -49,7 +49,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<kr:ElectionDomain xmlns:kr="http://www.kiesraad.nl/extensions" Id="1234">Test Domain</kr:ElectionDomain>"#,
         );
-        let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let ed = ElectionDomain::parse_eml(&xml).unwrap();
         assert_eq!(ed.id.as_ref().unwrap().raw(), "1234");
         assert_eq!(ed.name, "Test Domain");
     }
@@ -59,7 +59,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<kr:ElectionDomain xmlns:kr="http://www.kiesraad.nl/extensions">Test Domain</kr:ElectionDomain>"#,
         );
-        let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let ed = ElectionDomain::parse_eml(&xml).unwrap();
         assert!(ed.id.is_none());
         assert_eq!(ed.name, "Test Domain");
     }

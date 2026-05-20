@@ -55,7 +55,7 @@ impl From<&str> for LocalityName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_locality_name_construction() {
@@ -72,7 +72,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<xal:LocalityName xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Type="City" Code="AMS">Amsterdam</xal:LocalityName>"#,
         );
-        let loc = LocalityName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let loc = LocalityName::parse_eml(&xml).unwrap();
         assert_eq!(loc.name, "Amsterdam");
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));

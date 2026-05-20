@@ -82,7 +82,7 @@ pub struct PostalCodeNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_postal_code_construction() {
@@ -105,7 +105,7 @@ mod tests {
             </xal:PostalCode>
             "#,
         );
-        let postal_code = PostalCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let postal_code = PostalCode::parse_eml(&xml).unwrap();
         assert_eq!(postal_code.number(), "1234 AB");
         assert_eq!(postal_code.postal_code_type.as_deref(), Some("Test"));
         assert_eq!(postal_code.number.number_type.as_deref(), Some("Primary"));
@@ -122,7 +122,7 @@ mod tests {
             "#,
         );
 
-        let postal_code = PostalCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let postal_code = PostalCode::parse_eml(&xml).unwrap();
         assert_eq!(postal_code.number(), "1234 AB");
         assert_eq!(postal_code.postal_code_type, None);
         assert_eq!(postal_code.number.number_type, None);

@@ -359,7 +359,7 @@ impl FromStr for EML {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -368,7 +368,7 @@ impl TryFrom<&str> for EML {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -664,42 +664,42 @@ pub(crate) fn validate_category_and_subcategory(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, EMLWrite as _};
+    use crate::io::{EMLRead as _, EMLWrite as _};
 
     #[test]
     fn test_parsing_arbitrary_eml_documents() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::Nomination(_)));
 
         let doc = include_str!("../../test-emls/candidate_lists/eml230b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::CandidateLists(_)));
 
         let doc = include_str!("../../test-emls/election_definition/eml110a_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionDefinition(_)));
 
         let doc = include_str!("../../test-emls/polling_stations/eml110b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::PollingStations(_)));
 
         let doc = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionCount(_)));
 
         let doc = include_str!("../../test-emls/election_result/eml520_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionResult(_)));
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn parse_and_write_210_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "210");
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn parse_and_write_110a_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_definition/eml110a_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "110a");
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn parse_and_write_110b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/polling_stations/eml110b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "110b");
@@ -753,7 +753,7 @@ mod tests {
     #[test]
     fn parse_and_write_230b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/candidate_lists/eml230b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "230b");
@@ -768,7 +768,7 @@ mod tests {
     #[test]
     fn parse_and_write_510b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "510b");
@@ -783,7 +783,7 @@ mod tests {
     #[test]
     fn parse_and_write_520_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_result/eml520_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "520");

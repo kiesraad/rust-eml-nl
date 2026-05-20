@@ -52,7 +52,7 @@ impl FromStr for ElectionResult {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -61,7 +61,7 @@ impl TryFrom<&str> for ElectionResult {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -799,7 +799,7 @@ mod tests {
     use crate::{
         common::{AuthorityIdentifier, PersonName},
         documents::EML,
-        io::{EMLParsingMode, EMLRead as _, EMLWrite},
+        io::{EMLRead as _, EMLWrite},
         utils::{AuthorityId, CandidateId},
     };
 
@@ -868,7 +868,7 @@ mod tests {
         let xml = election_result.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml
             .as_result_doc()
             .expect("expected election result variant");

@@ -58,7 +58,7 @@ impl FromStr for PollingStations {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -67,7 +67,7 @@ impl TryFrom<&str> for PollingStations {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -911,7 +911,7 @@ mod tests {
     use crate::{
         common::AuthorityIdentifier,
         documents::EML,
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        io::{EMLRead as _, EMLWrite as _},
         utils::{AuthorityId, ReportingUnitIdentifierId},
     };
 
@@ -964,7 +964,7 @@ mod tests {
         let xml = ps.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
         let parsed = eml
             .as_polling_stations_doc()
             .expect("expected polling stations variant");
@@ -976,12 +976,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_empty_polling_stations() {
         assert!(
-            PollingStations::parse_eml(
-                include_str!(
-                    "../../test-emls/polling_stations/eml110b_empty_polling_station.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            PollingStations::parse_eml(include_str!(
+                "../../test-emls/polling_stations/eml110b_empty_polling_station.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         )
@@ -991,12 +988,9 @@ mod tests {
     #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_number_of_voters() {
         assert!(
-            PollingStations::parse_eml(
-                include_str!(
-                    "../../test-emls/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
-                ),
-                EMLParsingMode::Strict
-            )
+            PollingStations::parse_eml(include_str!(
+                "../../test-emls/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
+            ),)
             .ok_with_errors()
             .is_err()
         )
@@ -1004,10 +998,9 @@ mod tests {
 
     #[test]
     fn test_one_station() {
-        let eml = EML::parse_eml(
-            include_str!("../../test-emls/polling_stations/eml110b_1_station.eml.xml"),
-            EMLParsingMode::Strict,
-        )
+        let eml = EML::parse_eml(include_str!(
+            "../../test-emls/polling_stations/eml110b_1_station.eml.xml"
+        ))
         .unwrap();
         let ps = eml
             .as_polling_stations_doc()
@@ -1020,10 +1013,9 @@ mod tests {
 
     #[test]
     fn test_less_than_10_stations() {
-        let eml = EML::parse_eml(
-            include_str!("../../test-emls/polling_stations/eml110b_less_than_10_stations.eml.xml"),
-            EMLParsingMode::Strict,
-        )
+        let eml = EML::parse_eml(include_str!(
+            "../../test-emls/polling_stations/eml110b_less_than_10_stations.eml.xml"
+        ))
         .unwrap();
         let ps = eml
             .as_polling_stations_doc()
