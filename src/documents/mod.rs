@@ -2,10 +2,10 @@
 
 use std::str::FromStr;
 
-use instant_xml::ToXml;
+use instant_xml::{Accumulate, FromXml, ToXml};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
+    EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
     common::ElectionDomain,
     documents::{
         candidate_lists::{CandidateLists, CandidateListsElectionIdentifier, CandidateListsType},
@@ -21,7 +21,6 @@ use crate::{
             EML_POLLING_STATIONS_ID, PollingStations, PollingStationsElectionIdentifier,
         },
     },
-    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{ElectionCategory, ElectionId, ElectionSubcategory, StringValue, XsDate},
 };
 
@@ -209,36 +208,114 @@ impl ToXml for EML {
     }
 }
 
-impl EMLElement for EML {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
-        let document_id = elem.attribute_value_req(("Id", None))?;
-        Ok(match document_id.as_ref() {
-            EML_ELECTION_DEFINITION_ID => {
-                EML::ElectionDefinition(Box::new(ElectionDefinition::read_eml(elem)?))
+// Custom: enum dispatch across six document type variants based on Id attribute.
+impl<'xml> FromXml<'xml> for EML {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "EML",
+                }
             }
-            EML_POLLING_STATIONS_ID => {
-                EML::PollingStations(Box::new(PollingStations::read_eml(elem)?))
-            }
-            EML_ELECTION_RESULT_ID => {
-                EML::ElectionResult(Box::new(ElectionResult::read_eml(elem)?))
-            }
-            EML_NOMINATION_ID => EML::Nomination(Box::new(Nomination::read_eml(elem)?)),
-            id if CandidateListsType::is_valid_eml_id(id) => {
-                EML::CandidateLists(Box::new(CandidateLists::read_eml(elem)?))
-            }
-            id if CountType::is_valid_eml_id(id) => {
-                EML::ElectionCount(Box::new(ElectionCount::read_eml(elem)?))
-            }
-            _ => {
-                return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
-                    .with_span(elem.span());
-            }
-        })
+        }
     }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        if into.is_some() {
+            return Err(instant_xml::Error::DuplicateValue(field));
+        }
+
+        // Read attributes to find the document type Id
+        let mut doc_id = None;
+        use instant_xml::de::Node;
+        loop {
+            match deserializer.next() {
+                Some(Ok(Node::Attribute(attr))) if attr.local == "Id" => {
+                    doc_id = Some(attr.value.to_string());
+                }
+                Some(Ok(Node::Attribute(_))) => continue,
+                Some(Ok(node)) => {
+                    // Put the first non-attribute node back and deserialize the body
+                    let mut deserializer = deserializer.for_node(node);
+                    let doc_id = doc_id
+                        .as_deref()
+                        .ok_or(instant_xml::Error::MissingValue("EML::Id"))?;
+
+                    *into = Some(match doc_id {
+                        EML_ELECTION_DEFINITION_ID => {
+                            let mut acc =
+                                <ElectionDefinition as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionDefinition>(
+                                &mut acc,
+                                &mut deserializer,
+                            )?;
+                            EML::ElectionDefinition(Box::new(acc.try_done(field)?))
+                        }
+                        EML_POLLING_STATIONS_ID => {
+                            let mut acc =
+                                <PollingStations as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<PollingStations>(&mut acc, &mut deserializer)?;
+                            EML::PollingStations(Box::new(acc.try_done(field)?))
+                        }
+                        EML_ELECTION_RESULT_ID => {
+                            let mut acc = <ElectionResult as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionResult>(&mut acc, &mut deserializer)?;
+                            EML::ElectionResult(Box::new(acc.try_done(field)?))
+                        }
+                        EML_NOMINATION_ID => {
+                            let mut acc = <Nomination as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<Nomination>(&mut acc, &mut deserializer)?;
+                            EML::Nomination(Box::new(acc.try_done(field)?))
+                        }
+                        id if CandidateListsType::is_valid_eml_id(id) => {
+                            let mut acc = <CandidateLists as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<CandidateLists>(&mut acc, &mut deserializer)?;
+                            let mut cl: CandidateLists = acc.try_done(field)?;
+                            cl.lists_type = CandidateListsType::from_eml_id(id)
+                                .map_err(|e| instant_xml::Error::UnexpectedValue(e.to_string()))?;
+                            EML::CandidateLists(Box::new(cl))
+                        }
+                        id if CountType::is_valid_eml_id(id) => {
+                            let mut acc = <ElectionCount as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionCount>(&mut acc, &mut deserializer)?;
+                            let mut ec: ElectionCount = acc.try_done(field)?;
+                            ec.count_type = CountType::from_eml_id(id)
+                                .map_err(|e| instant_xml::Error::UnexpectedValue(e.to_string()))?;
+                            EML::ElectionCount(Box::new(ec))
+                        }
+                        _ => {
+                            return Err(instant_xml::Error::UnexpectedValue(format!(
+                                "unknown EML document type: {doc_id}"
+                            )));
+                        }
+                    });
+                    deserializer.ignore()?;
+                    return Ok(());
+                }
+                Some(Err(e)) => return Err(e),
+                None => {
+                    return Err(instant_xml::Error::MissingValue("EML::Id"));
+                }
+            }
+        }
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+/// Helper: deserialize EML body from a deserializer positioned inside `<EML>`.
+fn deserialize_eml_body<'cx, 'xml, T: FromXml<'xml>>(
+    acc: &mut T::Accumulator,
+    deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+) -> Result<(), instant_xml::Error> {
+    T::deserialize(acc, "EML", deserializer)
 }
 
 impl From<ElectionDefinition> for EML {
@@ -274,22 +351,6 @@ impl From<ElectionCount> for EML {
 impl From<ElectionResult> for EML {
     fn from(result: ElectionResult) -> Self {
         EML::from_result_doc(result)
-    }
-}
-
-fn accepted_root(elem: &EMLElementReader<'_, '_>) -> Result<(), EMLError> {
-    if !elem.has_name(("EML", Some(NS_EML)))? {
-        return Err(EMLErrorKind::InvalidRootElement).with_span(elem.span());
-    }
-
-    let schema_version = elem.attribute_value_req(("SchemaVersion", None))?;
-    if schema_version == EML_SCHEMA_VERSION {
-        Ok(())
-    } else {
-        Err(EMLErrorKind::SchemaVersionNotSupported(
-            schema_version.to_string(),
-        ))
-        .with_span(elem.span())
     }
 }
 

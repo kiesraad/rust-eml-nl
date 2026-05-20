@@ -1,8 +1,7 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EMLError, NS_KR,
-    io::{EMLElement, EMLElementReader, QualifiedName},
+    NS_KR,
     utils::{ElectionDomainId, StringValue},
 };
 
@@ -12,7 +11,7 @@ use crate::{
 /// ElectionDomain is part of the election name, e.g. election of the council of
 /// a municipality or province. Not needed e.g. for Tweede Kamer or European
 /// Parliament.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_KR), force_prefix)]
 pub struct ElectionDomain {
     /// Identifier of the election domain
@@ -30,18 +29,6 @@ impl ElectionDomain {
             id: id.map(StringValue::from_value),
             name: name.into(),
         }
-    }
-}
-
-impl EMLElement for ElectionDomain {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ElectionDomain", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr_opt("Id")?;
-        let name = elem.text_without_children()?;
-
-        Ok(ElectionDomain { id, name })
     }
 }
 

@@ -1,15 +1,14 @@
 use std::borrow::Cow;
 
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
     EMLError, EMLValueResultExt, NS_KR,
-    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{StringValue, XsDateTime},
 };
 
 /// Document creation date time.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_KR), force_prefix)]
 pub struct CreationDateTime(pub StringValue<XsDateTime>);
 
@@ -37,15 +36,6 @@ impl CreationDateTime {
 impl From<XsDateTime> for CreationDateTime {
     fn from(value: XsDateTime) -> Self {
         CreationDateTime::new(value)
-    }
-}
-
-impl EMLElement for CreationDateTime {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CreationDateTime", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(CreationDateTime(elem.string_value()?))
     }
 }
 

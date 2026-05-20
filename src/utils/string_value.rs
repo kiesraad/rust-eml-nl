@@ -1,6 +1,6 @@
 use std::{borrow::Cow, convert::Infallible, fmt, num::NonZeroU64};
 
-use instant_xml::{Id, Serializer, ToXml};
+use instant_xml::{Deserializer, FromXml, Id, Kind, Serializer, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _};
@@ -130,6 +130,39 @@ impl<T: StringValueData + Copy> StringValue<T> {
     pub fn copied_value(&self) -> Result<T, EMLError> {
         self.copied_value_err().wrap_value_error()
     }
+}
+
+impl<'xml, T: StringValueData> FromXml<'xml> for StringValue<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        if into.is_some() {
+            return Err(instant_xml::Error::DuplicateValue(field));
+        }
+
+        let text = deserializer.take_str()?;
+        let raw = text.as_deref().unwrap_or("");
+        let value = match T::parse_from_str(raw) {
+            Ok(v) => StringValue::Parsed(v),
+            Err(_) => StringValue::Raw(raw.to_owned()),
+        };
+
+        *into = Some(value);
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
 }
 
 impl<T: StringValueData> ToXml for StringValue<T> {

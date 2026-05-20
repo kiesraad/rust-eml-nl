@@ -1,12 +1,10 @@
 use std::fmt;
 
-use instant_xml::ToXml;
+use instant_xml::{Accumulate, Deserializer, FromXml, Kind, ToXml};
 
-use crate::{
-    EMLError, EMLErrorKind, NS_EML, NS_XAL,
-    common::{CountryNameCode, LocalityName},
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
-};
+use crate::{NS_EML, NS_XAL};
+
+use super::{CountryNameCode, LocalityName};
 
 /// The minimal details for a qualifying address
 #[derive(Debug, Clone)]
@@ -38,6 +36,65 @@ impl MinimalQualifyingAddress {
     }
 }
 
+impl<'xml> FromXml<'xml> for MinimalQualifyingAddress {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "QualifyingAddress",
+                }
+            }
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if MinimalQualifyingAddressLocality::matches(id, None) {
+                let mut acc =
+                    <MinimalQualifyingAddressLocality as FromXml<'xml>>::Accumulator::default();
+                let mut nested = deserializer.nested(element);
+                MinimalQualifyingAddressLocality::deserialize(&mut acc, field, &mut nested)?;
+                nested.ignore()?;
+                *into = Some(MinimalQualifyingAddress::Locality(acc.try_done(field)?));
+            } else if MinimalQualifyingAddressCountry::matches(id, None) {
+                let mut acc =
+                    <MinimalQualifyingAddressCountry as FromXml<'xml>>::Accumulator::default();
+                let mut nested = deserializer.nested(element);
+                MinimalQualifyingAddressCountry::deserialize(&mut acc, field, &mut nested)?;
+                nested.ignore()?;
+                *into = Some(MinimalQualifyingAddress::Country(acc.try_done(field)?));
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Element;
+}
+
 // Custom: enum dispatch (Locality/Country variants) inside a `<QualifyingAddress>` element.
 impl ToXml for MinimalQualifyingAddress {
     fn serialize<W: fmt::Write + ?Sized>(
@@ -61,52 +118,8 @@ impl ToXml for MinimalQualifyingAddress {
     }
 }
 
-impl EMLElement for MinimalQualifyingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("QualifyingAddress", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let parent_name = elem.name()?.as_owned();
-        let mut found_child = None;
-        while let Some(mut child) = elem.next_child()? {
-            match child.name()? {
-                n if n == MinimalQualifyingAddressLocality::EML_NAME && found_child.is_none() => {
-                    found_child = Some(MinimalQualifyingAddress::Locality(
-                        MinimalQualifyingAddressLocality::read_eml(&mut child)?,
-                    ));
-                }
-                n if n == MinimalQualifyingAddressCountry::EML_NAME && found_child.is_none() => {
-                    found_child = Some(MinimalQualifyingAddress::Country(
-                        MinimalQualifyingAddressCountry::read_eml(&mut child)?,
-                    ));
-                }
-                n => {
-                    let span = child.span();
-                    let name = n.as_owned();
-
-                    let err =
-                        EMLErrorKind::UnexpectedElement(name, parent_name.clone()).with_span(span);
-                    if child.parsing_mode().is_strict() {
-                        return Err(err);
-                    } else {
-                        child.push_err(err);
-                    }
-                }
-            }
-        }
-        let Some(result) = found_child else {
-            return Err(EMLErrorKind::MissingChoiceElements(vec![
-                MinimalQualifyingAddressCountry::EML_NAME.as_owned(),
-                MinimalQualifyingAddressLocality::EML_NAME.as_owned(),
-            ])
-            .with_span(elem.full_span()));
-        };
-        Ok(result)
-    }
-}
-
 /// The minimal details for locality in a qualifying address
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Locality", ns(NS_XAL), force_prefix)]
 pub struct MinimalQualifyingAddressLocality {
     /// Name of the locality
@@ -121,21 +134,8 @@ impl MinimalQualifyingAddressLocality {
     }
 }
 
-impl EMLElement for MinimalQualifyingAddressLocality {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Locality", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            MinimalQualifyingAddressLocality {
-                locality_name: LocalityName::EML_NAME => |elem| LocalityName::read_eml(elem)?,
-            }
-        ))
-    }
-}
-
 /// The minimal details for country in a qualifying address
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Country", ns(NS_XAL), force_prefix)]
 pub struct MinimalQualifyingAddressCountry {
     /// The country name code, if present.
@@ -156,17 +156,6 @@ impl MinimalQualifyingAddressCountry {
             country_name_code,
             locality,
         }
-    }
-}
-
-impl EMLElement for MinimalQualifyingAddressCountry {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Country", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, MinimalQualifyingAddressCountry {
-            country_name_code: CountryNameCode::EML_NAME => |elem| CountryNameCode::read_eml(elem)?,
-            locality: MinimalQualifyingAddressLocality::EML_NAME => |elem| MinimalQualifyingAddressLocality::read_eml(elem)?,
-        }))
     }
 }
 

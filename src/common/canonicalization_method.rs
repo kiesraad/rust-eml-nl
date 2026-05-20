@@ -1,12 +1,9 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
-use crate::{
-    EMLError, NS_DS,
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
-};
+use crate::NS_DS;
 
 /// XML CanonicalizationMethod element
-#[derive(Debug, Clone, PartialEq, Eq, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_DS), force_prefix)]
 pub struct CanonicalizationMethod {
     #[xml(attribute)]
@@ -19,20 +16,6 @@ impl CanonicalizationMethod {
         CanonicalizationMethod {
             algorithm: algorithm.into(),
         }
-    }
-}
-
-impl EMLElement for CanonicalizationMethod {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CanonicalizationMethod", Some(NS_DS));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            CanonicalizationMethod {
-                algorithm: elem.attribute_value_req("Algorithm")?.into_owned(),
-            }
-        ))
     }
 }
 

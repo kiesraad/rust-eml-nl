@@ -1,13 +1,12 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, QualifiedName},
+    NS_EML,
     utils::{ReportingUnitIdentifierId, StringValue},
 };
 
 /// Identifier for the reporting unit.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct ReportingUnitIdentifier {
     /// Id of the reporting unit.
@@ -25,17 +24,6 @@ impl ReportingUnitIdentifier {
             id: StringValue::from_value(id.into()),
             name: name.into(),
         }
-    }
-}
-
-impl EMLElement for ReportingUnitIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ReportingUnitIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let name = elem.text_without_children()?;
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ReportingUnitIdentifier { id, name })
     }
 }
 

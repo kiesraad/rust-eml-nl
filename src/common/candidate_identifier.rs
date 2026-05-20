@@ -1,15 +1,14 @@
 use std::num::NonZeroU64;
 
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
+    NS_EML,
     utils::{CandidateId, NameShortCode, StringValue},
 };
 
 /// Candidate identifier, but not for 510 document types.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct CandidateIdentifier {
     /// The candidate id.
@@ -66,38 +65,6 @@ impl CandidateIdentifier {
 impl From<CandidateId> for CandidateIdentifier {
     fn from(value: CandidateId) -> Self {
         CandidateIdentifier::new(value)
-    }
-}
-
-impl EMLElement for CandidateIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CandidateIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        let display_order = elem.string_value_attr_opt("DisplayOrder")?;
-        let short_code = elem.string_value_attr_opt("ShortCode")?;
-        let expected_confirmation_reference = elem
-            .attribute_value("ExpectedConfirmationReference")?
-            .map(|s| s.into_owned());
-
-        struct CandidateIdentifierTmp {
-            short_code: Option<StringValue<NameShortCode>>,
-        }
-
-        let elem = collect_struct!(
-            elem,
-            CandidateIdentifierTmp {
-                short_code as Option: ("ShortCode", NS_EML) => |elem| elem.string_value()?,
-            }
-        );
-
-        Ok(CandidateIdentifier {
-            id,
-            display_order,
-            short_code: short_code.or(elem.short_code), // attribute takes precedence
-            expected_confirmation_reference,
-        })
     }
 }
 

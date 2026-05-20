@@ -1,18 +1,14 @@
 use std::borrow::Cow;
 
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
-use crate::{
-    EMLError, EMLValueResultExt, NS_EML,
-    io::{EMLElement, EMLElementReader, QualifiedName},
-    utils::StringValue,
-};
+use crate::{EMLError, EMLValueResultExt, NS_EML, utils::StringValue};
 
 /// Document transaction id.
 ///
 /// EML_NL documents contain a transaction id, but this is generally not used
 /// and set to `1` as a default.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_EML))]
 pub struct TransactionId(pub StringValue<u64>);
 
@@ -40,15 +36,6 @@ impl TransactionId {
 impl From<u64> for TransactionId {
     fn from(value: u64) -> Self {
         TransactionId(StringValue::from_value(value))
-    }
-}
-
-impl EMLElement for TransactionId {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("TransactionId", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(TransactionId(elem.string_value()?))
     }
 }
 

@@ -1,12 +1,9 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
-use crate::{
-    EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
-};
+use crate::NS_XAL;
 
 /// Postal code element
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCode {
     /// Postal code number
@@ -67,19 +64,8 @@ impl From<&str> for PostalCode {
     }
 }
 
-impl EMLElement for PostalCode {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("PostalCode", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, PostalCode {
-            number: PostalCodeNumber::EML_NAME => |elem| PostalCodeNumber::read_eml(elem)?,
-            postal_code_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-        }))
-    }
-}
-
 /// Postal code number element
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCodeNumber {
     /// Type attribute of the postal code number
@@ -91,22 +77,6 @@ pub struct PostalCodeNumber {
     /// The postal code value
     #[xml(direct)]
     pub number: String,
-}
-
-impl EMLElement for PostalCodeNumber {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("PostalCodeNumber", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let number_type = elem.attribute_value("Type")?.map(|s| s.into_owned());
-        let code = elem.attribute_value("Code")?.map(|s| s.into_owned());
-        let number = elem.text_without_children()?;
-        Ok(PostalCodeNumber {
-            number_type,
-            code,
-            number,
-        })
-    }
 }
 
 #[cfg(test)]

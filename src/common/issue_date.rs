@@ -1,18 +1,17 @@
 use std::borrow::Cow;
 
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
     EMLValueResultExt, NS_EML,
     error::EMLError,
-    io::{EMLElement, EMLElementReader, QualifiedName},
     utils::{StringValue, XsDateOrDateTime},
 };
 
 /// Document issue date.
 ///
 /// Can be either a date or a date with time.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_EML))]
 pub struct IssueDate(pub StringValue<XsDateOrDateTime>);
 
@@ -32,7 +31,7 @@ impl IssueDate {
         Ok(self
             .0
             .value_err()
-            .wrap_field_value_error(IssueDate::EML_NAME)?
+            .wrap_field_value_error(("IssueDate", NS_EML))?
             .into_owned())
     }
 }
@@ -40,14 +39,6 @@ impl IssueDate {
 impl From<XsDateOrDateTime> for IssueDate {
     fn from(value: XsDateOrDateTime) -> Self {
         IssueDate::new(value)
-    }
-}
-
-impl EMLElement for IssueDate {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("IssueDate", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(IssueDate(elem.string_value()?))
     }
 }
 

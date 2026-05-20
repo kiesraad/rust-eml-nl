@@ -5,15 +5,14 @@ use std::{ops::Deref, str::FromStr};
 use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, NS_KR,
+    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, NS_EML, NS_KR,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
         TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
+    documents::ElectionIdentifierBuilder,
     eml_ns_context,
-    io::{EMLElement, EMLElementReader, EMLReadElement as _, QualifiedName, collect_struct},
     utils::{
         AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, StringValue,
         StringValueData, XsDate, XsDateTime,
@@ -206,6 +205,85 @@ impl Default for ElectionResultBuilder {
 }
 
 // Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl<'xml> FromXml<'xml> for ElectionResult {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "EML",
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut transaction_id = <TransactionId as FromXml>::Accumulator::default();
+        let mut managing_authority = <ManagingAuthority as FromXml>::Accumulator::default();
+        let mut creation_date_time = <CreationDateTime as FromXml>::Accumulator::default();
+        let mut canonicalization_method =
+            <CanonicalizationMethod as FromXml>::Accumulator::default();
+        let mut result = <ElectionResultResult as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if TransactionId::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                TransactionId::deserialize(&mut transaction_id, field, &mut nested)?;
+                nested.ignore()?;
+            } else if ManagingAuthority::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ManagingAuthority::deserialize(&mut managing_authority, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CreationDateTime::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CreationDateTime::deserialize(&mut creation_date_time, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CanonicalizationMethod::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CanonicalizationMethod::deserialize(
+                    &mut canonicalization_method,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else if ElectionResultResult::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionResultResult::deserialize(&mut result, field, &mut nested)?;
+                nested.ignore()?;
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        *into = Some(ElectionResult {
+            transaction_id: transaction_id.try_done(field)?,
+            managing_authority: managing_authority.try_done(field)?,
+            creation_date_time: creation_date_time.try_done(field)?,
+            canonicalization_method,
+            result: result.try_done(field)?,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
 impl ToXml for ElectionResult {
     fn serialize<W: std::fmt::Write + ?Sized>(
         &self,
@@ -224,34 +302,8 @@ impl ToXml for ElectionResult {
     }
 }
 
-impl EMLElement for ElectionResult {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO: parse the rest of the document
-        accepted_root(elem)?;
-
-        let document_id = elem.attribute_value_req(("Id", None))?;
-        if document_id != EML_ELECTION_RESULT_ID {
-            return Err(EMLErrorKind::InvalidDocumentType(
-                EML_ELECTION_RESULT_ID,
-                document_id.to_string(),
-            ))
-            .with_span(elem.span());
-        }
-
-        Ok(collect_struct!(elem, ElectionResult {
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            result: ElectionResultResult::EML_NAME => |elem| ElectionResultResult::read_eml(elem)?,
-        }))
-    }
-}
-
 /// The result data of an election result document.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Result", ns(NS_EML))]
 pub struct ElectionResultResult {
     /// The election for which the result applies.
@@ -268,18 +320,8 @@ impl ElectionResultResult {
     }
 }
 
-impl EMLElement for ElectionResultResult {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Result", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionResultResult {
-            election: ElectionResultElection::EML_NAME => |elem| ElectionResultElection::read_eml(elem)?,
-        }))
-    }
-}
-
 /// The election for which the result applies.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Election", ns(NS_EML))]
 pub struct ElectionResultElection {
     /// Identifier for the election.
@@ -304,19 +346,8 @@ impl ElectionResultElection {
     }
 }
 
-impl EMLElement for ElectionResultElection {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Election", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionResultElection {
-            identifier: ElectionResultElectionIdentifier::EML_NAME => |elem| ElectionResultElectionIdentifier::read_eml(elem)?,
-            contests as Vec: ElectionResultContest::EML_NAME => |elem| ElectionResultContest::read_eml(elem)?,
-        }))
-    }
-}
-
 /// Identifier for the election for which the result applies.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct ElectionResultElectionIdentifier {
     /// Id of the election
@@ -351,27 +382,8 @@ impl ElectionResultElectionIdentifier {
     }
 }
 
-impl EMLElement for ElectionResultElectionIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            ElectionResultElectionIdentifier {
-                id: elem.string_value_attr("Id", None)?,
-                name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
-                subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
-                election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
-            }
-        ))
-    }
-}
-
 /// A contest within an election result.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Contest", ns(NS_EML))]
 pub struct ElectionResultContest {
     /// Identifier of the contest.
@@ -393,17 +405,6 @@ impl ElectionResultContest {
             identifier: identifier.into(),
             selections: selections.into(),
         }
-    }
-}
-
-impl EMLElement for ElectionResultContest {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionResultContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            selections as Vec: ElectionResultSelection::EML_NAME => |elem| ElectionResultSelection::read_eml(elem)?,
-        }))
     }
 }
 
@@ -521,7 +522,7 @@ impl StringValueData for YesNoType {
 }
 
 /// A selection within an election contest.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Selection", rename_all = "PascalCase", ns(NS_EML))]
 pub struct ElectionResultSelection {
     /// The type of selection.
@@ -619,70 +620,8 @@ impl Default for ElectionResultSelectionBuilder {
     }
 }
 
-const VOTES_EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Votes", Some(NS_EML));
-const RANKING_EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Ranking", Some(NS_EML));
-const ELECTED_EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Elected", Some(NS_EML));
-
-impl EMLElement for ElectionResultSelection {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Selection", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let mut selection_type = None;
-        let mut votes = None;
-        let mut ranking = None;
-        let mut elected = None;
-
-        while let Some(mut child) = elem.next_child()? {
-            let name = child.name()?;
-
-            match name {
-                n if n == CandidateSelection::EML_NAME => {
-                    selection_type = Some(ElectionResultSelectionType::Candidate(Box::new(
-                        CandidateSelection::read_eml(&mut child)?,
-                    )));
-                }
-                n if n == AffiliationSelection::EML_NAME => {
-                    selection_type = Some(ElectionResultSelectionType::Affiliation(Box::new(
-                        AffiliationSelection::read_eml(&mut child)?,
-                    )));
-                }
-                n if n == VOTES_EML_NAME => {
-                    votes = Some(child.string_value()?);
-                }
-                n if n == RANKING_EML_NAME => {
-                    ranking = Some(child.string_value()?);
-                }
-                n if n == ELECTED_EML_NAME => {
-                    elected = Some(child.string_value()?);
-                }
-                n => {
-                    let err =
-                        EMLErrorKind::UnexpectedElement(n.as_owned(), Self::EML_NAME.as_owned())
-                            .with_span(child.inner_span());
-                    if child.parsing_mode().is_strict() {
-                        return Err(err);
-                    } else {
-                        child.push_err(err);
-                        child.skip()?;
-                    }
-                }
-            }
-        }
-
-        let elected = elected.unwrap_or_else(|| StringValue::from_value(YesNoType::new(false)));
-
-        Ok(ElectionResultSelection {
-            selection_type: selection_type
-                .ok_or_else(|| EMLErrorKind::MissingSelectionType.with_span(elem.inner_span()))?,
-            votes,
-            ranking,
-            elected,
-        })
-    }
-}
-
 /// The type of selection.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(forward)]
 pub enum ElectionResultSelectionType {
     /// Selection of a candidate.
@@ -692,7 +631,7 @@ pub enum ElectionResultSelectionType {
 }
 
 /// Selection of a candidate.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Candidate", ns(NS_EML))]
 pub struct CandidateSelection {
     /// Identifier of the candidate.
@@ -828,21 +767,8 @@ impl Default for CandidateSelectionBuilder {
     }
 }
 
-impl EMLElement for CandidateSelection {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, CandidateSelection {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
-            name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| MinimalQualifyingAddress::read_eml(elem)?,
-        }))
-    }
-}
-
 /// Selection of an affiliation.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "AffiliationIdentifier", ns(NS_EML))]
 pub struct AffiliationSelection {
     /// Id of the affiliation.
@@ -864,18 +790,6 @@ impl AffiliationSelection {
     }
 }
 
-impl EMLElement for AffiliationSelection {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("AffiliationIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, AffiliationSelection {
-            id: elem.string_value_attr("Id", None)?,
-            name: ("RegisteredName", NS_EML) => |elem| elem.text_without_children()?,
-        }))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
@@ -884,6 +798,7 @@ mod tests {
 
     use crate::{
         common::{AuthorityIdentifier, PersonName},
+        documents::EML,
         io::{EMLParsingMode, EMLRead as _, EMLWrite},
         utils::{AuthorityId, CandidateId},
     };
@@ -953,7 +868,10 @@ mod tests {
         let xml = election_result.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let parsed = ElectionResult::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let eml = EML::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let parsed = eml
+            .as_result_doc()
+            .expect("expected election result variant");
         let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }

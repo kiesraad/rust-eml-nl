@@ -1,13 +1,12 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, QualifiedName},
+    NS_EML,
     utils::{ContestId, ContestIdGeen, StringValue},
 };
 
 /// Identifier for the contest.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct ContestIdentifier {
     /// Id of the contest.
@@ -50,18 +49,8 @@ impl ContestIdentifier {
     }
 }
 
-impl EMLElement for ContestIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifier { id })
-    }
-}
-
 /// Identifier for the contest with 'geen' type.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "ContestIdentifier", rename_all = "PascalCase", ns(NS_EML))]
 pub struct ContestIdentifierGeen {
     /// Id of the contest.
@@ -81,16 +70,6 @@ impl ContestIdentifierGeen {
 impl Default for ContestIdentifierGeen {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl EMLElement for ContestIdentifierGeen {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifierGeen { id })
     }
 }
 

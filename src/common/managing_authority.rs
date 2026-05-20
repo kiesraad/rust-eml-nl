@@ -1,13 +1,12 @@
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
-    EMLError, NS_EML, NS_KR,
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
+    NS_EML, NS_KR,
     utils::{AuthorityId, StringValue},
 };
 
 /// Managing authority of an election.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(ns(NS_EML, kr = NS_KR))]
 pub struct ManagingAuthority {
     /// Identifier of the managing authority
@@ -53,21 +52,8 @@ impl From<AuthorityId> for ManagingAuthority {
     }
 }
 
-impl EMLElement for ManagingAuthority {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ManagingAuthority", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ManagingAuthority {
-            authority_identifier: AuthorityIdentifier::EML_NAME => |elem| AuthorityIdentifier::read_eml(elem)?,
-            authority_address: AuthorityAddress::EML_NAME => |elem| AuthorityAddress::read_eml(elem)?,
-            created_by_authority as Option: CreatedByAuthority::EML_NAME => |elem| CreatedByAuthority::read_eml(elem)?,
-        }))
-    }
-}
-
 /// Identifier of a managing authority.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct AuthorityIdentifier {
     /// Identifier of the managing authority
@@ -100,37 +86,13 @@ impl From<AuthorityId> for AuthorityIdentifier {
     }
 }
 
-impl EMLElement for AuthorityIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("AuthorityIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let name = if elem.is_empty() {
-            None
-        } else {
-            Some(elem.text_without_children()?)
-        };
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(AuthorityIdentifier { id, name })
-    }
-}
-
 /// Address of a managing authority.
-#[derive(Debug, Clone, PartialEq, Eq, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(ns(NS_EML))]
 pub struct AuthorityAddress {}
 
-impl EMLElement for AuthorityAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("AuthorityAddress", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, AuthorityAddress {}))
-    }
-}
-
 /// Authority that created the authority.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_KR), force_prefix)]
 pub struct CreatedByAuthority {
     /// Identifier of the managing authority
@@ -154,22 +116,6 @@ impl CreatedByAuthority {
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
-    }
-}
-
-impl EMLElement for CreatedByAuthority {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CreatedByAuthority", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let name = if elem.is_empty() {
-            None
-        } else {
-            Some(elem.text_without_children()?)
-        };
-
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(CreatedByAuthority { id, name })
     }
 }
 

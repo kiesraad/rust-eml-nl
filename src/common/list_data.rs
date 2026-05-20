@@ -1,11 +1,10 @@
 use std::{fmt, num::NonZeroU64};
 
-use instant_xml::ToXml;
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{
     EMLError, EMLValueResultExt, NS_KR,
-    io::{EMLElement, EMLElementReader, QualifiedName, collect_struct},
     utils::{ContestId, PublicationLanguage, StringValue, StringValueData},
 };
 
@@ -77,6 +76,120 @@ impl ListData {
     }
 }
 
+impl<'xml> FromXml<'xml> for ListData {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_KR,
+                    name: "ListData",
+                }
+            }
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut publish_gender = None;
+        let mut publication_language = None;
+        let mut belongs_to_set = None;
+        let mut belongs_to_combination = None;
+        let mut contests = Vec::new();
+
+        // Read attributes
+        while let Some(node) = deserializer.next() {
+            let node = node?;
+            match node {
+                Node::Attribute(attr) => match attr.local {
+                    "PublishGender" => {
+                        publish_gender =
+                            Some(match StringValue::<bool>::from_raw_parsed(&*attr.value) {
+                                Ok(v) => v,
+                                Err(_) => StringValue::Raw(attr.value.into_owned()),
+                            });
+                    }
+                    "PublicationLanguage" => {
+                        publication_language = Some(
+                            match StringValue::<PublicationLanguage>::from_raw_parsed(&*attr.value)
+                            {
+                                Ok(v) => v,
+                                Err(_) => StringValue::Raw(attr.value.into_owned()),
+                            },
+                        );
+                    }
+                    "BelongsToSet" => {
+                        belongs_to_set = Some(
+                            match StringValue::<NonZeroU64>::from_raw_parsed(&*attr.value) {
+                                Ok(v) => v,
+                                Err(_) => StringValue::Raw(attr.value.into_owned()),
+                            },
+                        );
+                    }
+                    "BelongsToCombination" => {
+                        belongs_to_combination = Some(
+                            match StringValue::<ListDataBelongsToCombination>::from_raw_parsed(
+                                &*attr.value,
+                            ) {
+                                Ok(v) => v,
+                                Err(_) => StringValue::Raw(attr.value.into_owned()),
+                            },
+                        );
+                    }
+                    name => return Err(Error::UnexpectedValue(name.to_owned())),
+                },
+                Node::Open(element) => {
+                    let id = deserializer.element_id(&element)?;
+                    if id
+                        == (instant_xml::Id {
+                            ns: NS_KR,
+                            name: "Contests",
+                        })
+                    {
+                        let mut nested = deserializer.nested(element);
+                        while let Some(node) = nested.next() {
+                            let node = node?;
+                            if let Node::Open(contest_elem) = node {
+                                let mut acc =
+                                    <ListDataContest as FromXml<'xml>>::Accumulator::default();
+                                let mut cn = nested.nested(contest_elem);
+                                ListDataContest::deserialize(&mut acc, field, &mut cn)?;
+                                cn.ignore()?;
+                                contests.push(acc.try_done(field)?);
+                            }
+                        }
+                    } else {
+                        let mut nested = deserializer.nested(element);
+                        nested.ignore()?;
+                    }
+                }
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            }
+        }
+
+        *into = Some(ListData {
+            publish_gender: publish_gender.ok_or(Error::MissingValue("PublishGender"))?,
+            publication_language,
+            belongs_to_set,
+            belongs_to_combination,
+            contests,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
 // Custom: children wrapped in conditional `<Contests>` element; empty-element when no contests.
 impl ToXml for ListData {
     fn serialize<W: fmt::Write + ?Sized>(
@@ -113,47 +226,8 @@ impl ToXml for ListData {
     }
 }
 
-impl EMLElement for ListData {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("ListData", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let publish_gender = elem.string_value_attr("PublishGender", None)?;
-        let publication_language = elem.string_value_attr_opt("PublicationLanguage")?;
-        let belongs_to_set = elem.string_value_attr_opt("BelongsToSet")?;
-        let belongs_to_combination = elem.string_value_attr_opt("BelongsToCombination")?;
-
-        // temporary struct to collect optional contests element
-        struct ListDataContests {
-            contests: Option<Vec<ListDataContest>>,
-        }
-
-        let tmp = collect_struct!(elem, ListDataContests {
-            contests as Option: ("Contests", NS_KR) => |elem| {
-                // Temporary struct to collect contest elements
-                struct Contests {
-                    contests: Vec<ListDataContest>,
-                }
-
-                let res = collect_struct!(elem, Contests {
-                    contests as Vec: ListDataContest::EML_NAME => |elem| ListDataContest::read_eml(elem)?,
-                });
-
-                res.contests
-            },
-        });
-
-        Ok(ListData {
-            publish_gender,
-            publication_language,
-            belongs_to_set,
-            belongs_to_combination,
-            contests: tmp.contests.unwrap_or_default(),
-        })
-    }
-}
-
 /// Data for a contest associated with a list.
-#[derive(Debug, Clone, ToXml)]
+#[derive(Debug, Clone, FromXml, ToXml)]
 #[xml(rename = "Contest", rename_all = "PascalCase", ns(NS_KR), force_prefix)]
 pub struct ListDataContest {
     /// The contest ID.
@@ -178,17 +252,6 @@ impl ListDataContest {
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
-    }
-}
-
-impl EMLElement for ListDataContest {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(ListDataContest {
-            id: elem.string_value_attr("Id", None)?,
-            name: elem.text_without_children_opt()?,
-        })
     }
 }
 

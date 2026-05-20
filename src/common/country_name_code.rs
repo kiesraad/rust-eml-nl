@@ -1,14 +1,9 @@
-use std::borrow::Cow;
+use instant_xml::{FromXml, ToXml};
 
-use instant_xml::ToXml;
-
-use crate::{
-    EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, QualifiedName},
-};
+use crate::NS_XAL;
 
 /// Country name code information.
-#[derive(Debug, Clone, PartialEq, Eq, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(rename_all = "PascalCase", ns(NS_XAL), force_prefix)]
 pub struct CountryNameCode {
     /// The Scheme attribute, if present.
@@ -54,19 +49,6 @@ impl From<String> for CountryNameCode {
 impl From<&str> for CountryNameCode {
     fn from(value: &str) -> Self {
         CountryNameCode::new(value)
-    }
-}
-
-impl EMLElement for CountryNameCode {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CountryNameCode", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(CountryNameCode {
-            value: elem.text_without_children()?,
-            scheme: elem.attribute_value("Scheme")?.map(Cow::into_owned),
-            code: elem.attribute_value("Code")?.map(Cow::into_owned),
-        })
     }
 }
 
