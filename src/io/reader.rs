@@ -61,11 +61,13 @@ impl<T> EMLReadResult<T> {
     }
 
     /// Unwraps the value if successful, or panics if not.
+    #[track_caller]
     pub fn unwrap(self) -> T {
         self.ok().unwrap()
     }
 
     /// Unwraps the value if successful, or panics with the given message if not.
+    #[track_caller]
     pub fn expect(self, msg: &str) -> T {
         self.ok().expect(msg)
     }
