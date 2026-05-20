@@ -425,13 +425,52 @@ impl<'xml> FromXml<'xml> for ElectionDefinition {
             }
         }
 
+        let election_event: ElectionDefinitionElectionEvent = election_event.try_done(field)?;
+
+        // Validate date formats are parseable
+        let ident = &election_event.election.identifier;
+        ident
+            .election_date
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+        ident
+            .nomination_date
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate dates
+        crate::documents::validate_election_and_nomination_dates(
+            Some(&ident.election_date),
+            Some(&ident.nomination_date),
+        )
+        .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate category and subcategory
+        crate::documents::validate_category_and_subcategory(
+            &ident.category,
+            Some(&ident.subcategory),
+        )
+        .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate voting method is parseable
+        election_event
+            .election
+            .contest
+            .voting_method
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate election details (voting method, seats, preference threshold)
+        validate_election_details(&election_event.election)
+            .map_err(|e| Error::Other(e.to_string()))?;
+
         *into = Some(ElectionDefinition {
             transaction_id: transaction_id.try_done(field)?,
             managing_authority,
             issue_date,
             creation_date_time: creation_date_time.try_done(field)?,
             canonicalization_method,
-            election_event: election_event.try_done(field)?,
+            election_event,
         });
         Ok(())
     }
@@ -695,14 +734,19 @@ impl<'xml> FromXml<'xml> for ElectionDefinitionElection {
             }
         }
 
-        *into = Some(ElectionDefinitionElection {
+        let result = ElectionDefinitionElection {
             identifier: identifier.try_done(field)?,
             contest: contest.try_done(field)?,
             number_of_seats: number_of_seats.try_done(field)?,
             preference_threshold: preference_threshold.try_done(field)?,
             election_tree: election_tree.try_done(field)?,
             registered_parties: registered_parties.try_done(field)?,
-        });
+        };
+
+        // Validate election details
+        validate_election_details(&result).map_err(|e| instant_xml::Error::Other(e.to_string()))?;
+
+        *into = Some(result);
         Ok(())
     }
 
@@ -1048,7 +1092,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_date_format() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_date_format.eml.xml"
@@ -1059,7 +1102,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_date_nomination_format() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_date_nomination_format.eml.xml"
@@ -1070,7 +1112,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_mismatch_preference_threshold() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold.eml.xml"
@@ -1081,7 +1122,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_mismatch_preference_threshold_small_election() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold_small_election.eml.xml"
@@ -1152,7 +1192,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_number_of_seats() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_number_of_seats.eml.xml"
@@ -1163,7 +1202,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_subcategory() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_subcategory.eml.xml"
@@ -1174,7 +1212,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_election_voting_method() {
         let xml = include_str!(
             "../../test-emls/election_definition/eml110a_invalid_election_voting_method.eml.xml"

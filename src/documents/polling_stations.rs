@@ -298,13 +298,28 @@ impl<'xml> FromXml<'xml> for PollingStations {
             }
         }
 
+        let election_event: PollingStationsElectionEvent = election_event.try_done(field)?;
+
+        // Validate all contests have at least one polling place and valid MaxVotes
+        for contest in &election_event.election.contests {
+            if contest.polling_places.is_empty() {
+                return Err(instant_xml::Error::MissingValue(
+                    "PollingStationsContest::polling_places",
+                ));
+            }
+            contest
+                .max_votes
+                .copied_value_err()
+                .map_err(|e| instant_xml::Error::Other(e.to_string()))?;
+        }
+
         *into = Some(PollingStations {
             transaction_id: transaction_id.try_done(field)?,
             managing_authority: managing_authority.try_done(field)?,
             issue_date,
             creation_date_time: creation_date_time.try_done(field)?,
             canonicalization_method,
-            election_event: election_event.try_done(field)?,
+            election_event,
         });
         Ok(())
     }
@@ -973,7 +988,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_empty_polling_stations() {
         assert!(
             PollingStations::parse_eml(include_str!(
@@ -985,7 +999,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_number_of_voters() {
         assert!(
             PollingStations::parse_eml(include_str!(

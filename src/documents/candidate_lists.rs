@@ -276,6 +276,7 @@ impl<'xml> FromXml<'xml> for CandidateLists {
             return Err(Error::DuplicateValue(field));
         }
 
+        let mut lists_type = None;
         let mut transaction_id = <TransactionId as FromXml>::Accumulator::default();
         let mut managing_authority = <ManagingAuthority as FromXml>::Accumulator::default();
         let mut issue_date = <IssueDate as FromXml>::Accumulator::default();
@@ -287,6 +288,14 @@ impl<'xml> FromXml<'xml> for CandidateLists {
         while let Some(node) = deserializer.next() {
             let element = match node? {
                 Node::Open(element) => element,
+                Node::Attribute(attr) if attr.local == "Id" => {
+                    lists_type = Some(
+                        CandidateListsType::from_eml_id(attr.value)
+                            .map_err(|e| Error::Other(e.to_string()))?,
+                    );
+                    continue;
+                }
+                Node::Attribute(_) | Node::AttributeValue(_) => continue,
                 Node::Text(s) if s.trim().is_empty() => continue,
                 node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
             };
@@ -327,7 +336,7 @@ impl<'xml> FromXml<'xml> for CandidateLists {
         }
 
         *into = Some(CandidateLists {
-            lists_type: CandidateListsType::Single, // Default; overridden by EML dispatch
+            lists_type: lists_type.unwrap_or(CandidateListsType::Single),
             transaction_id: transaction_id.try_done(field)?,
             managing_authority: managing_authority.try_done(field)?,
             issue_date: issue_date.try_done(field)?,
@@ -498,7 +507,7 @@ impl CandidateListsElection {
 }
 
 /// Identifier for the election.
-#[derive(Debug, Clone, FromXml, ToXml)]
+#[derive(Debug, Clone, ToXml)]
 #[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct CandidateListsElectionIdentifier {
     /// Id of the election
@@ -530,6 +539,160 @@ pub struct CandidateListsElectionIdentifier {
     pub nomination_date: StringValue<XsDate>,
 }
 
+impl<'xml> FromXml<'xml> for CandidateListsElectionIdentifier {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "ElectionIdentifier",
+                }
+            }
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut id_attr: Option<StringValue<ElectionId>> = None;
+        let mut name: Option<String> = None;
+        let mut category = <StringValue<ElectionCategory> as FromXml>::Accumulator::default();
+        let mut subcategory = <StringValue<ElectionSubcategory> as FromXml>::Accumulator::default();
+        let mut domain = <ElectionDomain as FromXml>::Accumulator::default();
+        let mut election_date = <StringValue<XsDate> as FromXml>::Accumulator::default();
+        let mut nomination_date = <StringValue<XsDate> as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Attribute(attr) if attr.local == "Id" => {
+                    id_attr = Some(StringValue::from_raw(attr.value));
+                    continue;
+                }
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if id
+                == (instant_xml::Id {
+                    ns: NS_EML,
+                    name: "ElectionName",
+                })
+            {
+                for inner in deserializer.nested(element) {
+                    let inner = inner?;
+                    if let Node::Text(text) = inner {
+                        name = Some(text.to_string());
+                    }
+                }
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_EML,
+                    name: "ElectionCategory",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<ElectionCategory>>::deserialize(&mut category, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "ElectionSubcategory",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<ElectionSubcategory>>::deserialize(
+                    &mut subcategory,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else if ElectionDomain::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionDomain::deserialize(&mut domain, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "ElectionDate",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<XsDate>>::deserialize(&mut election_date, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "NominationDate",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<XsDate>>::deserialize(&mut nomination_date, field, &mut nested)?;
+                nested.ignore()?;
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        let id_attr = id_attr.ok_or(Error::MissingValue("CandidateListsElectionIdentifier::Id"))?;
+        let category: StringValue<ElectionCategory> = category.try_done(field)?;
+        let election_date: StringValue<XsDate> = election_date.try_done(field)?;
+        let nomination_date: StringValue<XsDate> = nomination_date.try_done(field)?;
+
+        // Validate dates
+        crate::documents::validate_election_and_nomination_dates(
+            Some(&election_date),
+            Some(&nomination_date),
+        )
+        .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate category and subcategory
+        crate::documents::validate_category_and_subcategory(&category, subcategory.as_ref())
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate domain is present and valid when category requires it
+        if let Ok(
+            ElectionCategory::GR
+            | ElectionCategory::AB
+            | ElectionCategory::PS
+            | ElectionCategory::BC
+            | ElectionCategory::GC
+            | ElectionCategory::ER,
+        ) = category.copied_value_err()
+            && let Some(domain_id) = domain.as_ref().and_then(|d| d.id.as_ref())
+        {
+            domain_id
+                .value_err()
+                .map_err(|e| Error::Other(e.to_string()))?;
+        }
+
+        *into = Some(CandidateListsElectionIdentifier {
+            id: id_attr,
+            name,
+            category,
+            subcategory,
+            domain,
+            election_date,
+            nomination_date,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
 impl CandidateListsElectionIdentifier {
     /// Create a new Election Identifier builder
     pub fn builder() -> ElectionIdentifierBuilder {
@@ -538,7 +701,7 @@ impl CandidateListsElectionIdentifier {
 }
 
 /// Election contest details.
-#[derive(Debug, Clone, FromXml, ToXml)]
+#[derive(Debug, Clone, ToXml)]
 #[xml(rename = "Contest", ns(NS_EML))]
 pub struct CandidateListsContest {
     /// Identifier for the contest.
@@ -548,6 +711,77 @@ pub struct CandidateListsContest {
     /// Affiliations participating in the contest.
     #[xml(rename = "Affiliation")]
     pub affiliations: Vec<CandidateListsAffiliation>,
+}
+
+impl<'xml> FromXml<'xml> for CandidateListsContest {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "Contest",
+                }
+            }
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut identifier = <ContestIdentifier as FromXml>::Accumulator::default();
+        let mut affiliations = <Vec<CandidateListsAffiliation> as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if ContestIdentifier::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ContestIdentifier::deserialize(&mut identifier, field, &mut nested)?;
+                nested.ignore()?;
+            } else if <Vec<CandidateListsAffiliation> as FromXml>::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                <Vec<CandidateListsAffiliation> as FromXml>::deserialize(
+                    &mut affiliations,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        let affiliations: Vec<CandidateListsAffiliation> = affiliations.try_done(field)?;
+        if affiliations.is_empty() {
+            return Err(instant_xml::Error::MissingValue(
+                "CandidateListsContest::affiliations",
+            ));
+        }
+
+        *into = Some(CandidateListsContest {
+            identifier: identifier.try_done(field)?,
+            affiliations,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
 }
 
 /// Builder for the election contest details, see [`CandidateListsContest`].
@@ -825,11 +1059,18 @@ impl<'xml> FromXml<'xml> for CandidateListsAffiliation {
             }
         }
 
+        let candidates: Vec<CandidateListsCandidate> = candidates.try_done(field)?;
+        if candidates.is_empty() {
+            return Err(instant_xml::Error::MissingValue(
+                "CandidateListsAffiliation::candidates",
+            ));
+        }
+
         *into = Some(CandidateListsAffiliation {
             identifier: identifier.try_done(field)?,
             affiliation_type: affiliation_type.try_done(field)?,
             list_data: list_data.try_done(field)?,
-            candidates: candidates.try_done(field)?,
+            candidates,
         });
         Ok(())
     }
@@ -1618,7 +1859,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_document_type() {
         assert!(
             CandidateLists::parse_eml(include_str!(
@@ -1630,7 +1870,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_empty_affiliates() {
         assert!(
             CandidateLists::parse_eml(include_str!(
@@ -1642,7 +1881,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_empty_candidates() {
         assert!(
             CandidateLists::parse_eml(include_str!(
@@ -1654,7 +1892,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_invalid_incorrect_election_date() {
         assert!(
             CandidateLists::parse_eml(include_str!(
@@ -1666,7 +1903,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_incorrect_election_domain() {
         assert!(
             CandidateLists::parse_eml(include_str!(
@@ -1678,7 +1914,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "post-parse validation not yet reimplemented"]
     fn test_incorrect_election_category() {
         assert!(
             CandidateLists::parse_eml(
