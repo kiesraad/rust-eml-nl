@@ -40,12 +40,12 @@ regex = { version = "1.12.2", default-features = false, features = ["std", "unic
 
 ## Optional dependencies used for utility binaries
 # Used for command-line argument parsing
-clap = { version = "4.5.54", optional = true}
+clap = { version = "4.5.54", optional = true, features = ["derive"]}
 # Used for error handling in binaries
 anyhow = { version = "1.0.100", optional = true , default-features = false }
 # Used as the async runtime in binaries
-tokio = { version = "1.49.0", optional = true}
+tokio = { version = "1.49.0", optional = true, features = ["io-std", "io-util", "fs", "macros", "rt-multi-thread"]}
 # Used for emitting logging in binaries
-tracing-subscriber = { version = "0.3.22", optional = true, default-features = false }
+tracing-subscriber = { version = "0.3.22", optional = true, default-features = false, features = ["fmt", "env-filter"] }
 # Used for SHA-256 hashing of EML files (in validator)
 sha2 = { version = "0.10.9", optional = true , default-features = false }
