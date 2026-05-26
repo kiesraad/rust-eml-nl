@@ -1,16 +1,18 @@
 use std::borrow::Cow;
 
+use instant_xml::{FromXml, ToXml};
+
 use crate::{
     EMLValueResultExt, NS_EML,
     error::EMLError,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, XsDateOrDateTime},
 };
 
 /// Document issue date.
 ///
 /// Can be either a date or a date with time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_EML))]
 pub struct IssueDate(pub StringValue<XsDateOrDateTime>);
 
 impl IssueDate {
@@ -29,7 +31,7 @@ impl IssueDate {
         Ok(self
             .0
             .value_err()
-            .wrap_field_value_error(IssueDate::EML_NAME)?
+            .wrap_field_value_error(("IssueDate", NS_EML))?
             .into_owned())
     }
 }
@@ -40,26 +42,13 @@ impl From<XsDateOrDateTime> for IssueDate {
     }
 }
 
-impl EMLElement for IssueDate {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("IssueDate", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(IssueDate(elem.string_value()?))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.text(self.raw().as_ref())?.finish()?;
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr as _;
 
     use super::*;
     use crate::{
-        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+        io::{EMLRead, test_xml_fragment},
         utils::XsDateTime,
     };
 
@@ -77,10 +66,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<IssueDate xmlns="urn:oasis:names:tc:evs:schema:eml">2024-06-01</IssueDate>"#,
         );
-        let id = IssueDate::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let id = IssueDate::parse_eml(&xml).unwrap();
         assert_eq!(id.raw(), "2024-06-01");
-
-        let xml_output = test_write_eml_element(&id, &[NS_EML]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

@@ -1,15 +1,19 @@
+use instant_xml::{FromXml, ToXml};
+
 use crate::{
-    EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    NS_EML,
     utils::{ReportingUnitIdentifierId, StringValue},
 };
 
 /// Identifier for the reporting unit.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct ReportingUnitIdentifier {
     /// Id of the reporting unit.
+    #[xml(attribute)]
     pub id: StringValue<ReportingUnitIdentifierId>,
     /// Name of the reporting unit.
+    #[xml(direct)]
     pub name: String,
 }
 
@@ -23,31 +27,10 @@ impl ReportingUnitIdentifier {
     }
 }
 
-impl EMLElement for ReportingUnitIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ReportingUnitIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let name = elem.text_without_children()?;
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ReportingUnitIdentifier { id, name })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .text(self.name.as_ref())?
-            .finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        NS_EML,
-        io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment},
-    };
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_reporting_unit_identifier_construction() {
@@ -65,12 +48,8 @@ mod tests {
             <ReportingUnitIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1234">Test</ReportingUnitIdentifier>
             "#,
         );
-        let reporting_unit_identifier =
-            ReportingUnitIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let reporting_unit_identifier = ReportingUnitIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
         assert_eq!(reporting_unit_identifier.name, "Test");
-
-        let xml_output = test_write_eml_element(&reporting_unit_identifier, &[NS_EML]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

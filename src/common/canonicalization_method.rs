@@ -1,11 +1,12 @@
-use crate::{
-    EMLError, NS_DS,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
-};
+use instant_xml::{FromXml, ToXml};
+
+use crate::NS_DS;
 
 /// XML CanonicalizationMethod element
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_DS), force_prefix)]
 pub struct CanonicalizationMethod {
+    #[xml(attribute)]
     algorithm: String,
 }
 
@@ -18,30 +19,10 @@ impl CanonicalizationMethod {
     }
 }
 
-impl EMLElement for CanonicalizationMethod {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CanonicalizationMethod", Some(NS_DS));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            CanonicalizationMethod {
-                algorithm: elem.attribute_value_req("Algorithm")?.into_owned(),
-            }
-        ))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Algorithm", &self.algorithm)?.empty()?;
-
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_canonicalization_method_construction() {
@@ -54,10 +35,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="test-algorithm"/>"#,
         );
-        let method = CanonicalizationMethod::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let method = CanonicalizationMethod::parse_eml(&xml).unwrap();
         assert_eq!(method.algorithm, "test-algorithm");
-
-        let xml_output = test_write_eml_element(&method, &[NS_DS]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

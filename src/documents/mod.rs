@@ -2,8 +2,10 @@
 
 use std::str::FromStr;
 
+use instant_xml::{Accumulate, FromXml, ToXml};
+
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
+    EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
     common::ElectionDomain,
     documents::{
         candidate_lists::{CandidateLists, CandidateListsElectionIdentifier, CandidateListsType},
@@ -19,7 +21,6 @@ use crate::{
             EML_POLLING_STATIONS_ID, PollingStations, PollingStationsElectionIdentifier,
         },
     },
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{ElectionCategory, ElectionId, ElectionSubcategory, StringValue, XsDate},
 };
 
@@ -189,47 +190,132 @@ impl EML {
     }
 }
 
-impl EMLElement for EML {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
-        let document_id = elem.attribute_value_req(("Id", None))?;
-        Ok(match document_id.as_ref() {
-            EML_ELECTION_DEFINITION_ID => {
-                EML::ElectionDefinition(Box::new(ElectionDefinition::read_eml(elem)?))
-            }
-            EML_POLLING_STATIONS_ID => {
-                EML::PollingStations(Box::new(PollingStations::read_eml(elem)?))
-            }
-            EML_ELECTION_RESULT_ID => {
-                EML::ElectionResult(Box::new(ElectionResult::read_eml(elem)?))
-            }
-            EML_NOMINATION_ID => EML::Nomination(Box::new(Nomination::read_eml(elem)?)),
-            id if CandidateListsType::is_valid_eml_id(id) => {
-                EML::CandidateLists(Box::new(CandidateLists::read_eml(elem)?))
-            }
-            id if CountType::is_valid_eml_id(id) => {
-                EML::ElectionCount(Box::new(ElectionCount::read_eml(elem)?))
-            }
-            _ => {
-                return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
-                    .with_span(elem.span());
-            }
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+// Custom: enum dispatch across six document type variants.
+impl ToXml for EML {
+    fn serialize<W: std::fmt::Write + ?Sized>(
+        &self,
+        field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
         match self {
-            EML::ElectionDefinition(ed) => ed.write_eml(writer),
-            EML::PollingStations(ps) => ps.write_eml(writer),
-            EML::Nomination(nom) => nom.write_eml(writer),
-            EML::CandidateLists(cl) => cl.write_eml(writer),
-            EML::ElectionCount(c) => c.write_eml(writer),
-            EML::ElectionResult(r) => r.write_eml(writer),
+            EML::ElectionDefinition(ed) => ed.serialize(field, serializer),
+            EML::PollingStations(ps) => ps.serialize(field, serializer),
+            EML::Nomination(nom) => nom.serialize(field, serializer),
+            EML::CandidateLists(cl) => cl.serialize(field, serializer),
+            EML::ElectionCount(c) => c.serialize(field, serializer),
+            EML::ElectionResult(r) => r.serialize(field, serializer),
         }
     }
+}
+
+// Custom: enum dispatch across six document type variants based on Id attribute.
+impl<'xml> FromXml<'xml> for EML {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "EML",
+                }
+            }
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        if into.is_some() {
+            return Err(instant_xml::Error::DuplicateValue(field));
+        }
+
+        // Read attributes to find the document type Id
+        let mut doc_id = None;
+        use instant_xml::de::Node;
+        loop {
+            match deserializer.next() {
+                Some(Ok(Node::Attribute(attr))) if attr.local == "Id" => {
+                    doc_id = Some(attr.value.to_string());
+                }
+                Some(Ok(Node::Attribute(_))) => continue,
+                Some(Ok(node)) => {
+                    // Put the first non-attribute node back and deserialize the body
+                    let mut deserializer = deserializer.for_node(node);
+                    let doc_id = doc_id
+                        .as_deref()
+                        .ok_or(instant_xml::Error::MissingValue("EML::Id"))?;
+
+                    *into = Some(match doc_id {
+                        EML_ELECTION_DEFINITION_ID => {
+                            let mut acc =
+                                <ElectionDefinition as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionDefinition>(
+                                &mut acc,
+                                &mut deserializer,
+                            )?;
+                            EML::ElectionDefinition(Box::new(acc.try_done(field)?))
+                        }
+                        EML_POLLING_STATIONS_ID => {
+                            let mut acc =
+                                <PollingStations as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<PollingStations>(&mut acc, &mut deserializer)?;
+                            EML::PollingStations(Box::new(acc.try_done(field)?))
+                        }
+                        EML_ELECTION_RESULT_ID => {
+                            let mut acc = <ElectionResult as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionResult>(&mut acc, &mut deserializer)?;
+                            EML::ElectionResult(Box::new(acc.try_done(field)?))
+                        }
+                        EML_NOMINATION_ID => {
+                            let mut acc = <Nomination as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<Nomination>(&mut acc, &mut deserializer)?;
+                            EML::Nomination(Box::new(acc.try_done(field)?))
+                        }
+                        id if CandidateListsType::is_valid_eml_id(id) => {
+                            let mut acc = <CandidateLists as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<CandidateLists>(&mut acc, &mut deserializer)?;
+                            let mut cl: CandidateLists = acc.try_done(field)?;
+                            cl.lists_type = CandidateListsType::from_eml_id(id)
+                                .map_err(|e| instant_xml::Error::UnexpectedValue(e.to_string()))?;
+                            EML::CandidateLists(Box::new(cl))
+                        }
+                        id if CountType::is_valid_eml_id(id) => {
+                            let mut acc = <ElectionCount as FromXml<'xml>>::Accumulator::default();
+                            deserialize_eml_body::<ElectionCount>(&mut acc, &mut deserializer)?;
+                            let mut ec: ElectionCount = acc.try_done(field)?;
+                            ec.count_type = CountType::from_eml_id(id)
+                                .map_err(|e| instant_xml::Error::UnexpectedValue(e.to_string()))?;
+                            EML::ElectionCount(Box::new(ec))
+                        }
+                        _ => {
+                            return Err(instant_xml::Error::UnexpectedValue(format!(
+                                "unknown EML document type: {doc_id}"
+                            )));
+                        }
+                    });
+                    deserializer.ignore()?;
+                    return Ok(());
+                }
+                Some(Err(e)) => return Err(e),
+                None => {
+                    return Err(instant_xml::Error::MissingValue("EML::Id"));
+                }
+            }
+        }
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+/// Helper: deserialize EML body from a deserializer positioned inside `<EML>`.
+fn deserialize_eml_body<'cx, 'xml, T: FromXml<'xml>>(
+    acc: &mut T::Accumulator,
+    deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+) -> Result<(), instant_xml::Error> {
+    T::deserialize(acc, "EML", deserializer)
 }
 
 impl From<ElectionDefinition> for EML {
@@ -268,28 +354,12 @@ impl From<ElectionResult> for EML {
     }
 }
 
-fn accepted_root(elem: &EMLElementReader<'_, '_>) -> Result<(), EMLError> {
-    if !elem.has_name(("EML", Some(NS_EML)))? {
-        return Err(EMLErrorKind::InvalidRootElement).with_span(elem.span());
-    }
-
-    let schema_version = elem.attribute_value_req(("SchemaVersion", None))?;
-    if schema_version == EML_SCHEMA_VERSION {
-        Ok(())
-    } else {
-        Err(EMLErrorKind::SchemaVersionNotSupported(
-            schema_version.to_string(),
-        ))
-        .with_span(elem.span())
-    }
-}
-
 impl FromStr for EML {
     type Err = EMLError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -298,7 +368,7 @@ impl TryFrom<&str> for EML {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -307,7 +377,7 @@ impl TryFrom<EML> for String {
 
     fn try_from(value: EML) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -594,42 +664,42 @@ pub(crate) fn validate_category_and_subcategory(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, EMLWrite as _};
+    use crate::io::{EMLRead as _, EMLWrite as _};
 
     #[test]
     fn test_parsing_arbitrary_eml_documents() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::Nomination(_)));
 
         let doc = include_str!("../../test-emls/candidate_lists/eml230b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::CandidateLists(_)));
 
         let doc = include_str!("../../test-emls/election_definition/eml110a_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionDefinition(_)));
 
         let doc = include_str!("../../test-emls/polling_stations/eml110b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::PollingStations(_)));
 
         let doc = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionCount(_)));
 
         let doc = include_str!("../../test-emls/election_result/eml520_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert!(matches!(eml, EML::ElectionResult(_)));
@@ -638,7 +708,7 @@ mod tests {
     #[test]
     fn parse_and_write_210_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "210");
@@ -647,13 +717,13 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_nomination_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
     fn parse_and_write_110a_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_definition/eml110a_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "110a");
@@ -662,13 +732,13 @@ mod tests {
         assert!(!eml.is_result_doc());
         assert!(eml.as_election_definition_doc().is_some());
         assert!(eml.as_result_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
     fn parse_and_write_110b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/polling_stations/eml110b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "110b");
@@ -677,13 +747,13 @@ mod tests {
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_polling_stations_doc().is_some());
         assert!(eml.as_election_definition_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
     fn parse_and_write_230b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/candidate_lists/eml230b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "230b");
@@ -692,13 +762,13 @@ mod tests {
         assert!(!eml.is_polling_stations_doc());
         assert!(eml.as_candidate_lists_doc().is_some());
         assert!(eml.as_polling_stations_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
     fn parse_and_write_510b_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "510b");
@@ -707,13 +777,13 @@ mod tests {
         assert!(!eml.is_candidate_lists_doc());
         assert!(eml.as_count_doc().is_some());
         assert!(eml.as_candidate_lists_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        eml.write_eml_root_str(true).unwrap();
     }
 
     #[test]
     fn parse_and_write_520_eml_document_should_not_fail() {
         let doc = include_str!("../../test-emls/election_result/eml520_test.eml.xml");
-        let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML document");
         assert_eq!(eml.to_eml_id(), "520");
@@ -722,6 +792,9 @@ mod tests {
         assert!(!eml.is_count_doc());
         assert!(eml.as_result_doc().is_some());
         assert!(eml.as_count_doc().is_none());
-        assert!(eml.write_eml_root_str(true, true).is_ok());
+        // Also test via the inner type to compare
+        let inner = eml.as_result_doc().unwrap();
+        inner.write_eml_root_str(true).expect("inner failed");
+        eml.write_eml_root_str(true).expect("eml failed");
     }
 }

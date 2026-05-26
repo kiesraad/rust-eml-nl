@@ -1,15 +1,20 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Gender of a candidate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum Gender {
     /// Male gender
+    #[xml(rename = "male")]
     Male,
     /// Female gender
+    #[xml(rename = "female")]
     Female,
     /// Gender unknown
+    #[xml(rename = "unknown")]
     Unknown,
 }
 

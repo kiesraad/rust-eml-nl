@@ -1,24 +1,5 @@
 use std::{borrow::Cow, fmt::Display, ops::Deref};
 
-pub(crate) trait IntoQualifiedNameCow<'a, 'b, 'c> {
-    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>>;
-}
-
-impl<'a, 'b, 'c> IntoQualifiedNameCow<'a, 'b, 'c> for &'a QualifiedName<'b, 'c> {
-    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>> {
-        Cow::Borrowed(self)
-    }
-}
-
-impl<'a, 'b, 'c, T> IntoQualifiedNameCow<'a, 'b, 'c> for T
-where
-    QualifiedName<'b, 'c>: From<T>,
-{
-    fn into_qname_cow(self) -> Cow<'a, QualifiedName<'b, 'c>> {
-        Cow::Owned(QualifiedName::from(self))
-    }
-}
-
 /// A qualified XML name, consisting of a local name and an optional namespace URI.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QualifiedName<'a, 'b> {

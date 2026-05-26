@@ -1,9 +1,11 @@
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Election category used in the election.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum ElectionCategory {
     /// Eerste Kamer
     EK,
@@ -101,7 +103,8 @@ impl StringValueData for ElectionCategory {
 }
 
 /// Subcategory of the election, providing more specific information about the type of election.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum ElectionSubcategory {
     /// Provinciale Staten (one electoral district)
     PS1,

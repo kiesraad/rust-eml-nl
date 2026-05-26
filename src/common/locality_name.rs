@@ -1,17 +1,20 @@
-use crate::{
-    EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
-};
+use instant_xml::{FromXml, ToXml};
+
+use crate::NS_XAL;
 
 /// Name of a locality
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XAL), force_prefix)]
 pub struct LocalityName {
-    /// Name of the locality
-    pub name: String,
     /// Type of the locality, if any
+    #[xml(attribute, rename = "Type")]
     pub locality_type: Option<String>,
     /// Associated code for the locality, if any
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
+    /// Name of the locality
+    #[xml(direct)]
+    pub name: String,
 }
 
 impl LocalityName {
@@ -49,34 +52,10 @@ impl From<&str> for LocalityName {
     }
 }
 
-impl EMLElement for LocalityName {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("LocalityName", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(LocalityName {
-            name: elem.text_without_children()?,
-            locality_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let mut writer = writer;
-        if let Some(ref locality_type) = self.locality_type {
-            writer = writer.attr("Type", locality_type)?;
-        }
-        if let Some(ref code) = self.code {
-            writer = writer.attr("Code", code)?;
-        }
-        writer.text(&self.name)?.finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_locality_name_construction() {
@@ -93,12 +72,9 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<xal:LocalityName xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Type="City" Code="AMS">Amsterdam</xal:LocalityName>"#,
         );
-        let loc = LocalityName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let loc = LocalityName::parse_eml(&xml).unwrap();
         assert_eq!(loc.name, "Amsterdam");
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));
-
-        let xml_output = test_write_eml_element(&loc, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

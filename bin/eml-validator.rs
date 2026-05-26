@@ -7,7 +7,7 @@ use anyhow::Context;
 use clap::{Parser, error::ErrorKind};
 use eml_nl::{
     documents::EML,
-    io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+    io::{EMLRead as _, EMLWrite as _},
 };
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncReadExt;
@@ -75,12 +75,6 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let parsing_mode = if args.strict {
-        EMLParsingMode::Strict
-    } else {
-        EMLParsingMode::StrictFallback
-    };
-
     if args.path == OsStr::new("-") {
         info!("Reading EML file as UTF-8 from stdin");
         let mut data = String::new();
@@ -88,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
             .read_to_string(&mut data)
             .await
             .context("Failed to read EML file from stdin")?;
-        handle_file(&data, parsing_mode, args.hash, args.print, args.debug).await?;
+        handle_file(&data, args.hash, args.print, args.debug).await?;
     } else if args.path.is_dir() {
         info!("EML path is a directory, processing all .eml.xml files inside recursively");
         let eml_files = collect_eml_files(&args.path).await?;
@@ -97,14 +91,7 @@ async fn main() -> anyhow::Result<()> {
         for eml_file in eml_files {
             info!("Processing EML file {:?}", eml_file);
             results.push(
-                process_file_and_log_errors(
-                    &eml_file,
-                    parsing_mode,
-                    args.hash,
-                    args.print,
-                    args.debug,
-                )
-                .await,
+                process_file_and_log_errors(&eml_file, args.hash, args.print, args.debug).await,
             );
         }
         info!("Finished processing all EML files");
@@ -134,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
         let content = tokio::fs::read_to_string(&args.path)
             .await
             .context("Failed to read EML file")?;
-        handle_file(&content, parsing_mode, args.hash, args.print, args.debug).await?;
+        handle_file(&content, args.hash, args.print, args.debug).await?;
     }
 
     Ok(())
@@ -148,14 +135,13 @@ enum ProcessResult {
 
 async fn process_file_and_log_errors(
     file: impl AsRef<Path>,
-    parsing_mode: EMLParsingMode,
     hash: bool,
     print: bool,
     debug: bool,
 ) -> ProcessResult {
     let path = file.as_ref();
     match tokio::fs::read_to_string(path).await {
-        Ok(content) => match handle_file(&content, parsing_mode, hash, print, debug).await {
+        Ok(content) => match handle_file(&content, hash, print, debug).await {
             Ok(warnings) => {
                 if warnings == 0 {
                     ProcessResult::Success
@@ -201,7 +187,6 @@ async fn collect_eml_files(dir: impl AsRef<Path>) -> anyhow::Result<Vec<PathBuf>
 
 async fn handle_file(
     file_content: &str,
-    parsing_mode: EMLParsingMode,
     hash: bool,
     print: bool,
     debug: bool,
@@ -227,7 +212,7 @@ async fn handle_file(
     }
 
     info!("Parsing EML file");
-    let (doc, errors) = EML::parse_eml(file_content, parsing_mode)
+    let (doc, errors) = EML::parse_eml(file_content)
         .ok_with_errors()
         .context("Failed to parse EML file")?;
 
@@ -259,7 +244,7 @@ async fn handle_file(
     if print {
         info!("Outputting parsed EML document back to XML:");
         let xml = doc
-            .write_eml_root_str(true, true)
+            .write_eml_root_str(true)
             .context("Failed to serialize EML document back to XML")?;
         info!("EML XML output:\n{}", xml);
     }

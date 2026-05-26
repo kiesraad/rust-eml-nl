@@ -1,12 +1,13 @@
-use crate::{
-    EMLError, NS_KR,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
-};
+use instant_xml::{FromXml, ToXml};
+
+use crate::NS_KR;
 
 /// Election tree as defined in EML_NL.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_KR), force_prefix)]
 pub struct ElectionTree {
     /// Regions defined for this part of the election tree
+    #[xml(rename = "Region")]
     pub regions: Vec<ElectionTreeRegion>,
 }
 
@@ -25,37 +26,7 @@ impl From<Vec<ElectionTreeRegion>> for ElectionTree {
     }
 }
 
-impl EMLElement for ElectionTree {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("ElectionTree", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionTree {
-            regions as Vec: ElectionTreeRegion::EML_NAME => |elem| ElectionTreeRegion::read_eml(elem)?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elems(ElectionTreeRegion::EML_NAME, &self.regions)?
-            .finish()
-    }
-}
-
 /// A region in the election tree.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "Region", ns(NS_KR), force_prefix)]
 pub struct ElectionTreeRegion {}
-
-impl EMLElement for ElectionTreeRegion {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Region", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO: handle election tree region
-        elem.skip()?;
-        Ok(ElectionTreeRegion {})
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        // TODO: write election tree region
-        writer.empty()
-    }
-}

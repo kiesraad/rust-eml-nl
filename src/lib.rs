@@ -30,17 +30,15 @@
 //! ```rust
 //! use eml_nl::{documents::EML, io::{EMLRead, EMLWrite}};
 //! let xml = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test-emls/polling_stations/eml110b_polling_stations_construction_output.eml.xml"));
-//! let eml_doc = EML::parse_eml(xml, eml_nl::io::EMLParsingMode::Strict).unwrap();
-//! let xml_output = eml_doc.write_eml_root_str(true, true).unwrap();
-//! assert_eq!(xml_output, xml);
+//! let eml_doc = EML::parse_eml(xml).unwrap();
+//! let xml_output = eml_doc.write_eml_root_str(true).unwrap();
+//! let reparsed = EML::parse_eml(&xml_output).unwrap();
+//! let xml_output2 = reparsed.write_eml_root_str(true).unwrap();
+//! assert_eq!(xml_output, xml_output2);
 //! ```
 //!
-//! In this example we also see [`EMLParsingMode`](crate::io::EMLParsingMode)
-//! being used. This enum defines how strict parsing of several values and elements
-//! should be. Take a look at the documenation for the enum for more information.
-//!
 //! Many times when parsing specific values from EML documents, such as dates or
-//! identifiers, depending on the parsing mode, the values may be stored as the
+//! identifiers, the values may be stored as the
 //! raw string or the parsed value. To handle this, we use the
 //! [`StringValue`](crate::utils::StringValue) type, which can contain either
 //! the raw string or the parsed value. Take a look at the documentation for
@@ -93,6 +91,31 @@ pub(crate) const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
 
 /// Namespace URI for XML Digital Signatures
 pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
+
+/// Namespace context for EML root elements, defining the standard prefix mappings.
+pub(crate) fn eml_ns_context() -> instant_xml::ser::Context<4> {
+    let mut ctx = instant_xml::ser::Context::<4>::default();
+    ctx.default_ns = NS_EML;
+    ctx.prefixes = [
+        instant_xml::ser::Prefix {
+            prefix: "kr",
+            ns: NS_KR,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "xal",
+            ns: NS_XAL,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "xnl",
+            ns: NS_XNL,
+        },
+        instant_xml::ser::Prefix {
+            prefix: "ds",
+            ns: NS_DS,
+        },
+    ];
+    ctx
+}
 
 // /// Namespace URI for XML Schema
 // pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";

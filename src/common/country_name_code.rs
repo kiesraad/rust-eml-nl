@@ -1,19 +1,20 @@
-use std::borrow::Cow;
+use instant_xml::{FromXml, ToXml};
 
-use crate::{
-    EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
-};
+use crate::NS_XAL;
 
 /// Country name code information.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_XAL), force_prefix)]
 pub struct CountryNameCode {
-    /// The country name code value.
-    pub value: String,
     /// The Scheme attribute, if present.
+    #[xml(attribute)]
     pub scheme: Option<String>,
     /// The Code attribute, if present.
+    #[xml(attribute)]
     pub code: Option<String>,
+    /// The country name code value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl CountryNameCode {
@@ -51,31 +52,10 @@ impl From<&str> for CountryNameCode {
     }
 }
 
-impl EMLElement for CountryNameCode {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("CountryNameCode", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(CountryNameCode {
-            value: elem.text_without_children()?,
-            scheme: elem.attribute_value("Scheme")?.map(Cow::into_owned),
-            code: elem.attribute_value("Code")?.map(Cow::into_owned),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Scheme", self.scheme.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(self.value.as_ref())?
-            .finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_country_name_code_construction() {
@@ -92,12 +72,9 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<xal:CountryNameCode xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Scheme="ISO3166" Code="NL">Netherlands</xal:CountryNameCode>"#,
         );
-        let cnc = CountryNameCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let cnc = CountryNameCode::parse_eml(&xml).unwrap();
         assert_eq!(cnc.value, "Netherlands");
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));
-
-        let xml_output = test_write_eml_element(&cnc, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

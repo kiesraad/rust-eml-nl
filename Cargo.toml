@@ -29,8 +29,8 @@ required-features = ["bin-utils"]
 [dependencies]
 # Used for simpler error handling and reporting
 thiserror = "2.0"
-# Used as our XML parsing library
-quick-xml = "0.38.2"
+# Used as our XML serialization/deserialization library (migration target)
+instant-xml = "0.7.3"
 # Used for logging and diagnostics
 tracing = "0.1.43"
 # Used for date and time handling

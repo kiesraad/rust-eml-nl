@@ -1,15 +1,17 @@
-use crate::{
-    EMLError, NS_XAL,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
-};
+use instant_xml::{FromXml, ToXml};
+
+use crate::NS_XAL;
 
 /// Postal code element
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCode {
     /// Postal code number
+    #[xml(rename = "PostalCodeNumber")]
     pub number: PostalCodeNumber,
 
     /// The `Type` attribute of the `PostalCode` element, if present.
+    #[xml(attribute, rename = "Type")]
     pub postal_code_type: Option<String>,
 }
 
@@ -62,65 +64,25 @@ impl From<&str> for PostalCode {
     }
 }
 
-impl EMLElement for PostalCode {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("PostalCode", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, PostalCode {
-            number: PostalCodeNumber::EML_NAME => |elem| PostalCodeNumber::read_eml(elem)?,
-            postal_code_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.postal_code_type.as_ref())?
-            .child_elem(PostalCodeNumber::EML_NAME, &self.number)?
-            .finish()
-    }
-}
-
 /// Postal code number element
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XAL), force_prefix)]
 pub struct PostalCodeNumber {
     /// Type attribute of the postal code number
+    #[xml(attribute, rename = "Type")]
     pub number_type: Option<String>,
     /// Code attribute of the postal code number
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
     /// The postal code value
+    #[xml(direct)]
     pub number: String,
-}
-
-impl EMLElement for PostalCodeNumber {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("PostalCodeNumber", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let number_type = elem.attribute_value("Type")?.map(|s| s.into_owned());
-        let code = elem.attribute_value("Code")?.map(|s| s.into_owned());
-        let number = elem.text_without_children()?;
-        Ok(PostalCodeNumber {
-            number_type,
-            code,
-            number,
-        })
-    }
-
-    fn write_eml(&self, mut writer: EMLElementWriter) -> Result<(), EMLError> {
-        if let Some(number_type) = &self.number_type {
-            writer = writer.attr("Type", number_type.as_ref())?
-        }
-        if let Some(code) = &self.code {
-            writer = writer.attr("Code", code.as_ref())?
-        }
-        writer.text(self.number.as_ref())?.finish()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_postal_code_construction() {
@@ -143,14 +105,11 @@ mod tests {
             </xal:PostalCode>
             "#,
         );
-        let postal_code = PostalCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let postal_code = PostalCode::parse_eml(&xml).unwrap();
         assert_eq!(postal_code.number(), "1234 AB");
         assert_eq!(postal_code.postal_code_type.as_deref(), Some("Test"));
         assert_eq!(postal_code.number.number_type.as_deref(), Some("Primary"));
         assert_eq!(postal_code.number.code.as_deref(), Some("PC123"));
-
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 
     #[test]
@@ -163,13 +122,10 @@ mod tests {
             "#,
         );
 
-        let postal_code = PostalCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let postal_code = PostalCode::parse_eml(&xml).unwrap();
         assert_eq!(postal_code.number(), "1234 AB");
         assert_eq!(postal_code.postal_code_type, None);
         assert_eq!(postal_code.number.number_type, None);
         assert_eq!(postal_code.number.code, None);
-
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

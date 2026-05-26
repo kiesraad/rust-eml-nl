@@ -3,25 +3,13 @@ use crate::io::{OwnedQualifiedName, Span};
 /// Different kinds of errors that can occur during EML_NL processing.
 #[derive(thiserror::Error, Debug)]
 pub enum EMLErrorKind {
-    /// An error originanting from the XML parser
-    #[error("XML error: {0}")]
-    XmlError(#[from] quick_xml::Error),
-
     /// An input/output error
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
-    /// An error during escaping/unescaping XML content
-    #[error("Escape error: {0}")]
-    EscapeError(#[from] quick_xml::escape::EscapeError),
-
-    /// An error related to parsing XML attributes
-    #[error("Attribute error: {0}")]
-    AttributeError(#[from] quick_xml::events::attributes::AttrError),
-
-    /// An error related to XML encoding/decoding
-    #[error("Encoding error: {0}")]
-    EncodingError(#[from] quick_xml::encoding::EncodingError),
+    /// An error from instant-xml serialization/deserialization
+    #[error("instant-xml error: {0}")]
+    XmlError(#[from] instant_xml::Error),
 
     /// An error converting from UTF-8
     #[error("UTF-8 conversion error: {0}")]
@@ -163,11 +151,6 @@ pub trait CustomError: std::fmt::Display + std::fmt::Debug + Send + Sync + 'stat
 impl<T> CustomError for T where T: std::fmt::Display + std::fmt::Debug + Send + Sync + 'static {}
 
 impl EMLErrorKind {
-    /// Adds span information to the error.
-    pub(crate) fn with_span(self, span: Span) -> EMLError {
-        EMLError::Positioned { kind: self, span }
-    }
-
     /// Converts the error kind to an error without span information.
     pub(crate) fn without_span(self) -> EMLError {
         EMLError::UnknownPosition { kind: self }
@@ -249,12 +232,6 @@ impl EMLError {
         }
     }
 
-    /// Create an EMLError from a vector of errors.
-    pub(crate) fn from_vec_with_additional(mut errors: Vec<EMLError>, error: EMLError) -> Self {
-        errors.push(error);
-        Self::from_vec(errors)
-    }
-
     /// Returns the kind of this error.
     ///
     /// When this error consists of multiple errors, None is returned.
@@ -302,8 +279,6 @@ impl EMLError {
 
 /// Extension trait for Result to add context to EMLError
 pub(crate) trait EMLResultExt<T> {
-    /// Adds span information to the error if it occurs.
-    fn with_span(self, span: Span) -> Result<T, EMLError>;
     /// Converts the error kind to an error without span information.
     fn without_span(self) -> Result<T, EMLError>;
 }
@@ -312,13 +287,6 @@ impl<T, I> EMLResultExt<T> for Result<T, I>
 where
     I: Into<EMLErrorKind>,
 {
-    fn with_span(self, span: Span) -> Result<T, EMLError> {
-        self.map_err(|kind| EMLError::Positioned {
-            kind: kind.into(),
-            span,
-        })
-    }
-
     fn without_span(self) -> Result<T, EMLError> {
         self.map_err(|kind| EMLError::UnknownPosition { kind: kind.into() })
     }
@@ -390,18 +358,28 @@ mod tests {
 
     #[test]
     fn test_creating_multiple_errors() {
-        let err1 = EMLErrorKind::UnexpectedEndElement.with_span(Span { start: 0, end: 5 });
-        let err2 =
-            EMLErrorKind::MissingElement(OwnedQualifiedName::from_static("Test", Some(NS_EML)))
-                .with_span(Span { start: 10, end: 15 });
+        let err1 = EMLError::Positioned {
+            kind: EMLErrorKind::UnexpectedEndElement,
+            span: Span { start: 0, end: 5 },
+        };
+        let err2 = EMLError::Positioned {
+            kind: EMLErrorKind::MissingElement(OwnedQualifiedName::from_static(
+                "Test",
+                Some(NS_EML),
+            )),
+            span: Span { start: 10, end: 15 },
+        };
 
-        let multiple_error = EMLError::from_vec_with_additional(vec![err1], err2);
+        let multiple_error = EMLError::from_vec(vec![err1, err2]);
         assert!(matches!(multiple_error, EMLError::Multiple(_)));
 
-        let err3 = EMLErrorKind::UnexpectedEof.with_span(Span { start: 0, end: 10 });
-        let multiple_error2 = EMLError::from_vec_with_additional(vec![], err3);
+        let err3 = EMLError::Positioned {
+            kind: EMLErrorKind::UnexpectedEof,
+            span: Span { start: 0, end: 10 },
+        };
+        let single_error = EMLError::from_vec(vec![err3]);
         assert!(matches!(
-            multiple_error2,
+            single_error,
             EMLError::Positioned {
                 kind: EMLErrorKind::UnexpectedEof,
                 span: Span { start: 0, end: 10 }
@@ -411,7 +389,10 @@ mod tests {
 
     #[test]
     fn get_data_from_error() {
-        let err = EMLErrorKind::UnexpectedEof.with_span(Span { start: 0, end: 10 });
+        let err = EMLError::Positioned {
+            kind: EMLErrorKind::UnexpectedEof,
+            span: Span { start: 0, end: 10 },
+        };
         assert!(matches!(err.kind(), &EMLErrorKind::UnexpectedEof));
         assert_eq!(err.span(), Some(Span { start: 0, end: 10 }));
 

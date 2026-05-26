@@ -1,5 +1,6 @@
-use std::{borrow::Cow, convert::Infallible, num::NonZeroU64};
+use std::{borrow::Cow, convert::Infallible, fmt, num::NonZeroU64};
 
+use instant_xml::{Deserializer, FromXml, Id, Kind, Serializer, ToXml};
 use thiserror::Error;
 
 use crate::{EMLError, EMLValueResultExt as _};
@@ -24,16 +25,9 @@ pub trait StringValueData: Clone {
 /// serialize the value. This type is used whenever an EML_NL document element or attribute
 /// contains a string value that could be parsed, but where strict parsing is not always desired.
 ///
-/// Depending on the parsing mode used when parsing a document, [`StringValue`]
-/// instances may either contain the raw string or the parsed value. When
-/// [`EMLParsingMode::Strict`](crate::io::EMLParsingMode::Strict) is used, all
-/// [`StringValue`] instances will contain the parsed value. When
-/// [`EMLParsingMode::StrictFallback`](crate::io::EMLParsingMode::StrictFallback)
-/// is used, the library will attempt to parse values but will fall back to
-/// storing the raw string if parsing fails. When
-/// [`EMLParsingMode::Loose`](crate::io::EMLParsingMode::Loose) is used, the
-/// library will not even attempt to parse values and will store all values as
-/// raw strings.
+/// During parsing, the library will attempt to parse values into their
+/// respective types. If parsing fails, the raw string value will be stored
+/// instead.
 ///
 /// In most cases you will want to use the parsed value by using one of the
 /// value retrieving methods:
@@ -128,6 +122,49 @@ impl<T: StringValueData + Copy> StringValue<T> {
     /// This is only available for types that implement [`Copy`].
     pub fn copied_value(&self) -> Result<T, EMLError> {
         self.copied_value_err().wrap_value_error()
+    }
+}
+
+impl<'xml, T: StringValueData> FromXml<'xml> for StringValue<T> {
+    #[inline]
+    fn matches(id: Id<'_>, field: Option<Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        if into.is_some() {
+            return Err(instant_xml::Error::DuplicateValue(field));
+        }
+
+        let text = deserializer.take_str()?;
+        let raw = text.as_deref().unwrap_or("");
+        let value = match T::parse_from_str(raw) {
+            Ok(v) => StringValue::Parsed(v),
+            Err(_) => StringValue::Raw(raw.to_owned()),
+        };
+
+        *into = Some(value);
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: Kind = Kind::Scalar;
+}
+
+impl<T: StringValueData> ToXml for StringValue<T> {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<Id<'_>>,
+        serializer: &mut Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        self.raw().serialize(field, serializer)
     }
 }
 

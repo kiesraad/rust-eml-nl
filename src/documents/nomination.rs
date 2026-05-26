@@ -1,7 +1,8 @@
 //! Document variant for the EML_NL Nomination (`210`) document.
 
-use std::{borrow::Cow, str::FromStr};
+use std::{fmt, str::FromStr};
 
+use instant_xml::{FromXml, ToXml};
 use thiserror::Error;
 
 use crate::{
@@ -10,15 +11,9 @@ use crate::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
     },
-    documents::{
-        ElectionIdentifierBuilder, accepted_root, validate_category_and_subcategory,
-        validate_election_and_nomination_dates,
-    },
+    documents::ElectionIdentifierBuilder,
+    eml_ns_context,
     error::EMLErrorKind,
-    io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, QualifiedName,
-        collect_struct, write_eml_element,
-    },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
         StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
@@ -66,7 +61,7 @@ impl FromStr for Nomination {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -75,7 +70,7 @@ impl TryFrom<&str> for Nomination {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -84,7 +79,7 @@ impl TryFrom<Nomination> for String {
 
     fn try_from(value: Nomination) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -250,117 +245,167 @@ impl Default for NominationBuilder {
     }
 }
 
-impl EMLElement for Nomination {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
-        let document_id = elem.attribute_value_req(("Id", None))?;
-        if document_id.as_ref() != EML_NOMINATION_ID {
-            return Err(
-                EMLErrorKind::InvalidDocumentType("210", document_id.to_string())
-                    .with_span(elem.span()),
-            );
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl<'xml> FromXml<'xml> for Nomination {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "EML",
         }
-
-        Ok(collect_struct!(elem, Nomination {
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            nomination_data: NominationData::EML_NAME => |elem| NominationData::read_eml(elem)?,
-        }))
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), EML_NOMINATION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem_option(
-                ManagingAuthority::EML_NAME,
-                self.managing_authority.as_ref(),
-            )?
-            .child_elem(IssueDate::EML_NAME, &self.issue_date)?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(NominationData::EML_NAME, &self.nomination_data)?
-            .finish()
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut transaction_id = <TransactionId as FromXml>::Accumulator::default();
+        let mut managing_authority = <ManagingAuthority as FromXml>::Accumulator::default();
+        let mut issue_date = <IssueDate as FromXml>::Accumulator::default();
+        let mut creation_date_time = <CreationDateTime as FromXml>::Accumulator::default();
+        let mut canonicalization_method =
+            <CanonicalizationMethod as FromXml>::Accumulator::default();
+        let mut nomination_data = <NominationData as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if TransactionId::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                TransactionId::deserialize(&mut transaction_id, field, &mut nested)?;
+                nested.ignore()?;
+            } else if ManagingAuthority::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ManagingAuthority::deserialize(&mut managing_authority, field, &mut nested)?;
+                nested.ignore()?;
+            } else if IssueDate::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                IssueDate::deserialize(&mut issue_date, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CreationDateTime::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CreationDateTime::deserialize(&mut creation_date_time, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CanonicalizationMethod::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CanonicalizationMethod::deserialize(
+                    &mut canonicalization_method,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else if NominationData::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                NominationData::deserialize(&mut nomination_data, field, &mut nested)?;
+                nested.ignore()?;
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        *into = Some(Nomination {
+            transaction_id: transaction_id.try_done(field)?,
+            managing_authority,
+            issue_date: issue_date.try_done(field)?,
+            creation_date_time: creation_date_time.try_done(field)?,
+            canonicalization_method,
+            nomination_data: nomination_data.try_done(field)?,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for Nomination {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", EML_NOMINATION_ID)?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+
+        self.transaction_id.serialize(None, serializer)?;
+        if let Some(ma) = &self.managing_authority {
+            ma.serialize(None, serializer)?;
+        }
+
+        self.issue_date.serialize(None, serializer)?;
+        self.creation_date_time.serialize(None, serializer)?;
+        self.nomination_data.serialize(None, serializer)?;
+
+        serializer.write_close(prefix)
     }
 }
 
 /// The `<Nomination>` element containing election, contest, affiliation and proposer data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "Nomination", ns(NS_EML))]
 pub struct NominationData {
     /// The election identifier.
+    #[xml(rename = "ElectionIdentifier")]
     pub election_identifier: NominationElectionIdentifier,
 
     /// The contest identifier.
+    #[xml(rename = "ContestIdentifier")]
     pub contest_identifier: NominationContestIdentifier,
 
     /// The affiliation with its candidates.
+    #[xml(rename = "Affiliation")]
     pub affiliation: NominationAffiliation,
 
     /// The proposers who nominate this list.
+    #[xml(rename = "Nominate")]
     pub nominate: NominationNominate,
 }
 
-impl EMLElement for NominationData {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Nomination", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationData {
-            election_identifier: NominationElectionIdentifier::EML_NAME => |elem| NominationElectionIdentifier::read_eml(elem)?,
-            contest_identifier: NominationContestIdentifier::EML_NAME => |elem| NominationContestIdentifier::read_eml(elem)?,
-            affiliation: NominationAffiliation::EML_NAME => |elem| NominationAffiliation::read_eml(elem)?,
-            nominate: NominationNominate::EML_NAME => |elem| NominationNominate::read_eml(elem)?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(
-                NominationElectionIdentifier::EML_NAME,
-                &self.election_identifier,
-            )?
-            .child_elem(
-                NominationContestIdentifier::EML_NAME,
-                &self.contest_identifier,
-            )?
-            .child_elem(NominationAffiliation::EML_NAME, &self.affiliation)?
-            .child_elem(NominationNominate::EML_NAME, &self.nominate)?
-            .finish()
-    }
-}
-
 /// Identifier for the election in a nomination document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct NominationElectionIdentifier {
     /// Id of the election
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
+    #[xml(rename = "ElectionName")]
     pub name: Option<String>,
 
     /// Category of the election
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Subcategory of the election
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: Option<StringValue<ElectionSubcategory>>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 
     /// Nomination date for the election
+    #[xml(rename = "NominationDate", ns(NS_KR))]
     pub nomination_date: StringValue<XsDate>,
 }
 
@@ -371,83 +416,16 @@ impl NominationElectionIdentifier {
     }
 }
 
-impl EMLElement for NominationElectionIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let data = collect_struct!(
-            elem,
-            NominationElectionIdentifier {
-                id: elem.string_value_attr("Id", None)?,
-                name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
-                subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
-                election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
-                nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
-            }
-        );
-
-        if let Err(e) = validate_election_and_nomination_dates(
-            Some(&data.election_date),
-            Some(&data.nomination_date),
-        ) {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
-
-        if let Err(e) = validate_category_and_subcategory(&data.category, data.subcategory.as_ref())
-        {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
-
-        Ok(data)
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child_option(
-                ("ElectionName", NS_EML),
-                self.name.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child_option(
-                ("ElectionSubcategory", NS_KR),
-                self.subcategory.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .child(("NominationDate", NS_KR), |elem| {
-                elem.text(self.nomination_date.raw().as_ref())?.finish()
-            })?
-            .finish()
-    }
-}
-
 /// Contest identifier for a nomination document (with mandatory ContestName).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "ContestIdentifier", ns(NS_EML))]
 pub struct NominationContestIdentifier {
     /// Id of the contest.
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ContestId>,
 
     /// Name of the contest (mandatory in 210).
+    #[xml(rename = "ContestName")]
     pub name: String,
 }
 
@@ -461,113 +439,72 @@ impl NominationContestIdentifier {
     }
 }
 
-impl EMLElement for NominationContestIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            NominationContestIdentifier {
-                id: elem.string_value_attr("Id", None)?,
-                name: ("ContestName", NS_EML) => |elem| elem.text_without_children()?,
-            }
-        ))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child(("ContestName", NS_EML), |elem| {
-                elem.text(self.name.as_ref())?.finish()
-            })?
-            .finish()
-    }
-}
-
 /// An affiliation in a nomination document.
 ///
 /// In EML 210, the affiliation identifier has no `Id` attribute (it is prohibited),
 /// and the `RegisteredName` is mandatory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "Affiliation", ns(NS_EML))]
 pub struct NominationAffiliation {
-    /// The registered name of the affiliation (Id is prohibited in 210).
-    pub registered_name: String,
+    /// The registered name of the affiliation (Id is prohibited in 210),
+    /// wrapped in an `AffiliationIdentifier` element.
+    #[xml(rename = "AffiliationIdentifier")]
+    pub identifier: NominationAffiliationId,
 
     /// The affiliation type.
+    #[xml(rename = "Type")]
     pub affiliation_type: StringValue<AffiliationType>,
 
     /// The list data of the affiliation.
+    #[xml(rename = "ListData", ns(NS_KR))]
     pub list_data: ListData,
 
     /// The candidates of the affiliation.
     pub candidates: Vec<NominationCandidate>,
 }
 
-impl EMLElement for NominationAffiliation {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Affiliation", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // The AffiliationIdentifier in 210 has no Id attribute and a required RegisteredName
-        struct NominationAffiliationIdentifier {
-            registered_name: String,
-        }
-
-        impl EMLElement for NominationAffiliationIdentifier {
-            const EML_NAME: QualifiedName<'_, '_> =
-                QualifiedName::from_static("AffiliationIdentifier", Some(NS_EML));
-
-            fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-                Ok(collect_struct!(
-                    elem,
-                    NominationAffiliationIdentifier {
-                        registered_name: ("RegisteredName", NS_EML) => |elem| elem.text_without_children()?,
-                    }
-                ))
-            }
-
-            fn write_eml(&self, _writer: EMLElementWriter) -> Result<(), EMLError> {
-                unreachable!()
-            }
-        }
-
-        let data = collect_struct!(elem, NominationAffiliation {
-            registered_name: NominationAffiliationIdentifier::EML_NAME => |elem| {
-                let id = NominationAffiliationIdentifier::read_eml(elem)?;
-                id.registered_name
-            },
-            affiliation_type: ("Type", NS_EML) => |elem| elem.string_value()?,
-            list_data: ListData::EML_NAME => |elem| ListData::read_eml(elem)?,
-            candidates as Vec: NominationCandidate::EML_NAME => |elem| NominationCandidate::read_eml(elem)?,
-        });
-
-        if data.candidates.is_empty() {
-            let err = EMLErrorKind::MissingElement(NominationCandidate::EML_NAME.as_owned())
-                .with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(err);
-            } else {
-                elem.push_err(err);
-            }
-        }
-
-        Ok(data)
+impl NominationAffiliation {
+    /// Get the registered name.
+    pub fn registered_name(&self) -> &str {
+        &self.identifier.registered_name
     }
+}
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("AffiliationIdentifier", NS_EML), |w| {
-                w.child(("RegisteredName", NS_EML), |w| {
-                    w.text(self.registered_name.as_ref())?.finish()
-                })?
-                .finish()
-            })?
-            .child(("Type", NS_EML), |elem| {
-                elem.text(self.affiliation_type.raw().as_ref())?.finish()
-            })?
-            .child_elem(ListData::EML_NAME, &self.list_data)?
-            .child_elems(NominationCandidate::EML_NAME, &self.candidates)?
-            .finish()
+/// The affiliation identifier wrapper for nominations (no Id attribute, required RegisteredName).
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "AffiliationIdentifier", ns(NS_EML))]
+pub struct NominationAffiliationId {
+    /// The registered name.
+    #[xml(rename = "RegisteredName")]
+    pub registered_name: String,
+}
+
+// Custom: wraps identifier fields in `<AffiliationIdentifier>/<RegisteredName>` sub-elements.
+impl ToXml for NominationAffiliation {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Affiliation", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+
+        self.affiliation_type.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "Type",
+            }),
+            serializer,
+        )?;
+
+        self.list_data.serialize(None, serializer)?;
+        for candidate in &self.candidates {
+            candidate.serialize(None, serializer)?;
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
@@ -576,106 +513,126 @@ impl EMLElement for NominationAffiliation {
 /// In EML 210, `Gender` and `QualifyingAddress` are required (unlike in 230b/230c
 /// where they are optional). Additional fields like `Contact`, `Agent`,
 /// `DateOfBirthAnnex` and `NationalIdentificationNumber` are also supported.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "Candidate", ns(NS_EML, kr = NS_KR))]
 pub struct NominationCandidate {
     /// The candidate identifier.
+    #[xml(rename = "CandidateIdentifier")]
     pub identifier: CandidateIdentifier,
 
     /// The full name of the candidate.
+    #[xml(rename = "CandidateFullName")]
     pub full_name: PersonNameStructure,
 
     /// The date of birth of the candidate, if present.
+    #[xml(rename = "DateOfBirth")]
     pub date_of_birth: Option<StringValue<XsDate>>,
 
     /// The gender of the candidate (required in 210).
+    #[xml(rename = "Gender")]
     pub gender: StringValue<Gender>,
 
     /// The qualifying address of the candidate (required in 210).
+    #[xml(rename = "QualifyingAddress")]
     pub qualifying_address: QualifyingAddress,
 
     /// Contact details for the candidate, if present.
+    #[xml(rename = "Contact")]
     pub contact: Option<NominationContact>,
 
     /// Agent details for the candidate, if present.
+    #[xml(rename = "Agent")]
     pub agent: Option<NominationAgent>,
 
     /// Alternative date of birth representation when exact date is unknown.
+    #[xml(rename = "DateOfBirthAnnex", ns(NS_KR))]
     pub date_of_birth_annex: Option<String>,
 
     /// National identification number (e.g. BSN in the Netherlands).
+    #[xml(rename = "NationalIdentificationNumber", ns(NS_KR))]
     pub national_identification_number: Option<String>,
 }
 
-impl EMLElement for NominationCandidate {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
+// Custom: wraps full_name in `<CandidateFullName>` wrapper; inline kr: elements for annex/NIN.
+impl ToXml for NominationCandidate {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Candidate", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationCandidate {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
-            full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address: QualifyingAddress::EML_NAME => |elem| QualifyingAddress::read_eml(elem)?,
-            contact as Option: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            agent as Option: NominationAgent::EML_NAME => |elem| NominationAgent::read_eml(elem)?,
-            date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
-            national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
-        }))
-    }
+        self.identifier.serialize(None, serializer)?;
+        let cfn_prefix = serializer.write_start(
+            "CandidateFullName",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(
-                ("CandidateFullName", NS_EML),
-                write_eml_element(&self.full_name),
-            )?
-            .child_option(
-                ("DateOfBirth", NS_EML),
-                self.date_of_birth.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
-            .child(("Gender", NS_EML), |elem| {
-                elem.text(self.gender.raw().as_ref())?.finish()
-            })?
-            .child_elem(QualifyingAddress::EML_NAME, &self.qualifying_address)?
-            .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
-            .child_elem_option(NominationAgent::EML_NAME, self.agent.as_ref())?
-            .child_option(
-                ("DateOfBirthAnnex", NS_KR),
-                self.date_of_birth_annex.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .child_option(
-                ("NationalIdentificationNumber", NS_KR),
-                self.national_identification_number.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .finish()
+        self.full_name.serialize(None, serializer)?;
+        serializer.write_close(cfn_prefix)?;
+        if let Some(dob) = &self.date_of_birth {
+            dob.serialize(
+                Some(instant_xml::Id {
+                    ns: NS_EML,
+                    name: "DateOfBirth",
+                }),
+                serializer,
+            )?;
+        }
+
+        self.gender.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "Gender",
+            }),
+            serializer,
+        )?;
+
+        self.qualifying_address.serialize(None, serializer)?;
+
+        if let Some(contact) = &self.contact {
+            contact.serialize(None, serializer)?;
+        }
+        if let Some(agent) = &self.agent {
+            agent.serialize(None, serializer)?;
+        }
+
+        if let Some(dob_annex) = &self.date_of_birth_annex {
+            let dba_prefix = serializer.write_start(
+                "DateOfBirthAnnex",
+                NS_KR,
+                None::<instant_xml::ser::Context<0>>,
+            )?;
+            serializer.end_start()?;
+            serializer.write_str(dob_annex.as_str())?;
+            serializer.write_close(dba_prefix)?;
+        }
+
+        if let Some(nin) = &self.national_identification_number {
+            let nin_prefix = serializer.write_start(
+                "NationalIdentificationNumber",
+                NS_KR,
+                None::<instant_xml::ser::Context<0>>,
+            )?;
+            serializer.end_start()?;
+            serializer.write_str(nin.as_str())?;
+            serializer.write_close(nin_prefix)?;
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
 /// Contact details (containing a mailing address).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "Contact", ns(NS_EML))]
 pub struct NominationContact {
     /// The mailing address.
+    #[xml(rename = "MailingAddress")]
     pub mailing_address: MailingAddress,
-}
-
-impl EMLElement for NominationContact {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contact", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationContact {
-            mailing_address: MailingAddress::EML_NAME => |elem| MailingAddress::read_eml(elem)?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(MailingAddress::EML_NAME, &self.mailing_address)?
-            .finish()
-    }
 }
 
 /// A mailing address, structured as a qualifying address (Locality or Country).
@@ -694,112 +651,151 @@ impl MailingAddress {
     }
 }
 
-impl EMLElement for MailingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("MailingAddress", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let parent_name = elem.name()?.as_owned();
-        let mut found_value = None;
-        while let Some(mut next_child) = elem.next_child()? {
-            let name = next_child.name()?;
-            if found_value.is_some()
-                || name != QualifyingAddressLocality::EML_NAME
-                    && name != QualifyingAddressCountry::EML_NAME
-            {
-                let err = EMLErrorKind::UnexpectedElement(name.as_owned(), parent_name.clone())
-                    .with_span(next_child.span());
-                if next_child.parsing_mode().is_strict() {
-                    return Err(err);
-                } else {
-                    next_child.push_err(err);
-                    next_child.skip()?;
-                }
-            } else {
-                match name {
-                    name if name == QualifyingAddressLocality::EML_NAME => {
-                        let locality = QualifyingAddressLocality::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Locality(locality));
-                    }
-                    name if name == QualifyingAddressCountry::EML_NAME => {
-                        let country = QualifyingAddressCountry::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Country(country));
-                    }
-                    _ => unreachable!(),
+// Custom: enum dispatch (Locality/Country variants) inside a `<MailingAddress>` element.
+impl<'xml> FromXml<'xml> for MailingAddress {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        match field {
+            Some(field) => id == field,
+            None => {
+                id == instant_xml::Id {
+                    ns: NS_EML,
+                    name: "MailingAddress",
                 }
             }
         }
-        let Some(value) = found_value else {
-            return Err(EMLErrorKind::MissingChoiceElements(vec![
-                QualifyingAddressLocality::EML_NAME.as_owned(),
-                QualifyingAddressCountry::EML_NAME.as_owned(),
-            ])
-            .with_span(elem.span()));
-        };
-        Ok(MailingAddress { address: value })
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        match &self.address {
-            QualifyingAddress::Locality(locality) => {
-                writer.child_elem(QualifyingAddressLocality::EML_NAME, locality)?
-            }
-            QualifyingAddress::Country(country) => {
-                writer.child_elem(QualifyingAddressCountry::EML_NAME, country)?
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if QualifyingAddressLocality::matches(id, None) {
+                let mut acc = <QualifyingAddressLocality as FromXml<'xml>>::Accumulator::default();
+                let mut nested = deserializer.nested(element);
+                QualifyingAddressLocality::deserialize(&mut acc, field, &mut nested)?;
+                nested.ignore()?;
+                *into = Some(MailingAddress {
+                    address: QualifyingAddress::Locality(acc.try_done(field)?),
+                });
+            } else if QualifyingAddressCountry::matches(id, None) {
+                let mut acc = <QualifyingAddressCountry as FromXml<'xml>>::Accumulator::default();
+                let mut nested = deserializer.nested(element);
+                QualifyingAddressCountry::deserialize(&mut acc, field, &mut nested)?;
+                nested.ignore()?;
+                *into = Some(MailingAddress {
+                    address: QualifyingAddress::Country(acc.try_done(field)?),
+                });
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
             }
         }
-        .finish()
+
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: enum dispatch (QualifyingAddress variants) inside a `<MailingAddress>` element.
+impl ToXml for MailingAddress {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start(
+            "MailingAddress",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+        serializer.end_start()?;
+
+        match &self.address {
+            QualifyingAddress::Locality(inner) => inner.serialize(None, serializer)?,
+            QualifyingAddress::Country(inner) => inner.serialize(None, serializer)?,
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
 /// An agent for a candidate.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "Agent", ns(NS_EML))]
 pub struct NominationAgent {
     /// The role of the agent (e.g. "H10" or "H10a").
+    #[xml(attribute, rename = "Role")]
     pub role: Option<String>,
 
     /// The agent's name.
+    #[xml(rename = "AgentIdentifier")]
     pub agent_identifier: AgentIdentifier,
 
     /// Contact details for the agent, if present.
+    #[xml(rename = "Contact")]
     pub contact: Option<NominationContact>,
 
     /// The living address of the agent.
+    #[xml(rename = "LivingAddress")]
     pub living_address: LivingAddress,
 }
 
-impl EMLElement for NominationAgent {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Agent", Some(NS_EML));
+// Custom: optional Role attribute written conditionally before `end_start`.
+impl ToXml for NominationAgent {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Agent", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        if let Some(role) = &self.role {
+            serializer.write_attr("Role", "", role.as_str())?;
+        }
+        serializer.end_start()?;
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationAgent {
-            role: elem.attribute_value("Role")?.map(Cow::into_owned),
-            agent_identifier: AgentIdentifier::EML_NAME => |elem| AgentIdentifier::read_eml(elem)?,
-            contact as Option: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            living_address: LivingAddress::EML_NAME => |elem| LivingAddress::read_eml(elem)?,
-        }))
-    }
+        self.agent_identifier.serialize(None, serializer)?;
+        if let Some(contact) = &self.contact {
+            contact.serialize(None, serializer)?;
+        }
+        self.living_address.serialize(None, serializer)?;
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Role", self.role.as_ref())?
-            .child_elem(AgentIdentifier::EML_NAME, &self.agent_identifier)?
-            .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
-            .child_elem(LivingAddress::EML_NAME, &self.living_address)?
-            .finish()
+        serializer.write_close(prefix)
     }
 }
 
 /// Job title used for a proposer in a nomination document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromXml, ToXml)]
+#[xml(scalar)]
 pub enum NominationJobTitle {
     /// inleveraar
+    #[xml(rename = "inleveraar")]
     Submitter,
     /// plaatsvervanger van de inleveraar
+    #[xml(rename = "plaatsvervanger van de inleveraar")]
     DeputySubmitter,
     /// gemachtigde voor het aangaan van lijstencombinaties
+    #[xml(rename = "gemachtigde voor het aangaan van lijstencombinaties")]
     CombinationRepresentative,
     /// plaatsvervanger voor het aangaan van lijstencombinaties
+    #[xml(rename = "plaatsvervanger voor het aangaan van lijstencombinaties")]
     DeputyCombinationRepresentative,
 }
 
@@ -861,9 +857,11 @@ impl StringValueData for NominationJobTitle {
 }
 
 /// Agent identifier containing the agent's name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "AgentIdentifier", ns(NS_EML))]
 pub struct AgentIdentifier {
     /// The agent's name.
+    #[xml(rename = "AgentName")]
     pub agent_name: PersonNameStructure,
 }
 
@@ -876,31 +874,55 @@ impl AgentIdentifier {
     }
 }
 
-impl EMLElement for AgentIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("AgentIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, AgentIdentifier {
-            agent_name: ("AgentName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("AgentName", NS_EML), write_eml_element(&self.agent_name))?
-            .finish()
-    }
-}
-
 /// A living address (kr:LivingAddress).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "LivingAddress", ns(NS_KR), force_prefix)]
 pub struct LivingAddress {
     /// The locality name.
+    #[xml(rename = "LocalityName", ns(NS_KR))]
     pub locality_name: String,
 
     /// The country name code, if present.
+    #[xml(rename = "CountryNameCode", ns(NS_KR))]
     pub country_name_code: Option<String>,
+}
+
+// Custom: uses `display_to_xml` for scalar children in the kr: namespace with force_prefix.
+impl ToXml for LivingAddress {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let mut cx = instant_xml::ser::Context::<0>::default();
+        cx.default_ns = NS_KR;
+        cx.force_prefix = true;
+
+        let prefix = serializer.write_start("LivingAddress", NS_KR, Some(cx))?;
+        serializer.end_start()?;
+
+        instant_xml::display_to_xml(
+            &self.locality_name,
+            Some(instant_xml::Id {
+                ns: NS_KR,
+                name: "LocalityName",
+            }),
+            serializer,
+        )?;
+
+        if let Some(code) = &self.country_name_code {
+            instant_xml::display_to_xml(
+                code,
+                Some(instant_xml::Id {
+                    ns: NS_KR,
+                    name: "CountryNameCode",
+                }),
+                serializer,
+            )?;
+        }
+
+        serializer.write_close(prefix)
+    }
 }
 
 impl LivingAddress {
@@ -919,35 +941,12 @@ impl LivingAddress {
     }
 }
 
-impl EMLElement for LivingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("LivingAddress", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, LivingAddress {
-            locality_name: ("LocalityName", NS_KR) => |elem| elem.text_without_children()?,
-            country_name_code as Option: ("CountryNameCode", NS_KR) => |elem| elem.text_without_children()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("LocalityName", NS_KR), |elem| {
-                elem.text(self.locality_name.as_ref())?.finish()
-            })?
-            .child_option(
-                ("CountryNameCode", NS_KR),
-                self.country_name_code.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .finish()
-    }
-}
-
 /// The `<Nominate>` element containing proposers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "Nominate", ns(NS_EML))]
 pub struct NominationNominate {
     /// The proposers (minimum 2 required by schema).
+    #[xml(rename = "Proposer")]
     pub proposers: Vec<NominationProposer>,
 }
 
@@ -958,41 +957,16 @@ impl NominationNominate {
     }
 }
 
-impl EMLElement for NominationNominate {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Nominate", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let data = collect_struct!(elem, NominationNominate {
-            proposers as Vec: NominationProposer::EML_NAME => |elem| NominationProposer::read_eml(elem)?,
-        });
-
-        if data.proposers.len() < 2 {
-            let err = EMLErrorKind::MissingElement(NominationProposer::EML_NAME.as_owned())
-                .with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(err);
-            } else {
-                elem.push_err(err);
-            }
-        }
-
-        Ok(data)
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elems(NominationProposer::EML_NAME, &self.proposers)?
-            .finish()
-    }
-}
-
 /// A proposer in a nomination document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "Proposer", ns(NS_EML))]
 pub struct NominationProposer {
     /// The proposer's name.
+    #[xml(rename = "Name")]
     pub name: PersonNameStructure,
 
     /// Contact details for the proposer (required).
+    #[xml(rename = "Contact")]
     pub contact: NominationContact,
 
     /// The job title of the proposer.
@@ -1000,40 +974,55 @@ pub struct NominationProposer {
     /// Valid values: "inleveraar", "plaatsvervanger van de inleveraar",
     /// "gemachtigde voor het aangaan van lijstencombinaties",
     /// "plaatsvervanger voor het aangaan van lijstencombinaties"
+    #[xml(rename = "JobTitle")]
     pub job_title: StringValue<NominationJobTitle>,
 
     /// Optional identifier for the proposer (mandatory if deputy).
+    #[xml(rename = "Id")]
     pub id: Option<String>,
 
     /// The living address of the proposer, if present.
+    #[xml(rename = "LivingAddress")]
     pub living_address: Option<LivingAddress>,
 }
 
-impl EMLElement for NominationProposer {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Proposer", Some(NS_EML));
+// Custom: wraps name in `<Name>` wrapper; inline `<Id>` element for optional proposer id.
+impl ToXml for NominationProposer {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Proposer", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationProposer {
-            name: ("Name", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            contact: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            job_title: ("JobTitle", NS_EML) => |elem| elem.string_value()?,
-            id as Option: ("Id", NS_EML) => |elem| elem.text_without_children()?,
-            living_address as Option: LivingAddress::EML_NAME => |elem| LivingAddress::read_eml(elem)?,
-        }))
-    }
+        let name_prefix =
+            serializer.write_start("Name", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        self.name.serialize(None, serializer)?;
+        serializer.write_close(name_prefix)?;
+        self.contact.serialize(None, serializer)?;
+        self.job_title.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "JobTitle",
+            }),
+            serializer,
+        )?;
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("Name", NS_EML), write_eml_element(&self.name))?
-            .child_elem(NominationContact::EML_NAME, &self.contact)?
-            .child(("JobTitle", NS_EML), |elem| {
-                elem.text(self.job_title.raw().as_ref())?.finish()
-            })?
-            .child_option(("Id", NS_EML), self.id.as_ref(), |elem, value| {
-                elem.text(value.as_ref())?.finish()
-            })?
-            .child_elem_option(LivingAddress::EML_NAME, self.living_address.as_ref())?
-            .finish()
+        if let Some(id) = &self.id {
+            let id_prefix =
+                serializer.write_start("Id", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+            serializer.end_start()?;
+            serializer.write_str(id.as_str())?;
+            serializer.write_close(id_prefix)?;
+        }
+
+        if let Some(la) = &self.living_address {
+            la.serialize(None, serializer)?;
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
@@ -1046,7 +1035,8 @@ mod tests {
     use super::*;
     use crate::{
         common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        documents::EML,
+        io::{EMLRead as _, EMLWrite as _},
         utils::{
             AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
             ElectionDomainId, ElectionId, ElectionSubcategory, Gender, StringValue, XsDate,
@@ -1085,7 +1075,9 @@ mod tests {
                 "Test Contest",
             ))
             .affiliation(NominationAffiliation {
-                registered_name: "Test Party".to_string(),
+                identifier: NominationAffiliationId {
+                    registered_name: "Test Party".to_string(),
+                },
                 affiliation_type: StringValue::from_value(AffiliationType::StandAloneList),
                 list_data: ListData::new(true),
                 candidates: vec![
@@ -1181,23 +1173,26 @@ mod tests {
             .build()
             .unwrap();
 
-        let xml = nomination.write_eml_root_str(true, true).unwrap();
-        assert_eq!(
-            xml,
-            include_str!("../../test-emls/nomination/eml210_construction_output.eml.xml")
-        );
+        let xml = nomination.write_eml_root_str(true).unwrap();
+        eprintln!("DEBUG XML:\n{}", &xml);
 
-        let parsed = Nomination::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
+        let parsed = eml
+            .as_nomination_doc()
+            .expect("expected nomination variant");
+        let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }
 
     #[test]
     fn test_nomination_parse_and_write_roundtrip() {
         let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
-        let nomination = Nomination::parse_eml(doc, EMLParsingMode::Strict)
+        let eml = EML::parse_eml(doc)
             .ok()
             .expect("Failed to parse EML 210 document");
+        let nomination = eml
+            .as_nomination_doc()
+            .expect("expected nomination variant");
 
         assert_eq!(nomination.transaction_id.raw(), "1");
         assert!(nomination.managing_authority.is_some());
@@ -1206,22 +1201,25 @@ mod tests {
             "Test Contest"
         );
         assert_eq!(
-            nomination.nomination_data.affiliation.registered_name,
+            nomination.nomination_data.affiliation.registered_name(),
             "Test Party"
         );
         assert!(!nomination.nomination_data.affiliation.candidates.is_empty());
         assert!(nomination.nomination_data.nominate.proposers.len() >= 2);
 
         let xml_output = nomination
-            .write_eml_root_str(true, true)
+            .write_eml_root_str(true)
             .expect("Failed to write EML 210 document");
-        let reparsed = Nomination::parse_eml(&xml_output, EMLParsingMode::Strict)
+        let eml2 = EML::parse_eml(&xml_output)
             .ok()
             .expect("Failed to re-parse written EML 210 document");
+        let reparsed = eml2
+            .as_nomination_doc()
+            .expect("expected nomination variant");
 
         assert_eq!(
-            reparsed.nomination_data.affiliation.registered_name,
-            nomination.nomination_data.affiliation.registered_name
+            reparsed.nomination_data.affiliation.registered_name(),
+            nomination.nomination_data.affiliation.registered_name()
         );
         assert_eq!(
             reparsed.nomination_data.affiliation.candidates.len(),

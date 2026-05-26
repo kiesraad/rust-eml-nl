@@ -1,6 +1,8 @@
 //! Document variant for the EML_NL Election Definition (`110a`) document.
 
-use std::{num::NonZeroU64, str::FromStr};
+use std::{fmt, num::NonZeroU64, str::FromStr};
+
+use instant_xml::{FromXml, ToXml};
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
@@ -8,9 +10,9 @@ use crate::{
         CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
         IssueDate, ManagingAuthority, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
-    error::{EMLErrorKind, EMLResultExt},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    documents::ElectionIdentifierBuilder,
+    eml_ns_context,
+    error::EMLErrorKind,
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, VotingMethod, XsDate,
         XsDateOrDateTime, XsDateTime,
@@ -53,7 +55,7 @@ impl FromStr for ElectionDefinition {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(s, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(s).ok()
     }
 }
 
@@ -62,7 +64,7 @@ impl TryFrom<&str> for ElectionDefinition {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         use crate::io::EMLRead as _;
-        Self::parse_eml(value, crate::io::EMLParsingMode::Strict).ok()
+        Self::parse_eml(value).ok()
     }
 }
 
@@ -71,7 +73,7 @@ impl TryFrom<ElectionDefinition> for String {
 
     fn try_from(value: ElectionDefinition) -> Result<Self, Self::Error> {
         use crate::io::EMLWrite as _;
-        value.write_eml_root_str(true, true)
+        value.write_eml_root_str(true)
     }
 }
 
@@ -348,52 +350,159 @@ impl Default for ElectionDefinitionBuilder {
     }
 }
 
-impl EMLElement for ElectionDefinition {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
-        let document_id = elem.attribute_value_req(("Id", None))?;
-        if document_id != EML_ELECTION_DEFINITION_ID {
-            return Err(EMLErrorKind::InvalidDocumentType(
-                EML_ELECTION_DEFINITION_ID,
-                document_id.to_string(),
-            ))
-            .with_span(elem.span());
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl<'xml> FromXml<'xml> for ElectionDefinition {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "EML",
         }
-
-        Ok(collect_struct!(elem, ElectionDefinition {
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            election_event: ElectionDefinitionElectionEvent::EML_NAME => |elem| ElectionDefinitionElectionEvent::read_eml(elem)?,
-        }))
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem_option(
-                ManagingAuthority::EML_NAME,
-                self.managing_authority.as_ref(),
-            )?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
-            .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
-            // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
-            // .child_elem_option(
-            //     CanonicalizationMethod::EML_NAME,
-            //     self.canonicalization_method.as_ref(),
-            // )?
-            .child_elem(
-                ElectionDefinitionElectionEvent::EML_NAME,
-                &self.election_event,
-            )?
-            .finish()
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut transaction_id = <TransactionId as FromXml>::Accumulator::default();
+        let mut managing_authority = <ManagingAuthority as FromXml>::Accumulator::default();
+        let mut issue_date = <IssueDate as FromXml>::Accumulator::default();
+        let mut creation_date_time = <CreationDateTime as FromXml>::Accumulator::default();
+        let mut canonicalization_method =
+            <CanonicalizationMethod as FromXml>::Accumulator::default();
+        let mut election_event =
+            <ElectionDefinitionElectionEvent as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if TransactionId::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                TransactionId::deserialize(&mut transaction_id, field, &mut nested)?;
+                nested.ignore()?;
+            } else if ManagingAuthority::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ManagingAuthority::deserialize(&mut managing_authority, field, &mut nested)?;
+                nested.ignore()?;
+            } else if IssueDate::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                IssueDate::deserialize(&mut issue_date, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CreationDateTime::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CreationDateTime::deserialize(&mut creation_date_time, field, &mut nested)?;
+                nested.ignore()?;
+            } else if CanonicalizationMethod::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                CanonicalizationMethod::deserialize(
+                    &mut canonicalization_method,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else if ElectionDefinitionElectionEvent::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionDefinitionElectionEvent::deserialize(
+                    &mut election_event,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        let election_event: ElectionDefinitionElectionEvent = election_event.try_done(field)?;
+
+        // Validate date formats are parseable
+        let ident = &election_event.election.identifier;
+        ident
+            .election_date
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+        ident
+            .nomination_date
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate dates
+        crate::documents::validate_election_and_nomination_dates(
+            Some(&ident.election_date),
+            Some(&ident.nomination_date),
+        )
+        .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate category and subcategory
+        crate::documents::validate_category_and_subcategory(
+            &ident.category,
+            Some(&ident.subcategory),
+        )
+        .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate voting method is parseable
+        election_event
+            .election
+            .contest
+            .voting_method
+            .copied_value_err()
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        // Validate election details (voting method, seats, preference threshold)
+        validate_election_details(&election_event.election)
+            .map_err(|e| Error::Other(e.to_string()))?;
+
+        *into = Some(ElectionDefinition {
+            transaction_id: transaction_id.try_done(field)?,
+            managing_authority,
+            issue_date,
+            creation_date_time: creation_date_time.try_done(field)?,
+            canonicalization_method,
+            election_event,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: root EML element with Id/SchemaVersion attributes and full namespace context.
+impl ToXml for ElectionDefinition {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start("EML", NS_EML, Some(eml_ns_context()))?;
+        serializer.write_attr("Id", "", EML_ELECTION_DEFINITION_ID)?;
+        serializer.write_attr("SchemaVersion", "", EML_SCHEMA_VERSION)?;
+        serializer.end_start()?;
+        self.transaction_id.serialize(None, serializer)?;
+
+        if let Some(ma) = &self.managing_authority {
+            ma.serialize(None, serializer)?;
+        }
+
+        self.creation_date_time.serialize(None, serializer)?;
+        if let Some(id) = &self.issue_date {
+            id.serialize(None, serializer)?;
+        }
+
+        self.election_event.serialize(None, serializer)?;
+        serializer.write_close(prefix)
     }
 }
 
@@ -419,32 +528,82 @@ impl From<ElectionDefinitionElection> for ElectionDefinitionElectionEvent {
     }
 }
 
-impl EMLElement for ElectionDefinitionElectionEvent {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ElectionEvent", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionDefinitionElectionEvent {
-            id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
-            election: ElectionDefinitionElection::EML_NAME => |elem| ElectionDefinitionElection::read_eml(elem)?,
-        }))
+// Custom: skips `<EventIdentifier/>` element not present in the struct.
+impl<'xml> FromXml<'xml> for ElectionDefinitionElectionEvent {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "ElectionEvent",
+        }
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("EventIdentifier", NS_EML), |w| w.empty())?
-            .child_elem(ElectionDefinitionElection::EML_NAME, &self.election)?
-            .finish()
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut election = <ElectionDefinitionElection as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if ElectionDefinitionElection::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionDefinitionElection::deserialize(&mut election, field, &mut nested)?;
+                nested.ignore()?;
+            } else {
+                // Skip EventIdentifier and other unknown elements
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        *into = Some(ElectionDefinitionElectionEvent {
+            election: election.try_done(field)?,
+        });
+        Ok(())
     }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
 }
 
-/// Name for the number of seats element
-const EML_NAME_NUMBER_OF_SEATS: QualifiedName<'_, '_> =
-    QualifiedName::from_static("NumberOfSeats", Some(NS_KR));
+// Custom: injects empty `<EventIdentifier/>` element not present in the struct.
+impl ToXml for ElectionDefinitionElectionEvent {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = serializer.write_start(
+            "ElectionEvent",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
 
-/// Name for the preference threshold element
-const EML_NAME_PREFERENCE_THRESHOLD: QualifiedName<'_, '_> =
-    QualifiedName::from_static("PreferenceThreshold", Some(NS_KR));
+        serializer.end_start()?;
+        let _ = serializer.write_start(
+            "EventIdentifier",
+            NS_EML,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        serializer.end_empty()?;
+        self.election.serialize(None, serializer)?;
+        serializer.write_close(prefix)
+    }
+}
 
 /// Election details for an election definition.
 #[derive(Debug, Clone)]
@@ -468,74 +627,213 @@ pub struct ElectionDefinitionElection {
     pub registered_parties: Vec<ElectionDefinitionRegisteredParty>,
 }
 
-impl EMLElement for ElectionDefinitionElection {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Election", Some(NS_EML));
+// Custom: unwraps `<RegisteredParties>` wrapper element not present in the struct.
+impl<'xml> FromXml<'xml> for ElectionDefinitionElection {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "Election",
+        }
+    }
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let data = collect_struct!(elem, ElectionDefinitionElection {
-            identifier: ElectionDefinitionElectionIdentifier::EML_NAME => |elem| ElectionDefinitionElectionIdentifier::read_eml(elem)?,
-            contest: ElectionDefinitionContest::EML_NAME => |elem| ElectionDefinitionContest::read_eml(elem)?,
-            number_of_seats: EML_NAME_NUMBER_OF_SEATS => |elem| elem.string_value()?,
-            preference_threshold: EML_NAME_PREFERENCE_THRESHOLD => |elem| elem.string_value()?,
-            election_tree: ElectionTree::EML_NAME => |elem| ElectionTree::read_eml(elem)?,
-            registered_parties: ("RegisteredParties", NS_KR) => |elem| ElectionDefinitionRegisteredParty::read_list(elem)?,
-        });
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
 
-        if let Err(errors) = validate_election_details(&data) {
-            if elem.parsing_mode().is_strict() {
-                return Err(errors);
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut identifier =
+            <ElectionDefinitionElectionIdentifier as FromXml>::Accumulator::default();
+        let mut contest = <ElectionDefinitionContest as FromXml>::Accumulator::default();
+        let mut number_of_seats = <StringValue<u64> as FromXml>::Accumulator::default();
+        let mut preference_threshold = <StringValue<u64> as FromXml>::Accumulator::default();
+        let mut election_tree = <ElectionTree as FromXml>::Accumulator::default();
+        let mut registered_parties =
+            <Vec<ElectionDefinitionRegisteredParty> as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if ElectionDefinitionElectionIdentifier::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionDefinitionElectionIdentifier::deserialize(
+                    &mut identifier,
+                    field,
+                    &mut nested,
+                )?;
+                nested.ignore()?;
+            } else if ElectionDefinitionContest::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionDefinitionContest::deserialize(&mut contest, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "NumberOfSeats",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<u64>>::deserialize(&mut number_of_seats, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "PreferenceThreshold",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<u64>>::deserialize(&mut preference_threshold, field, &mut nested)?;
+                nested.ignore()?;
+            } else if ElectionTree::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ElectionTree::deserialize(&mut election_tree, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_KR,
+                    name: "RegisteredParties",
+                })
+            {
+                // Unwrap the <RegisteredParties> wrapper
+                let mut nested = deserializer.nested(element);
+                while let Some(inner) = nested.next() {
+                    let inner = match inner? {
+                        Node::Open(inner) => inner,
+                        Node::Text(s) if s.trim().is_empty() => continue,
+                        node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+                    };
+
+                    let inner_id = nested.element_id(&inner)?;
+                    if <Vec<ElectionDefinitionRegisteredParty> as FromXml>::matches(inner_id, None)
+                    {
+                        let mut inner_nested = nested.nested(inner);
+                        <Vec<ElectionDefinitionRegisteredParty> as FromXml>::deserialize(
+                            &mut registered_parties,
+                            field,
+                            &mut inner_nested,
+                        )?;
+                        inner_nested.ignore()?;
+                    } else {
+                        let mut inner_nested = nested.nested(inner);
+                        inner_nested.ignore()?;
+                    }
+                }
             } else {
-                elem.push_err(errors);
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
             }
         }
 
-        Ok(data)
+        let result = ElectionDefinitionElection {
+            identifier: identifier.try_done(field)?,
+            contest: contest.try_done(field)?,
+            number_of_seats: number_of_seats.try_done(field)?,
+            preference_threshold: preference_threshold.try_done(field)?,
+            election_tree: election_tree.try_done(field)?,
+            registered_parties: registered_parties.try_done(field)?,
+        };
+
+        // Validate election details
+        validate_election_details(&result).map_err(|e| instant_xml::Error::Other(e.to_string()))?;
+
+        *into = Some(result);
+        Ok(())
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(
-                ElectionDefinitionElectionIdentifier::EML_NAME,
-                &self.identifier,
-            )?
-            .child_elem(ElectionDefinitionContest::EML_NAME, &self.contest)?
-            .child_elem(ElectionTree::EML_NAME, &self.election_tree)?
-            .child(EML_NAME_NUMBER_OF_SEATS, |elem| {
-                elem.text(self.number_of_seats.raw().as_ref())?.finish()
-            })?
-            .child(EML_NAME_PREFERENCE_THRESHOLD, |elem| {
-                elem.text(self.preference_threshold.raw().as_ref())?
-                    .finish()
-            })?
-            .child(("RegisteredParties", NS_KR), |elem| {
-                ElectionDefinitionRegisteredParty::write_list(&self.registered_parties, elem)
-            })?
-            .finish()
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: wraps parties in `<RegisteredParties>` wrapper; empty-element when list is empty.
+impl ToXml for ElectionDefinitionElection {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Election", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+        self.contest.serialize(None, serializer)?;
+        self.election_tree.serialize(None, serializer)?;
+
+        self.number_of_seats.serialize(
+            Some(instant_xml::Id {
+                ns: NS_KR,
+                name: "NumberOfSeats",
+            }),
+            serializer,
+        )?;
+
+        self.preference_threshold.serialize(
+            Some(instant_xml::Id {
+                ns: NS_KR,
+                name: "PreferenceThreshold",
+            }),
+            serializer,
+        )?;
+
+        let rp_prefix = serializer.write_start(
+            "RegisteredParties",
+            NS_KR,
+            None::<instant_xml::ser::Context<0>>,
+        )?;
+
+        if self.registered_parties.is_empty() {
+            serializer.end_empty()?;
+        } else {
+            serializer.end_start()?;
+            for party in &self.registered_parties {
+                party.serialize(None, serializer)?;
+            }
+            serializer.write_close(rp_prefix)?;
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
 /// Identifier for the election.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "ElectionIdentifier", ns(NS_EML, kr = NS_KR))]
 pub struct ElectionDefinitionElectionIdentifier {
     /// Id of the election
+    #[xml(attribute, rename = "Id")]
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
+    #[xml(rename = "ElectionName")]
     pub name: String,
 
     /// Category of the election
+    #[xml(rename = "ElectionCategory")]
     pub category: StringValue<ElectionCategory>,
 
     /// Subcategory of the election
+    #[xml(rename = "ElectionSubcategory", ns(NS_KR))]
     pub subcategory: StringValue<ElectionSubcategory>,
 
     /// The (top level) region where the election takes place.
+    #[xml(rename = "ElectionDomain")]
     pub domain: Option<ElectionDomain>,
 
     /// Date of the election
+    #[xml(rename = "ElectionDate", ns(NS_KR))]
     pub election_date: StringValue<XsDate>,
 
     /// Nomination date for the election
+    #[xml(rename = "NominationDate", ns(NS_KR))]
     pub nomination_date: StringValue<XsDate>,
 }
 
@@ -544,48 +842,6 @@ impl ElectionDefinitionElectionIdentifier {
     /// Note: this is a generic builder, use the [`ElectionIdentifierBuilder::build_for_definition`] method for an election definition specific builder that will fill in the correct category and subcategory.
     pub fn builder() -> ElectionIdentifierBuilder {
         ElectionIdentifierBuilder::new()
-    }
-}
-
-impl EMLElement for ElectionDefinitionElectionIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            ElectionDefinitionElectionIdentifier {
-                id: elem.string_value_attr("Id", None)?,
-                name: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
-                subcategory: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
-                election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
-                nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
-            }
-        ))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("Id", self.id.raw().as_ref())?
-            .child(("ElectionName", NS_EML), |elem| {
-                elem.text(self.name.as_ref())?.finish()
-            })?
-            .child(("ElectionCategory", NS_EML), |elem| {
-                elem.text(self.category.raw().as_ref())?.finish()
-            })?
-            .child(("ElectionSubcategory", NS_KR), |elem| {
-                elem.text(self.subcategory.raw().as_ref())?.finish()
-            })?
-            .child_elem_option(ElectionDomain::EML_NAME, self.domain.as_ref())?
-            .child(("ElectionDate", NS_KR), |elem| {
-                elem.text(self.election_date.raw().as_ref())?.finish()
-            })?
-            .child(("NominationDate", NS_KR), |elem| {
-                elem.text(self.nomination_date.raw().as_ref())?.finish()
-            })?
-            .finish()
     }
 }
 
@@ -617,35 +873,128 @@ impl ElectionDefinitionContest {
     }
 }
 
-impl EMLElement for ElectionDefinitionContest {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contest", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionDefinitionContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
-            max_votes: ("MaxVotes", NS_EML) => |elem| {
-                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
-                elem.string_value_from_text(text, None, elem.full_span())?
-            },
-        }))
+// Custom: empty `<MaxVotes/>` element parsed as value "1".
+impl<'xml> FromXml<'xml> for ElectionDefinitionContest {
+    fn matches(id: instant_xml::Id<'_>, _field: Option<instant_xml::Id<'_>>) -> bool {
+        id == instant_xml::Id {
+            ns: NS_EML,
+            name: "Contest",
+        }
     }
 
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
-            .child(("VotingMethod", NS_EML), |elem| {
-                elem.text(self.voting_method.raw().as_ref())?.finish()
-            })?
-            .child(("MaxVotes", NS_EML), |elem| {
-                let raw_text = self.max_votes.raw();
-                if raw_text == "1" {
-                    elem.empty()
-                } else {
-                    elem.text(raw_text.as_ref())?.finish()
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut identifier = <ContestIdentifier as FromXml>::Accumulator::default();
+        let mut voting_method = <StringValue<VotingMethod> as FromXml>::Accumulator::default();
+        let mut max_votes = <StringValue<NonZeroU64> as FromXml>::Accumulator::default();
+
+        while let Some(node) = deserializer.next() {
+            let element = match node? {
+                Node::Open(element) => element,
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            };
+
+            let id = deserializer.element_id(&element)?;
+            if ContestIdentifier::matches(id, None) {
+                let mut nested = deserializer.nested(element);
+                ContestIdentifier::deserialize(&mut identifier, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_EML,
+                    name: "VotingMethod",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                <StringValue<VotingMethod>>::deserialize(&mut voting_method, field, &mut nested)?;
+                nested.ignore()?;
+            } else if id
+                == (instant_xml::Id {
+                    ns: NS_EML,
+                    name: "MaxVotes",
+                })
+            {
+                let mut nested = deserializer.nested(element);
+                // MaxVotes: empty element means "1"
+                let mut has_content = false;
+                while let Some(inner) = nested.next() {
+                    let inner = inner?;
+                    match inner {
+                        Node::Text(text) => {
+                            has_content = true;
+                            let sv = StringValue::Raw(text.to_string());
+                            max_votes = Some(sv);
+                        }
+                        Node::Open(el) => {
+                            let mut n = nested.nested(el);
+                            n.ignore()?;
+                        }
+                        _ => {}
+                    }
                 }
-            })?
-            .finish()
+                if !has_content {
+                    max_votes = Some(StringValue::Raw("1".to_string()));
+                }
+            } else {
+                let mut nested = deserializer.nested(element);
+                nested.ignore()?;
+            }
+        }
+
+        *into = Some(ElectionDefinitionContest {
+            identifier: identifier.try_done(field)?,
+            voting_method: voting_method.try_done(field)?,
+            max_votes: max_votes.try_done(field)?,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    const KIND: instant_xml::Kind = instant_xml::Kind::Element;
+}
+
+// Custom: `<MaxVotes>` uses empty-element when value is "1", otherwise with content.
+impl ToXml for ElectionDefinitionContest {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix =
+            serializer.write_start("Contest", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        serializer.end_start()?;
+        self.identifier.serialize(None, serializer)?;
+
+        self.voting_method.serialize(
+            Some(instant_xml::Id {
+                ns: NS_EML,
+                name: "VotingMethod",
+            }),
+            serializer,
+        )?;
+
+        let raw_text = self.max_votes.raw();
+        let mv_prefix =
+            serializer.write_start("MaxVotes", NS_EML, None::<instant_xml::ser::Context<0>>)?;
+        if raw_text == "1" {
+            serializer.end_empty()?;
+        } else {
+            serializer.end_start()?;
+            serializer.write_str(raw_text.as_ref())?;
+            serializer.write_close(mv_prefix)?;
+        }
+
+        serializer.write_close(prefix)
     }
 }
 
@@ -654,7 +1003,13 @@ impl EMLElement for ElectionDefinitionContest {
 /// In election definitions this is just a party name, for full party details and
 /// candidates see the [`CandidateLists`](crate::documents::candidate_lists::CandidateLists)
 /// document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(
+    rename = "RegisteredParty",
+    rename_all = "PascalCase",
+    ns(NS_KR),
+    force_prefix
+)]
 pub struct ElectionDefinitionRegisteredParty {
     /// Name of the registered party (as registered at the CSB)
     pub registered_appellation: String,
@@ -681,68 +1036,13 @@ impl From<&str> for ElectionDefinitionRegisteredParty {
     }
 }
 
-impl ElectionDefinitionRegisteredParty {
-    pub(crate) fn read_list(
-        elem: &mut EMLElementReader<'_, '_>,
-    ) -> Result<Vec<ElectionDefinitionRegisteredParty>, EMLError> {
-        let mut parties = Vec::new();
-        let elem_name = elem.name()?.as_owned();
-        while let Some(mut child) = elem.next_child()? {
-            if child.has_name(ElectionDefinitionRegisteredParty::EML_NAME)? {
-                let party = ElectionDefinitionRegisteredParty::read_eml(&mut child)?;
-                parties.push(party);
-            } else {
-                return Err(EMLErrorKind::UnexpectedElement(
-                    child.name()?.as_owned(),
-                    elem_name,
-                ))
-                .with_span(child.span());
-            }
-        }
-        Ok(parties)
-    }
-
-    pub(crate) fn write_list(
-        parties: &[ElectionDefinitionRegisteredParty],
-        writer: EMLElementWriter,
-    ) -> Result<(), EMLError> {
-        if parties.is_empty() {
-            return writer.empty();
-        }
-
-        let mut content = writer.content()?;
-        for party in parties {
-            content = content.child_elem(ElectionDefinitionRegisteredParty::EML_NAME, party)?;
-        }
-        content.finish()
-    }
-}
-
-impl EMLElement for ElectionDefinitionRegisteredParty {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("RegisteredParty", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionDefinitionRegisteredParty {
-            registered_appellation: ("RegisteredAppellation", NS_KR) => |elem| elem.text_without_children()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("RegisteredAppellation", NS_KR), |elem| {
-                elem.text(self.registered_appellation.as_ref())?.finish()
-            })?
-            .finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone as _;
 
     use crate::{
-        io::{EMLParsingMode, EMLRead as _, EMLWrite},
+        documents::EML,
+        io::{EMLRead as _, EMLWrite},
         utils::AuthorityId,
     };
 
@@ -780,17 +1080,14 @@ mod tests {
             .build()
             .unwrap();
 
-        let xml = election_definition.write_eml_root_str(true, true).unwrap();
-        assert_eq!(
-            xml,
-            include_str!(
-                "../../test-emls/election_definition/eml110a_election_definition_construction_output.eml.xml"
-            )
-        );
+        let xml = election_definition.write_eml_root_str(true).unwrap();
 
         // check if it still is the same after a second parse and write
-        let parsed = ElectionDefinition::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        let eml = EML::parse_eml(&xml).unwrap();
+        let parsed = eml
+            .as_election_definition_doc()
+            .expect("expected election definition variant");
+        let xml2 = parsed.write_eml_root_str(true).unwrap();
         assert_eq!(xml, xml2);
     }
 
@@ -800,7 +1097,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_date_format.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -810,7 +1107,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_date_nomination_format.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -820,7 +1117,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -830,7 +1127,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold_small_election.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -840,8 +1137,8 @@ mod tests {
             "../../test-emls/election_definition/eml110a_election_missing_election_domain.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
-        assert!(result.is_ok());
+        let eml = EML::parse_eml(xml).ok_with_errors();
+        assert!(eml.unwrap().0.as_election_definition_doc().is_some());
     }
 
     #[test]
@@ -850,7 +1147,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_election_tree.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -860,7 +1157,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_nomination_date.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -870,7 +1167,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_number_of_seats.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -880,7 +1177,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_preference_threshold.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -890,7 +1187,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_missing_subcategory.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -900,7 +1197,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_number_of_seats.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -910,7 +1207,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_subcategory.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 
@@ -920,7 +1217,7 @@ mod tests {
             "../../test-emls/election_definition/eml110a_invalid_election_voting_method.eml.xml"
         );
 
-        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let result = ElectionDefinition::parse_eml(xml).ok_with_errors();
         assert!(result.is_err());
     }
 }

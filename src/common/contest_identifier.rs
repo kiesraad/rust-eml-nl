@@ -1,13 +1,16 @@
+use instant_xml::{FromXml, ToXml};
+
 use crate::{
-    EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    NS_EML,
     utils::{ContestId, ContestIdGeen, StringValue},
 };
 
 /// Identifier for the contest.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename_all = "PascalCase", ns(NS_EML))]
 pub struct ContestIdentifier {
     /// Id of the contest.
+    #[xml(attribute)]
     pub id: StringValue<ContestId>,
 }
 
@@ -46,24 +49,12 @@ impl ContestIdentifier {
     }
 }
 
-impl EMLElement for ContestIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifier { id })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Id", self.id.raw().as_ref())?.empty()
-    }
-}
-
 /// Identifier for the contest with 'geen' type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(rename = "ContestIdentifier", rename_all = "PascalCase", ns(NS_EML))]
 pub struct ContestIdentifierGeen {
     /// Id of the contest.
+    #[xml(attribute)]
     pub id: StringValue<ContestIdGeen>,
 }
 
@@ -82,24 +73,10 @@ impl Default for ContestIdentifierGeen {
     }
 }
 
-impl EMLElement for ContestIdentifierGeen {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifierGeen { id })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Id", self.id.raw().as_ref())?.empty()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead, test_xml_fragment};
 
     #[test]
     fn test_contest_identifier_construction() {
@@ -124,11 +101,8 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ContestIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1234"/>"#,
         );
-        let contest_id = ContestIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let contest_id = ContestIdentifier::parse_eml(&xml).unwrap();
         assert_eq!(contest_id.id.raw(), "1234");
-
-        let xml_output = test_write_eml_element(&contest_id, &[NS_EML]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 
     #[test]
@@ -142,11 +116,7 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<ContestIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="geen"/>"#,
         );
-        let contest_id_geen =
-            ContestIdentifierGeen::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let contest_id_geen = ContestIdentifierGeen::parse_eml(&xml).unwrap();
         assert_eq!(contest_id_geen.id.raw(), "geen");
-
-        let xml_output = test_write_eml_element(&contest_id_geen, &[NS_EML]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }

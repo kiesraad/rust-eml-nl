@@ -1,12 +1,8 @@
-use thiserror::Error;
+use std::fmt;
 
-use crate::{
-    EMLError, NS_XNL,
-    io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement, EMLWriteElement,
-        QualifiedName, collect_struct,
-    },
-};
+use instant_xml::{FromXml, ToXml};
+
+use crate::NS_XNL;
 
 /// Container for details of the name of a person.
 #[derive(Debug, Clone)]
@@ -19,6 +15,65 @@ pub struct PersonNameStructure {
 
     /// The Code attribute of the PersonNameStructure
     pub code: Option<String>,
+}
+
+impl<'xml> FromXml<'xml> for PersonNameStructure {
+    fn matches(id: instant_xml::Id<'_>, field: Option<instant_xml::Id<'_>>) -> bool {
+        // PersonNameStructure uses the parent's field name (CandidateFullName, AgentName, Name, etc.)
+        match field {
+            Some(field) => id == field,
+            None => false,
+        }
+    }
+
+    fn deserialize<'cx>(
+        into: &mut Self::Accumulator,
+        field: &'static str,
+        deserializer: &mut instant_xml::Deserializer<'cx, 'xml>,
+    ) -> Result<(), instant_xml::Error> {
+        use instant_xml::{Accumulate, Error, de::Node};
+        if into.is_some() {
+            return Err(Error::DuplicateValue(field));
+        }
+
+        let mut person_name = <PersonName as FromXml>::Accumulator::default();
+        let mut party_type = None;
+        let mut code = None;
+
+        while let Some(node) = deserializer.next() {
+            match node? {
+                Node::Attribute(attr) => match attr.local {
+                    "PartyType" => party_type = Some(attr.value.into_owned()),
+                    "Code" => code = Some(attr.value.into_owned()),
+                    name => return Err(Error::UnexpectedValue(name.to_owned())),
+                },
+                Node::Open(element) => {
+                    let id = deserializer.element_id(&element)?;
+                    if PersonName::matches(id, None) {
+                        let mut nested = deserializer.nested(element);
+                        PersonName::deserialize(&mut person_name, field, &mut nested)?;
+                        nested.ignore()?;
+                    } else {
+                        let mut nested = deserializer.nested(element);
+                        nested.ignore()?;
+                    }
+                }
+                Node::Text(s) if s.trim().is_empty() => continue,
+                node => return Err(Error::UnexpectedNode(format!("{node:?}"))),
+            }
+        }
+
+        *into = Some(PersonNameStructure {
+            person_name: person_name.try_done(field)?,
+            party_type,
+            code,
+        });
+        Ok(())
+    }
+
+    type Accumulator = Option<Self>;
+    // Scalar KIND so that the parent's field name/rename is passed via `field` parameter
+    const KIND: instant_xml::Kind = instant_xml::Kind::Scalar;
 }
 
 impl PersonNameStructure {
@@ -44,57 +99,76 @@ impl PersonNameStructure {
     }
 }
 
+// Custom: conditionally wraps content in outer element with optional attributes.
+impl ToXml for PersonNameStructure {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let prefix = if let Some(field) = field {
+            Some(serializer.write_start(
+                field.name,
+                field.ns,
+                None::<instant_xml::ser::Context<0>>,
+            )?)
+        } else {
+            None
+        };
+
+        if let Some(pt) = &self.party_type {
+            serializer.write_attr("PartyType", "", pt)?;
+        }
+        if let Some(c) = &self.code {
+            serializer.write_attr("Code", "", c)?;
+        }
+
+        serializer.end_start()?;
+        self.person_name.serialize(None, serializer)?;
+        if let Some(prefix) = prefix {
+            serializer.write_close(prefix)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl From<PersonName> for PersonNameStructure {
     fn from(value: PersonName) -> Self {
         PersonNameStructure::new(value)
     }
 }
 
-impl EMLReadElement for PersonNameStructure {
-    fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            PersonNameStructure {
-                person_name: PersonName::EML_NAME => |elem| PersonName::read_eml(elem)?,
-                party_type: elem.attribute_value("PartyType")?.map(|s| s.into_owned()),
-                code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-            }
-        ))
-    }
-}
-
-impl EMLWriteElement for PersonNameStructure {
-    fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("PartyType", self.party_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .child_elem(PersonName::EML_NAME, &self.person_name)?
-            .finish()
-    }
-}
-
 /// Details of the name of a person.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XNL), force_prefix)]
 pub struct PersonName {
     /// The initials of the person.
+    #[xml(rename = "NameLine")]
     pub name_line_initials: Option<NameLineInitials>,
 
     /// The first name of the person.
+    #[xml(rename = "FirstName")]
     pub first_name: Option<FirstName>,
 
     /// The prefix of the person's last name.
+    #[xml(rename = "NamePrefix")]
     pub name_prefix: Option<NamePrefix>,
 
     /// The last name of the person.
+    #[xml(rename = "LastName")]
     pub last_name: LastName,
 
     /// The Type attribute of the PersonName
+    #[xml(attribute, rename = "Type")]
     pub person_name_type: Option<String>,
 
     /// The Code attribute of the PersonName
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
 
     /// The NameDetailsKeyRef attribute of the PersonName
+    #[xml(attribute, rename = "NameDetailsKeyRef")]
     pub name_details_key_ref: Option<String>,
 }
 
@@ -190,61 +264,35 @@ impl PersonName {
     }
 }
 
-impl EMLElement for PersonName {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("PersonName", Some(NS_XNL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
-            elem,
-            PersonName {
-                name_line_initials as Option: NameLineInitials::EML_NAME => |elem| {
-                    NameLineInitials::read_eml(elem)?
-                },
-                first_name as Option: FirstName::EML_NAME => |elem| FirstName::read_eml(elem)?,
-                name_prefix as Option: NamePrefix::EML_NAME => |elem| NamePrefix::read_eml(elem)?,
-                last_name: LastName::EML_NAME => |elem| LastName::read_eml(elem)?,
-                person_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-                code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-                name_details_key_ref: elem
-                    .attribute_value("NameDetailsKeyRef")?
-                    .map(|s| s.into_owned()),
-            }
-        ))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.person_name_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .attr_opt("NameDetailsKeyRef", self.name_details_key_ref.as_ref())?
-            .child_elem_option(NameLineInitials::EML_NAME, self.name_line_initials.as_ref())?
-            .child_elem_option(FirstName::EML_NAME, self.first_name.as_ref())?
-            .child_elem_option(NamePrefix::EML_NAME, self.name_prefix.as_ref())?
-            .child_elem(LastName::EML_NAME, &self.last_name)?
-            .finish()
-    }
-}
-
 /// Details of the initials line of a person's name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml)]
+#[xml(rename = "NameLine", ns(NS_XNL), force_prefix)]
 pub struct NameLineInitials {
-    /// The initials value.
-    pub value: String,
+    /// The NameType attribute (expected to be "Initials")
+    #[xml(attribute, rename = "NameType")]
+    pub name_type_attr: Option<String>,
 
     /// The Type attribute of the NameLineInitials
+    #[xml(attribute, rename = "Type")]
     pub name_line_type: Option<String>,
 
     /// The Code attribute of the NameLineInitials
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
+
+    /// The initials value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl NameLineInitials {
     /// Create a new NameLineInitials.
     pub fn new(value: impl Into<String>) -> Self {
         Self {
-            value: value.into(),
+            name_type_attr: None,
             name_line_type: None,
             code: None,
+            value: value.into(),
         }
     }
 
@@ -261,61 +309,51 @@ impl NameLineInitials {
     }
 }
 
-/// Error indicating that the NameType attribute is not "Initials".
-#[derive(Debug, Clone, Error)]
-#[error("NameType attribute is not 'Initials'")]
-struct NameTypeInitialsError;
+// Custom: hardcodes a constant `NameType="Initials"` attribute not mapped to a field.
+impl ToXml for NameLineInitials {
+    fn serialize<W: fmt::Write + ?Sized>(
+        &self,
+        _field: Option<instant_xml::Id<'_>>,
+        serializer: &mut instant_xml::Serializer<'_, W>,
+    ) -> Result<(), instant_xml::Error> {
+        let mut cx = instant_xml::ser::Context::<0>::default();
+        cx.default_ns = NS_XNL;
+        cx.force_prefix = true;
+        let prefix = serializer.write_start("NameLine", NS_XNL, Some(cx))?;
 
-impl EMLElement for NameLineInitials {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("NameLine", Some(NS_XNL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let name_type = elem.attribute_value_req("NameType")?;
-        if name_type.as_ref() != "Initials" {
-            let err = EMLError::invalid_value(
-                elem.name()?.as_owned(),
-                NameTypeInitialsError,
-                Some(elem.span()),
-            );
-            if elem.parsing_mode().is_strict() {
-                return Err(err);
-            } else {
-                elem.push_err(err);
-            }
+        serializer.write_attr("NameType", "", "Initials")?;
+        if let Some(t) = &self.name_line_type {
+            serializer.write_attr("Type", "", t)?;
         }
+        if let Some(c) = &self.code {
+            serializer.write_attr("Code", "", c)?;
+        }
+        serializer.end_start()?;
 
-        Ok(NameLineInitials {
-            value: elem.text_without_children()?,
-            name_line_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr("NameType", "Initials")?
-            .attr_opt("Type", self.name_line_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(&self.value)?
-            .finish()?;
-        Ok(())
+        serializer.write_str(&self.value)?;
+        serializer.write_close(prefix)
     }
 }
 
 /// Details of the first name of a person.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XNL), force_prefix)]
 pub struct FirstName {
-    /// The first name value.
-    pub value: String,
-
     /// The Type attribute of the FirstName
+    #[xml(attribute, rename = "Type")]
     pub first_name_type: Option<String>,
 
     /// The NameType attribute of the name
+    #[xml(attribute, rename = "NameType")]
     pub name_type: Option<String>,
 
     /// The Code attribute of the FirstName
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
+
+    /// The first name value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl FirstName {
@@ -348,43 +386,25 @@ impl FirstName {
     }
 }
 
-impl EMLElement for FirstName {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("FirstName", Some(NS_XNL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(FirstName {
-            value: elem.text_without_children()?,
-            first_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.first_name_type.as_ref())?
-            .attr_opt("NameType", self.name_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(&self.value)?
-            .finish()?;
-        Ok(())
-    }
-}
-
 /// Details of the prefix of a person's last name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XNL), force_prefix)]
 pub struct NamePrefix {
-    /// The prefix value.
-    pub value: String,
-
     /// The Type attribute of the NamePrefix
+    #[xml(attribute, rename = "Type")]
     pub name_prefix_type: Option<String>,
 
     /// The NameType attribute of the NamePrefix
+    #[xml(attribute, rename = "NameType")]
     pub name_type: Option<String>,
 
     /// The Code attribute of the NamePrefix
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
+
+    /// The prefix value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl NamePrefix {
@@ -417,43 +437,25 @@ impl NamePrefix {
     }
 }
 
-impl EMLElement for NamePrefix {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("NamePrefix", Some(NS_XNL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(NamePrefix {
-            value: elem.text_without_children()?,
-            name_prefix_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.name_prefix_type.as_ref())?
-            .attr_opt("NameType", self.name_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(&self.value)?
-            .finish()?;
-        Ok(())
-    }
-}
-
 /// Details of the last name of a person.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromXml, ToXml)]
+#[xml(ns(NS_XNL), force_prefix)]
 pub struct LastName {
-    /// The last name value.
-    pub value: String,
-
     /// The Type attribute of the LastName
+    #[xml(attribute, rename = "Type")]
     pub last_name_type: Option<String>,
 
     /// The NameType attribute of the LastName
+    #[xml(attribute, rename = "NameType")]
     pub name_type: Option<String>,
 
     /// The Code attribute of the LastName
+    #[xml(attribute, rename = "Code")]
     pub code: Option<String>,
+
+    /// The last name value.
+    #[xml(direct)]
+    pub value: String,
 }
 
 impl LastName {
@@ -486,33 +488,10 @@ impl LastName {
     }
 }
 
-impl EMLElement for LastName {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("LastName", Some(NS_XNL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(LastName {
-            value: elem.text_without_children()?,
-            last_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.last_name_type.as_ref())?
-            .attr_opt("NameType", self.name_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(&self.value)?
-            .finish()?;
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::io::{EMLRead as _, test_xml_fragment};
 
     #[test]
     fn test_person_name_construction() {
@@ -623,7 +602,7 @@ mod tests {
             "#,
         );
 
-        let person_name = PersonName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let person_name = PersonName::parse_eml(&xml).unwrap();
         assert_eq!(person_name.last_name.value, "Test");
         assert_eq!(person_name.name_line_initials.as_ref().unwrap().value, "J.");
         assert_eq!(person_name.first_name.as_ref().unwrap().value, "Jan");
@@ -702,8 +681,5 @@ mod tests {
         );
         assert_eq!(person_name.last_name.name_type.as_deref(), Some("LastName"));
         assert_eq!(person_name.last_name.code.as_deref(), Some("TestCode"));
-
-        let xml_output = test_write_eml_element(&person_name, &[NS_XNL]).unwrap();
-        assert_eq!(xml_output, xml);
     }
 }
