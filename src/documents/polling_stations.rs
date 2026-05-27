@@ -502,6 +502,7 @@ pub struct PollingStationsContest {
     pub voting_method: StringValue<VotingMethod>,
 
     /// Maximum number of votes allowed.
+    /// EML specifies the default value as 1, so an empty tag will be parsed as 1 and vice versa.
     pub max_votes: StringValue<NonZeroU64>,
 
     /// List of polling places in this contest.
@@ -551,6 +552,7 @@ impl PollingStationsContestBuilder {
     }
 
     /// Set the maximum number of votes allowed in the contest.
+    /// EML specifies the default value as 1, so providing the value of 1 will result in an empty xml tag.
     pub fn max_votes(mut self, max_votes: impl Into<NonZeroU64>) -> Self {
         self.max_votes = Some(StringValue::from_value(max_votes.into()));
         self
@@ -636,6 +638,7 @@ impl EMLElement for PollingStationsContest {
                 }
             },
             max_votes: ("MaxVotes", NS_EML) => |elem| {
+                // Default value of MaxVotes in EML is 1
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
@@ -696,6 +699,7 @@ impl EMLElement for PollingStationsContest {
             })?
             .child(("MaxVotes", NS_EML), |elem| {
                 let raw_text = self.max_votes.raw();
+                // Default value of MaxVotes in EML is 1
                 if raw_text == "1" {
                     elem.empty()
                 } else {
@@ -1106,6 +1110,63 @@ mod tests {
         let parsed = PollingStations::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         let xml2 = parsed.write_eml_root_str(true, true).unwrap();
         assert_eq!(xml, xml2);
+    }
+
+    #[test]
+    fn test_read_polling_stations_with_max_votes_empty() {
+        let xml =
+            include_str!("../../test-emls/polling_stations/eml110b_empty_number_of_voters.eml.xml");
+
+        let parsed = PollingStations::parse_eml(xml, EMLParsingMode::Strict).unwrap();
+        // empty MaxVotes should be parsed to 1, because 1 is the default value according to the EML standard
+        assert_eq!(
+            parsed.election_event.election.contests[0].max_votes,
+            StringValue::Parsed(NonZeroU64::new(1).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_write_polling_stations_with_max_votes_empty() {
+        let ps = PollingStations::builder()
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(
+                AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Test"),
+            )
+            .issue_date(XsDate::from_date(2024, 1, 1).unwrap())
+            .creation_date_time(chrono::Utc.with_ymd_and_hms(2024, 1, 1, 12, 0, 0).unwrap())
+            .election_identifier(
+                PollingStationsElectionIdentifier::builder()
+                    .id(ElectionId::new("TK2025").unwrap())
+                    .name("Tweede Kamerverkiezingen 2025")
+                    .category(ElectionCategory::TK)
+                    .subcategory(ElectionSubcategory::TK)
+                    .election_date(XsDate::from_date(2025, 3, 17).unwrap())
+                    .build_for_polling_stations()
+                    .unwrap(),
+            )
+            .contests([PollingStationsContest::builder()
+                .reporting_unit(ReportingUnitIdentifier::new(
+                    ReportingUnitIdentifierId::new("1234").unwrap(),
+                    "Test",
+                ))
+                .max_votes(NonZeroU64::new(1).unwrap())
+                .voting_method(VotingMethod::SPV)
+                .polling_places([PollingPlace::builder()
+                    .locality_name("Amsterdam")
+                    .postal_code("1234 AB")
+                    .channel(VotingChannelType::Polling)
+                    .polling_station_data("123456")
+                    .polling_station_id(PhysicalLocationPollingStationId::new("1234").unwrap())
+                    .build()
+                    .unwrap()])
+                .build()
+                .unwrap()])
+            .build()
+            .unwrap();
+
+        let xml = ps.write_eml_root_str(true, true).unwrap();
+        // max_votes of 1 should result in an empty MaxVotes tag, because 1 is the default value according to the EML standard
+        assert!(xml.contains("<MaxVotes/>"))
     }
 
     #[test]
