@@ -13,7 +13,7 @@ static ELECTION_DOMAIN_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// A string of type ElectionDomainId as defined in the EML_NL specification
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct ElectionDomainId(String);
+pub struct ElectionDomainId(Box<str>);
 
 impl ElectionDomainId {
     /// Create a new ElectionDomainId from a string, validating its format
@@ -40,13 +40,13 @@ impl StringValueData for ElectionDomainId {
         Self: Sized,
     {
         if ELECTION_DOMAIN_ID_RE.is_match(s) {
-            Ok(ElectionDomainId(s.to_string()))
+            Ok(ElectionDomainId(s.into()))
         } else {
-            Err(InvalidElectionDomainIdError(s.to_string()))
+            Err(InvalidElectionDomainIdError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }

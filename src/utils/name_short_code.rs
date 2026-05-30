@@ -15,7 +15,7 @@ static NAME_SHORT_CODE_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Called NameShortCodeType in the schema.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct NameShortCode(String);
+pub struct NameShortCode(Box<str>);
 
 impl NameShortCode {
     /// Create a new NameShortCode from a string, validating its format
@@ -43,13 +43,13 @@ impl StringValueData for NameShortCode {
         // suggested alternative by clippy is not more clear in this case
         #[expect(clippy::len_zero)]
         if s.len() >= 1 && s.len() <= 15 && NAME_SHORT_CODE_RE.is_match(s) {
-            Ok(NameShortCode(s.to_string()))
+            Ok(NameShortCode(s.into()))
         } else {
-            Err(InvalidNameShortCodeError(s.to_string()))
+            Err(InvalidNameShortCodeError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }

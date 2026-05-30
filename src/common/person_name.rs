@@ -15,10 +15,10 @@ pub struct PersonNameStructure {
     pub person_name: PersonName,
 
     /// The PartyType attribute of the PersonNameStructure
-    pub party_type: Option<String>,
+    pub party_type: Option<Box<str>>,
 
     /// The Code attribute of the PersonNameStructure
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl PersonNameStructure {
@@ -32,13 +32,13 @@ impl PersonNameStructure {
     }
 
     /// Set the `PartyType` attribute of the `PersonNameStructure`.
-    pub fn with_party_type(mut self, party_type: impl Into<String>) -> Self {
+    pub fn with_party_type(mut self, party_type: impl Into<Box<str>>) -> Self {
         self.party_type = Some(party_type.into());
         self
     }
 
     /// Set the `Code` attribute of the `PersonNameStructure`.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -56,8 +56,8 @@ impl EMLReadElement for PersonNameStructure {
             elem,
             PersonNameStructure {
                 person_name: PersonName::EML_NAME => |elem| PersonName::read_eml(elem)?,
-                party_type: elem.attribute_value("PartyType")?.map(|s| s.into_owned()),
-                code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+                party_type: elem.attribute_value("PartyType")?.map(|s| s.into()),
+                code: elem.attribute_value("Code")?.map(|s| s.into()),
             }
         ))
     }
@@ -89,18 +89,18 @@ pub struct PersonName {
     pub last_name: LastName,
 
     /// The Type attribute of the PersonName
-    pub person_name_type: Option<String>,
+    pub person_name_type: Option<Box<str>>,
 
     /// The Code attribute of the PersonName
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 
     /// The NameDetailsKeyRef attribute of the PersonName
-    pub name_details_key_ref: Option<String>,
+    pub name_details_key_ref: Option<Box<str>>,
 }
 
 impl PersonName {
     /// Create a new PersonName.
-    pub fn new(last_name: impl Into<String>) -> Self {
+    pub fn new(last_name: impl Into<Box<str>>) -> Self {
         Self {
             name_line_initials: None,
             first_name: None,
@@ -113,52 +113,52 @@ impl PersonName {
     }
 
     /// Set the initials of the person.
-    pub fn with_initials(self, initials: impl Into<String>) -> Self {
+    pub fn with_initials(self, initials: impl Into<Box<str>>) -> Self {
         self.with_initials_option(Some(initials))
     }
 
     /// Set the initials of the person, if present.
-    pub fn with_initials_option(mut self, initials: Option<impl Into<String>>) -> Self {
+    pub fn with_initials_option(mut self, initials: Option<impl Into<Box<str>>>) -> Self {
         self.name_line_initials = initials.map(|i| NameLineInitials::new(i));
         self
     }
 
     /// Set the first name of the person.
-    pub fn with_first_name(self, first_name: impl Into<String>) -> Self {
+    pub fn with_first_name(self, first_name: impl Into<Box<str>>) -> Self {
         self.with_first_name_option(Some(first_name))
     }
 
     /// Set the first name of the person, if present.
-    pub fn with_first_name_option(mut self, first_name: Option<impl Into<String>>) -> Self {
+    pub fn with_first_name_option(mut self, first_name: Option<impl Into<Box<str>>>) -> Self {
         self.first_name = first_name.map(|f| FirstName::new(f));
         self
     }
 
     /// Set the prefix of the person's last name.
-    pub fn with_name_prefix(self, name_prefix: impl Into<String>) -> Self {
+    pub fn with_name_prefix(self, name_prefix: impl Into<Box<str>>) -> Self {
         self.with_name_prefix_option(Some(name_prefix))
     }
 
     /// Set the prefix of the person's last name, if present.
-    pub fn with_name_prefix_option(mut self, name_prefix: Option<impl Into<String>>) -> Self {
+    pub fn with_name_prefix_option(mut self, name_prefix: Option<impl Into<Box<str>>>) -> Self {
         self.name_prefix = name_prefix.map(|p| NamePrefix::new(p));
         self
     }
 
     /// Set the `Type` attribute of the PersonName.
-    pub fn with_type(mut self, person_name_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, person_name_type: impl Into<Box<str>>) -> Self {
         self.person_name_type = Some(person_name_type.into());
         self
     }
 
     /// Set the `Code` attribute of the PersonName.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
 
     /// Set the `NameDetailsKeyRef` attribute of the PersonName.
-    pub fn with_name_details_key_ref(mut self, name_details_key_ref: impl Into<String>) -> Self {
+    pub fn with_name_details_key_ref(mut self, name_details_key_ref: impl Into<Box<str>>) -> Self {
         self.name_details_key_ref = Some(name_details_key_ref.into());
         self
     }
@@ -172,21 +172,21 @@ impl PersonName {
     pub fn get_initials(&self) -> Option<&str> {
         self.name_line_initials
             .as_ref()
-            .map(|initials| initials.value.as_str())
+            .map(|initials| initials.value.as_ref())
     }
 
     /// Get the first name of the person, if present.
     pub fn get_first_name(&self) -> Option<&str> {
         self.first_name
             .as_ref()
-            .map(|first_name| first_name.value.as_str())
+            .map(|first_name| first_name.value.as_ref())
     }
 
     /// Get the prefix of the person's last name, if present.
     pub fn get_name_prefix(&self) -> Option<&str> {
         self.name_prefix
             .as_ref()
-            .map(|prefix| prefix.value.as_str())
+            .map(|prefix| prefix.value.as_ref())
     }
 }
 
@@ -203,11 +203,11 @@ impl EMLElement for PersonName {
                 first_name as Option: FirstName::EML_NAME => |elem| FirstName::read_eml(elem)?,
                 name_prefix as Option: NamePrefix::EML_NAME => |elem| NamePrefix::read_eml(elem)?,
                 last_name: LastName::EML_NAME => |elem| LastName::read_eml(elem)?,
-                person_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-                code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+                person_name_type: elem.attribute_value("Type")?.map(|s| s.into()),
+                code: elem.attribute_value("Code")?.map(|s| s.into()),
                 name_details_key_ref: elem
                     .attribute_value("NameDetailsKeyRef")?
-                    .map(|s| s.into_owned()),
+                    .map(|s| s.into()),
             }
         ))
     }
@@ -229,18 +229,18 @@ impl EMLElement for PersonName {
 #[derive(Debug, Clone)]
 pub struct NameLineInitials {
     /// The initials value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute of the NameLineInitials
-    pub name_line_type: Option<String>,
+    pub name_line_type: Option<Box<str>>,
 
     /// The Code attribute of the NameLineInitials
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl NameLineInitials {
     /// Create a new NameLineInitials.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         Self {
             value: value.into(),
             name_line_type: None,
@@ -249,13 +249,13 @@ impl NameLineInitials {
     }
 
     /// Set the `Type` attribute of the element.
-    pub fn with_type(mut self, name_line_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, name_line_type: impl Into<Box<str>>) -> Self {
         self.name_line_type = Some(name_line_type.into());
         self
     }
 
     /// Set the `Code` attribute of the element.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -286,8 +286,8 @@ impl EMLElement for NameLineInitials {
 
         Ok(NameLineInitials {
             value: elem.text_without_children()?,
-            name_line_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+            name_line_type: elem.attribute_value("Type")?.map(|s| s.into()),
+            code: elem.attribute_value("Code")?.map(|s| s.into()),
         })
     }
 
@@ -306,21 +306,21 @@ impl EMLElement for NameLineInitials {
 #[derive(Debug, Clone)]
 pub struct FirstName {
     /// The first name value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute of the FirstName
-    pub first_name_type: Option<String>,
+    pub first_name_type: Option<Box<str>>,
 
     /// The NameType attribute of the name
-    pub name_type: Option<String>,
+    pub name_type: Option<Box<str>>,
 
     /// The Code attribute of the FirstName
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl FirstName {
     /// Create a new FirstName.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         Self {
             value: value.into(),
             first_name_type: None,
@@ -330,19 +330,19 @@ impl FirstName {
     }
 
     /// Set the `Type` attribute of the element.
-    pub fn with_type(mut self, first_name_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, first_name_type: impl Into<Box<str>>) -> Self {
         self.first_name_type = Some(first_name_type.into());
         self
     }
 
     /// Set the `NameType` attribute of the element.
-    pub fn with_name_type(mut self, name_type: impl Into<String>) -> Self {
+    pub fn with_name_type(mut self, name_type: impl Into<Box<str>>) -> Self {
         self.name_type = Some(name_type.into());
         self
     }
 
     /// Set the `Code` attribute of the element.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -354,9 +354,9 @@ impl EMLElement for FirstName {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(FirstName {
             value: elem.text_without_children()?,
-            first_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+            first_name_type: elem.attribute_value("Type")?.map(|s| s.into()),
+            name_type: elem.attribute_value("NameType")?.map(|s| s.into()),
+            code: elem.attribute_value("Code")?.map(|s| s.into()),
         })
     }
 
@@ -375,21 +375,21 @@ impl EMLElement for FirstName {
 #[derive(Debug, Clone)]
 pub struct NamePrefix {
     /// The prefix value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute of the NamePrefix
-    pub name_prefix_type: Option<String>,
+    pub name_prefix_type: Option<Box<str>>,
 
     /// The NameType attribute of the NamePrefix
-    pub name_type: Option<String>,
+    pub name_type: Option<Box<str>>,
 
     /// The Code attribute of the NamePrefix
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl NamePrefix {
     /// Create a new NamePrefix.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         Self {
             value: value.into(),
             name_prefix_type: None,
@@ -399,19 +399,19 @@ impl NamePrefix {
     }
 
     /// Set the `Type` attribute of the element.
-    pub fn with_type(mut self, name_prefix_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, name_prefix_type: impl Into<Box<str>>) -> Self {
         self.name_prefix_type = Some(name_prefix_type.into());
         self
     }
 
     /// Set the `NameType` attribute of the element.
-    pub fn with_name_type(mut self, name_type: impl Into<String>) -> Self {
+    pub fn with_name_type(mut self, name_type: impl Into<Box<str>>) -> Self {
         self.name_type = Some(name_type.into());
         self
     }
 
     /// Set the `Code` attribute of the element.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -423,9 +423,9 @@ impl EMLElement for NamePrefix {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(NamePrefix {
             value: elem.text_without_children()?,
-            name_prefix_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+            name_prefix_type: elem.attribute_value("Type")?.map(|s| s.into()),
+            name_type: elem.attribute_value("NameType")?.map(|s| s.into()),
+            code: elem.attribute_value("Code")?.map(|s| s.into()),
         })
     }
 
@@ -444,21 +444,21 @@ impl EMLElement for NamePrefix {
 #[derive(Debug, Clone)]
 pub struct LastName {
     /// The last name value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute of the LastName
-    pub last_name_type: Option<String>,
+    pub last_name_type: Option<Box<str>>,
 
     /// The NameType attribute of the LastName
-    pub name_type: Option<String>,
+    pub name_type: Option<Box<str>>,
 
     /// The Code attribute of the LastName
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl LastName {
     /// Create a new LastName.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         Self {
             value: value.into(),
             last_name_type: None,
@@ -468,19 +468,19 @@ impl LastName {
     }
 
     /// Set the `Type` attribute of the element.
-    pub fn with_type(mut self, last_name_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, last_name_type: impl Into<Box<str>>) -> Self {
         self.last_name_type = Some(last_name_type.into());
         self
     }
 
     /// Set the `NameType` attribute of the element.
-    pub fn with_name_type(mut self, name_type: impl Into<String>) -> Self {
+    pub fn with_name_type(mut self, name_type: impl Into<Box<str>>) -> Self {
         self.name_type = Some(name_type.into());
         self
     }
 
     /// Set the `Code` attribute of the element.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -492,9 +492,9 @@ impl EMLElement for LastName {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(LastName {
             value: elem.text_without_children()?,
-            last_name_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            name_type: elem.attribute_value("NameType")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+            last_name_type: elem.attribute_value("Type")?.map(|s| s.into()),
+            name_type: elem.attribute_value("NameType")?.map(|s| s.into()),
+            code: elem.attribute_value("Code")?.map(|s| s.into()),
         })
     }
 
@@ -524,10 +524,24 @@ mod tests {
             .with_code("TestCode")
             .with_name_details_key_ref("TestKeyRef");
 
-        assert_eq!(person_name.last_name.value, "Test");
-        assert_eq!(person_name.name_line_initials.as_ref().unwrap().value, "J.");
-        assert_eq!(person_name.first_name.as_ref().unwrap().value, "Jan");
-        assert_eq!(person_name.name_prefix.as_ref().unwrap().value, "van");
+        assert_eq!(person_name.last_name.value.as_ref(), "Test");
+        assert_eq!(
+            person_name
+                .name_line_initials
+                .as_ref()
+                .unwrap()
+                .value
+                .as_ref(),
+            "J."
+        );
+        assert_eq!(
+            person_name.first_name.as_ref().unwrap().value.as_ref(),
+            "Jan"
+        );
+        assert_eq!(
+            person_name.name_prefix.as_ref().unwrap().value.as_ref(),
+            "van"
+        );
         assert_eq!(person_name.person_name_type.as_deref(), Some("TestType"));
         assert_eq!(person_name.code.as_deref(), Some("TestCode"));
         assert_eq!(
@@ -543,7 +557,10 @@ mod tests {
             .with_party_type("TestPartyType")
             .with_code("TestCode");
 
-        assert_eq!(person_name_structure.person_name.last_name.value, "Test");
+        assert_eq!(
+            person_name_structure.person_name.last_name.value.as_ref(),
+            "Test"
+        );
         assert_eq!(
             person_name_structure.party_type.as_deref(),
             Some("TestPartyType")
@@ -556,7 +573,10 @@ mod tests {
         let person_name = PersonName::new("Test");
         let person_name_structure = PersonNameStructure::new(person_name);
 
-        assert_eq!(person_name_structure.person_name.last_name.value, "Test");
+        assert_eq!(
+            person_name_structure.person_name.last_name.value.as_ref(),
+            "Test"
+        );
         assert!(person_name_structure.party_type.is_none());
         assert!(person_name_structure.code.is_none());
     }
@@ -566,7 +586,7 @@ mod tests {
         let initials = NameLineInitials::new("J.")
             .with_type("Initials")
             .with_code("TestCode");
-        assert_eq!(initials.value, "J.");
+        assert_eq!(initials.value.as_ref(), "J.");
         assert_eq!(initials.name_line_type.as_deref(), Some("Initials"));
         assert_eq!(initials.code.as_deref(), Some("TestCode"));
     }
@@ -577,7 +597,7 @@ mod tests {
             .with_type("FirstNameType")
             .with_name_type("FirstName")
             .with_code("TestCode");
-        assert_eq!(first_name.value, "Jan");
+        assert_eq!(first_name.value.as_ref(), "Jan");
         assert_eq!(first_name.first_name_type.as_deref(), Some("FirstNameType"));
         assert_eq!(first_name.name_type.as_deref(), Some("FirstName"));
         assert_eq!(first_name.code.as_deref(), Some("TestCode"));
@@ -589,7 +609,7 @@ mod tests {
             .with_type("NamePrefixType")
             .with_name_type("NamePrefix")
             .with_code("TestCode");
-        assert_eq!(name_prefix.value, "van");
+        assert_eq!(name_prefix.value.as_ref(), "van");
         assert_eq!(
             name_prefix.name_prefix_type.as_deref(),
             Some("NamePrefixType")
@@ -604,7 +624,7 @@ mod tests {
             .with_type("LastNameType")
             .with_name_type("LastName")
             .with_code("TestCode");
-        assert_eq!(last_name.value, "Test");
+        assert_eq!(last_name.value.as_ref(), "Test");
         assert_eq!(last_name.last_name_type.as_deref(), Some("LastNameType"));
         assert_eq!(last_name.name_type.as_deref(), Some("LastName"));
         assert_eq!(last_name.code.as_deref(), Some("TestCode"));
@@ -624,10 +644,24 @@ mod tests {
         );
 
         let person_name = PersonName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(person_name.last_name.value, "Test");
-        assert_eq!(person_name.name_line_initials.as_ref().unwrap().value, "J.");
-        assert_eq!(person_name.first_name.as_ref().unwrap().value, "Jan");
-        assert_eq!(person_name.name_prefix.as_ref().unwrap().value, "van");
+        assert_eq!(person_name.last_name.value.as_ref(), "Test");
+        assert_eq!(
+            person_name
+                .name_line_initials
+                .as_ref()
+                .unwrap()
+                .value
+                .as_ref(),
+            "J."
+        );
+        assert_eq!(
+            person_name.first_name.as_ref().unwrap().value.as_ref(),
+            "Jan"
+        );
+        assert_eq!(
+            person_name.name_prefix.as_ref().unwrap().value.as_ref(),
+            "van"
+        );
         assert_eq!(person_name.person_name_type.as_deref(), Some("TestType"));
         assert_eq!(person_name.code.as_deref(), Some("TestCode"));
         assert_eq!(

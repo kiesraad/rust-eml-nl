@@ -383,7 +383,7 @@ pub struct PollingStationsElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Election name, if present.
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Election category.
     pub category: StringValue<ElectionCategory>,
@@ -412,7 +412,7 @@ impl EMLElement for PollingStationsElectionIdentifier {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         struct PollingStationsElectionIdentifierInternal {
             id: StringValue<ElectionId>,
-            name: Option<String>,
+            name: Option<Box<str>>,
             category: StringValue<ElectionCategory>,
             subcategory: Option<StringValue<ElectionSubcategory>>,
             domain: Option<ElectionDomain>,
@@ -639,7 +639,7 @@ impl EMLElement for PollingStationsContest {
             },
             max_votes: ("MaxVotes", NS_EML) => |elem| {
                 // Default value of MaxVotes in EML is 1
-                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
+                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
             polling_places as Vec: PollingPlace::EML_NAME => |elem| PollingPlace::read_eml(elem)?,
@@ -772,7 +772,7 @@ impl PollingPlace {
 pub struct PollingPlaceBuilder {
     channel: Option<StringValue<VotingChannelType>>,
     polling_station_id: Option<StringValue<PhysicalLocationPollingStationId>>,
-    polling_station_data: Option<String>,
+    polling_station_data: Option<Box<str>>,
     locality_name: Option<LocalityName>,
     postal_code: Option<PostalCode>,
 }
@@ -802,12 +802,12 @@ impl PollingPlaceBuilder {
     }
 
     /// Set the additional data of the polling station at the polling place.
-    pub fn polling_station_data(self, data: impl Into<String>) -> Self {
+    pub fn polling_station_data(self, data: impl Into<Box<str>>) -> Self {
         self.polling_station_data_option(Some(data))
     }
 
     /// Set the additional data of the polling station at the polling place, if present.
-    pub fn polling_station_data_option(mut self, data: Option<impl Into<String>>) -> Self {
+    pub fn polling_station_data_option(mut self, data: Option<impl Into<Box<str>>>) -> Self {
         self.polling_station_data = data.map(|d| d.into());
         self
     }
@@ -967,7 +967,7 @@ pub struct PhysicalLocationPollingStation {
     pub id: StringValue<PhysicalLocationPollingStationId>,
 
     /// Additional data of the polling station.
-    pub data: String,
+    pub data: Box<str>,
 }
 
 impl EMLElement for PhysicalLocationPollingStation {
@@ -1037,8 +1037,8 @@ impl StringValueData for PhysicalLocationPollingStationId {
         }
     }
 
-    fn to_raw_value(&self) -> String {
-        self.0.to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.0.to_string().into()
     }
 }
 

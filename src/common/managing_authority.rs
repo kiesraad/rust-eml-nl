@@ -79,7 +79,7 @@ pub struct AuthorityIdentifier {
     /// Identifier of the managing authority
     pub id: StringValue<AuthorityId>,
     /// Name of the managing authority
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 }
 
 impl AuthorityIdentifier {
@@ -92,7 +92,7 @@ impl AuthorityIdentifier {
     }
 
     /// Sets the name of the managing authority and returns the modified `AuthorityIdentifier`.
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+    pub fn with_name(mut self, name: impl Into<Box<str>>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -152,7 +152,7 @@ pub struct CreatedByAuthority {
     /// Identifier of the managing authority
     pub id: StringValue<AuthorityId>,
     /// Name of the managing authority
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 }
 
 impl CreatedByAuthority {
@@ -165,7 +165,7 @@ impl CreatedByAuthority {
     }
 
     /// Sets the name of the managing authority and returns the modified `CreatedByAuthority`.
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+    pub fn with_name(mut self, name: impl Into<Box<str>>) -> Self {
         self.name = Some(name.into());
         self
     }

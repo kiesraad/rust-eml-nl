@@ -346,7 +346,7 @@ pub struct NominationElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -448,12 +448,12 @@ pub struct NominationContestIdentifier {
     pub id: StringValue<ContestId>,
 
     /// Name of the contest (mandatory in 210).
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl NominationContestIdentifier {
     /// Create a new `NominationContestIdentifier`.
-    pub fn new(id: ContestId, name: impl Into<String>) -> Self {
+    pub fn new(id: ContestId, name: impl Into<Box<str>>) -> Self {
         NominationContestIdentifier {
             id: StringValue::Parsed(id),
             name: name.into(),
@@ -492,7 +492,7 @@ impl EMLElement for NominationContestIdentifier {
 #[derive(Debug, Clone)]
 pub struct NominationAffiliation {
     /// The registered name of the affiliation (Id is prohibited in 210).
-    pub registered_name: String,
+    pub registered_name: Box<str>,
 
     /// The affiliation type.
     pub affiliation_type: StringValue<AffiliationType>,
@@ -510,7 +510,7 @@ impl EMLElement for NominationAffiliation {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         // The AffiliationIdentifier in 210 has no Id attribute and a required RegisteredName
         struct NominationAffiliationIdentifier {
-            registered_name: String,
+            registered_name: Box<str>,
         }
 
         impl EMLElement for NominationAffiliationIdentifier {
@@ -600,10 +600,10 @@ pub struct NominationCandidate {
     pub agent: Option<NominationAgent>,
 
     /// Alternative date of birth representation when exact date is unknown.
-    pub date_of_birth_annex: Option<String>,
+    pub date_of_birth_annex: Option<Box<str>>,
 
     /// National identification number (e.g. BSN in the Netherlands).
-    pub national_identification_number: Option<String>,
+    pub national_identification_number: Option<Box<str>>,
 }
 
 impl EMLElement for NominationCandidate {
@@ -855,8 +855,8 @@ impl StringValueData for NominationJobTitle {
         Self::from_eml_value(s)
     }
 
-    fn to_raw_value(&self) -> String {
-        self.to_eml_value().to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_eml_value().into()
     }
 }
 
@@ -897,15 +897,15 @@ impl EMLElement for AgentIdentifier {
 #[derive(Debug, Clone)]
 pub struct LivingAddress {
     /// The locality name.
-    pub locality_name: String,
+    pub locality_name: Box<str>,
 
     /// The country name code, if present.
-    pub country_name_code: Option<String>,
+    pub country_name_code: Option<Box<str>>,
 }
 
 impl LivingAddress {
     /// Create a new `LivingAddress`.
-    pub fn new(locality_name: impl Into<String>) -> Self {
+    pub fn new(locality_name: impl Into<Box<str>>) -> Self {
         LivingAddress {
             locality_name: locality_name.into(),
             country_name_code: None,
@@ -913,7 +913,7 @@ impl LivingAddress {
     }
 
     /// Set the country name code.
-    pub fn with_country_name_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_country_name_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.country_name_code = Some(code.into());
         self
     }
@@ -1003,7 +1003,7 @@ pub struct NominationProposer {
     pub job_title: StringValue<NominationJobTitle>,
 
     /// Optional identifier for the proposer (mandatory if deputy).
-    pub id: Option<String>,
+    pub id: Option<Box<str>>,
 
     /// The living address of the proposer, if present.
     pub living_address: Option<LivingAddress>,
@@ -1085,7 +1085,7 @@ mod tests {
                 "Test Contest",
             ))
             .affiliation(NominationAffiliation {
-                registered_name: "Test Party".to_string(),
+                registered_name: "Test Party".into(),
                 affiliation_type: StringValue::from_value(AffiliationType::StandAloneList),
                 list_data: ListData::new(true),
                 candidates: vec![
@@ -1140,8 +1140,8 @@ mod tests {
                             contact: None,
                             living_address: LivingAddress::new("Den Haag"),
                         }),
-                        date_of_birth_annex: Some("XX-07-1990".to_string()),
-                        national_identification_number: Some("123456789".to_string()),
+                        date_of_birth_annex: Some("XX-07-1990".into()),
+                        national_identification_number: Some("123456789".into()),
                     },
                 ],
             })
@@ -1172,7 +1172,7 @@ mod tests {
                         )),
                     },
                     job_title: StringValue::from_value(NominationJobTitle::DeputySubmitter),
-                    id: Some("PV001".to_string()),
+                    id: Some("PV001".into()),
                     living_address: Some(
                         LivingAddress::new("Utrecht").with_country_name_code("NL"),
                     ),
@@ -1202,11 +1202,15 @@ mod tests {
         assert_eq!(nomination.transaction_id.raw(), "1");
         assert!(nomination.managing_authority.is_some());
         assert_eq!(
-            nomination.nomination_data.contest_identifier.name,
+            nomination.nomination_data.contest_identifier.name.as_ref(),
             "Test Contest"
         );
         assert_eq!(
-            nomination.nomination_data.affiliation.registered_name,
+            nomination
+                .nomination_data
+                .affiliation
+                .registered_name
+                .as_ref(),
             "Test Party"
         );
         assert!(!nomination.nomination_data.affiliation.candidates.is_empty());

@@ -315,7 +315,7 @@ impl TryFrom<EML> for String {
 #[derive(Debug, Clone)]
 pub struct ElectionIdentifierBuilder {
     id: Option<StringValue<ElectionId>>,
-    name: Option<String>,
+    name: Option<Box<str>>,
     category: Option<StringValue<ElectionCategory>>,
     subcategory: Option<StringValue<ElectionSubcategory>>,
     domain: Option<ElectionDomain>,
@@ -344,7 +344,7 @@ impl ElectionIdentifierBuilder {
     }
 
     /// Set the election name for the document
-    pub fn name(mut self, name: impl Into<String>) -> Self {
+    pub fn name(mut self, name: impl Into<Box<str>>) -> Self {
         self.name = Some(name.into());
         self
     }

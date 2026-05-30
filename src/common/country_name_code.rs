@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::{
     EMLError, NS_XAL,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
@@ -9,16 +7,16 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CountryNameCode {
     /// The country name code value.
-    pub value: String,
+    pub value: Box<str>,
     /// The Scheme attribute, if present.
-    pub scheme: Option<String>,
+    pub scheme: Option<Box<str>>,
     /// The Code attribute, if present.
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl CountryNameCode {
     /// Create a new CountryNameCode.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         CountryNameCode {
             value: value.into(),
             scheme: None,
@@ -27,13 +25,13 @@ impl CountryNameCode {
     }
 
     /// Set the Scheme attribute.
-    pub fn with_scheme(mut self, scheme: impl Into<String>) -> Self {
+    pub fn with_scheme(mut self, scheme: impl Into<Box<str>>) -> Self {
         self.scheme = Some(scheme.into());
         self
     }
 
     /// Set the Code attribute.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -41,6 +39,12 @@ impl CountryNameCode {
 
 impl From<String> for CountryNameCode {
     fn from(value: String) -> Self {
+        CountryNameCode::new(value)
+    }
+}
+
+impl From<Box<str>> for CountryNameCode {
+    fn from(value: Box<str>) -> Self {
         CountryNameCode::new(value)
     }
 }
@@ -58,8 +62,8 @@ impl EMLElement for CountryNameCode {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(CountryNameCode {
             value: elem.text_without_children()?,
-            scheme: elem.attribute_value("Scheme")?.map(Cow::into_owned),
-            code: elem.attribute_value("Code")?.map(Cow::into_owned),
+            scheme: elem.attribute_value("Scheme")?.map(Into::into),
+            code: elem.attribute_value("Code")?.map(Into::into),
         })
     }
 
@@ -82,7 +86,7 @@ mod tests {
         let cnc = CountryNameCode::new("Netherlands")
             .with_scheme("ISO3166")
             .with_code("NL");
-        assert_eq!(cnc.value, "Netherlands");
+        assert_eq!(cnc.value.as_ref(), "Netherlands");
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));
     }
@@ -93,7 +97,7 @@ mod tests {
             r#"<xal:CountryNameCode xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Scheme="ISO3166" Code="NL">Netherlands</xal:CountryNameCode>"#,
         );
         let cnc = CountryNameCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(cnc.value, "Netherlands");
+        assert_eq!(cnc.value.as_ref(), "Netherlands");
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));
 

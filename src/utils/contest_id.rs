@@ -14,7 +14,7 @@ static CONTEST_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// A string of type ContestId as defined in the EML_NL specification
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct ContestId(String);
+pub struct ContestId(Box<str>);
 
 impl ContestId {
     /// Create a new `ContestId` from a string, validating its format
@@ -29,22 +29,22 @@ impl ContestId {
 
     /// Check if the `ContestId` is "geen"
     pub fn is_geen(&self) -> bool {
-        self.0 == "geen"
+        self.0.as_ref() == "geen"
     }
 
     /// Check if the `ContestId` is "alle"
     pub fn is_alle(&self) -> bool {
-        self.0 == "alle"
+        self.0.as_ref() == "alle"
     }
 
     /// Create a `ContestId` representing "geen"
     pub fn geen() -> Self {
-        ContestId("geen".to_string())
+        ContestId("geen".into())
     }
 
     /// Create a `ContestId` representing "alle"
     pub fn alle() -> Self {
-        ContestId("alle".to_string())
+        ContestId("alle".into())
     }
 }
 
@@ -61,13 +61,13 @@ impl StringValueData for ContestId {
         Self: Sized,
     {
         if !s.is_empty() && CONTEST_ID_RE.is_match(s) {
-            Ok(ContestId(s.to_string()))
+            Ok(ContestId(s.into()))
         } else {
-            Err(InvalidContestIdError(s.to_string()))
+            Err(InvalidContestIdError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }
@@ -116,8 +116,8 @@ impl StringValueData for ContestIdGeen {
         }
     }
 
-    fn to_raw_value(&self) -> String {
-        Self::GEEN.to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        Self::GEEN.into()
     }
 }
 
