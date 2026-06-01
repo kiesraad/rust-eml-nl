@@ -19,9 +19,9 @@
 //!
 //! This specific format appears to be an attempt to make importing in Dutch
 //! language versions of Excel easy. To facilitate this, the format also emits
-//! an UTF-8 BOM as the first two bytes, as without that, Excel would improperly
-//! import the file as if it was encoded in *Windows-1252* encoding. Normally
-//! the format does not include a final newline.
+//! an UTF-8 BOM as the first three bytes, as without that, Excel would
+//! improperly import the file as if it was encoded in *Windows-1252* encoding.
+//! Normally the format does not include a final newline.
 //!
 //! This library does however support disabling the UTF-8 BOM and introducing
 //! a final newline in case Excel is not the primary target of the CSV file.
