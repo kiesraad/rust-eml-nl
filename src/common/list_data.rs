@@ -151,7 +151,7 @@ pub struct ListDataContest {
     pub id: StringValue<ContestId>,
 
     /// An optional name for the contest.
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 }
 
 impl ListDataContest {
@@ -164,7 +164,7 @@ impl ListDataContest {
     }
 
     /// Set the name of the contest.
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+    pub fn with_name(mut self, name: impl Into<Box<str>>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -193,7 +193,7 @@ impl EMLElement for ListDataContest {
 
 /// Type representing the combination a list belongs to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ListDataBelongsToCombination(String);
+pub struct ListDataBelongsToCombination(Box<str>);
 
 impl ListDataBelongsToCombination {
     /// Create a new `ListDataBelongsToCombination` with the given combination identifier.
@@ -226,13 +226,13 @@ impl StringValueData for ListDataBelongsToCombination {
                 .map(|c| c.is_ascii_alphabetic())
                 .unwrap_or(false)
         {
-            Ok(ListDataBelongsToCombination(s.to_string()))
+            Ok(ListDataBelongsToCombination(s.into()))
         } else {
-            Err(InvalidListDataBelongsToCombinationError(s.to_string()))
+            Err(InvalidListDataBelongsToCombinationError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }
@@ -247,7 +247,7 @@ mod tests {
         let list_data = ListData::new(true)
             .with_publication_language(PublicationLanguage::Frisian)
             .with_belongs_to_set(NonZeroU64::new(1).unwrap())
-            .with_belongs_to_combination(ListDataBelongsToCombination("A".to_string()));
+            .with_belongs_to_combination(ListDataBelongsToCombination("A".into()));
 
         assert_eq!(list_data.publish_gender.raw(), "true");
         assert_eq!(
@@ -267,7 +267,7 @@ mod tests {
             ListDataContest::new(ContestId::new("1234").unwrap()).with_name("Test Contest");
 
         assert_eq!(contest.id.raw(), "1234");
-        assert_eq!(contest.name.as_ref().unwrap(), "Test Contest");
+        assert_eq!(contest.name.as_ref().unwrap().as_ref(), "Test Contest");
     }
 
     #[test]
@@ -288,7 +288,7 @@ mod tests {
         assert_eq!(
             list_data.belongs_to_combination,
             Some(StringValue::Parsed(ListDataBelongsToCombination(
-                "A".to_string()
+                "A".into()
             )))
         );
         assert_eq!(

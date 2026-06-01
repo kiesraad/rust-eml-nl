@@ -15,12 +15,12 @@ pub struct ElectionDomain {
     /// Identifier of the election domain
     pub id: Option<StringValue<ElectionDomainId>>,
     /// Name of the election domain
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl ElectionDomain {
     /// Create a new ElectionDomain
-    pub fn new(id: Option<ElectionDomainId>, name: impl Into<String>) -> Self {
+    pub fn new(id: Option<ElectionDomainId>, name: impl Into<Box<str>>) -> Self {
         ElectionDomain {
             id: id.map(StringValue::from_value),
             name: name.into(),
@@ -56,7 +56,7 @@ mod tests {
     fn test_election_domain_construction() {
         let ed = ElectionDomain::new(Some(ElectionDomainId::new("1234").unwrap()), "Test Domain");
         assert_eq!(ed.id.as_ref().unwrap().raw(), "1234");
-        assert_eq!(ed.name, "Test Domain");
+        assert_eq!(ed.name.as_ref(), "Test Domain");
     }
 
     #[test]
@@ -66,7 +66,7 @@ mod tests {
         );
         let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(ed.id.as_ref().unwrap().raw(), "1234");
-        assert_eq!(ed.name, "Test Domain");
+        assert_eq!(ed.name.as_ref(), "Test Domain");
 
         let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
         assert_eq!(xml_output, xml);
@@ -79,7 +79,7 @@ mod tests {
         );
         let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert!(ed.id.is_none());
-        assert_eq!(ed.name, "Test Domain");
+        assert_eq!(ed.name.as_ref(), "Test Domain");
         let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
         assert_eq!(xml_output, xml);
     }

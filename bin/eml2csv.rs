@@ -413,7 +413,7 @@ fn process(
         // output row for affiliation
         output.row(
             [
-                Cow::Owned(aff_id.to_raw_value()),
+                Cow::Owned(aff_id.to_raw_value().into()),
                 Cow::Borrowed(aff_name),
                 Cow::Borrowed(""),
                 Cow::Borrowed(""),
@@ -441,7 +441,7 @@ fn process(
                 [
                     Cow::Borrowed(""),
                     Cow::Borrowed(""),
-                    Cow::Owned(cand_id.to_raw_value()),
+                    Cow::Owned(cand_id.to_raw_value().into()),
                     Cow::Borrowed(cand_name),
                     Cow::Owned(cv.valid_votes.to_string()),
                 ]

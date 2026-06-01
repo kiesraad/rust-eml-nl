@@ -10,12 +10,12 @@ pub struct ReportingUnitIdentifier {
     /// Id of the reporting unit.
     pub id: StringValue<ReportingUnitIdentifierId>,
     /// Name of the reporting unit.
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl ReportingUnitIdentifier {
     /// Create a new `ReportingUnitIdentifier` with the given id and name.
-    pub fn new(id: impl Into<ReportingUnitIdentifierId>, name: impl Into<String>) -> Self {
+    pub fn new(id: impl Into<ReportingUnitIdentifierId>, name: impl Into<Box<str>>) -> Self {
         ReportingUnitIdentifier {
             id: StringValue::from_value(id.into()),
             name: name.into(),
@@ -55,7 +55,7 @@ mod tests {
         let reporting_unit_identifier = ReportingUnitIdentifier::new(id, "Test");
 
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
-        assert_eq!(reporting_unit_identifier.name, "Test");
+        assert_eq!(reporting_unit_identifier.name.as_ref(), "Test");
     }
 
     #[test]
@@ -68,7 +68,7 @@ mod tests {
         let reporting_unit_identifier =
             ReportingUnitIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
-        assert_eq!(reporting_unit_identifier.name, "Test");
+        assert_eq!(reporting_unit_identifier.name.as_ref(), "Test");
 
         let xml_output = test_write_eml_element(&reporting_unit_identifier, &[NS_EML]).unwrap();
         assert_eq!(xml_output, xml);

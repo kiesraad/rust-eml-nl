@@ -70,8 +70,8 @@ impl StringValueData for CandidateId {
         Ok(CandidateId::new(value))
     }
 
-    fn to_raw_value(&self) -> String {
-        self.0.to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.0.to_string().into()
     }
 }
 

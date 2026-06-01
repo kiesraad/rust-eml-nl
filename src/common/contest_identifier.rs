@@ -23,7 +23,7 @@ impl ContestIdentifier {
     pub fn is_geen(&self) -> bool {
         match &self.id {
             StringValue::Parsed(id) => id.is_geen(),
-            StringValue::Raw(s) => s == "geen",
+            StringValue::Raw(s) => s.as_ref() == "geen",
         }
     }
 
@@ -31,7 +31,7 @@ impl ContestIdentifier {
     pub fn is_alle(&self) -> bool {
         match &self.id {
             StringValue::Parsed(id) => id.is_alle(),
-            StringValue::Raw(s) => s == "alle",
+            StringValue::Raw(s) => s.as_ref() == "alle",
         }
     }
 

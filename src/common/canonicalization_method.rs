@@ -6,12 +6,12 @@ use crate::{
 /// XML CanonicalizationMethod element
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalizationMethod {
-    algorithm: String,
+    algorithm: Box<str>,
 }
 
 impl CanonicalizationMethod {
     /// Create a new CanonicalizationMethod with the given algorithm.
-    pub fn new(algorithm: impl Into<String>) -> Self {
+    pub fn new(algorithm: impl Into<Box<str>>) -> Self {
         CanonicalizationMethod {
             algorithm: algorithm.into(),
         }
@@ -26,7 +26,7 @@ impl EMLElement for CanonicalizationMethod {
         Ok(collect_struct!(
             elem,
             CanonicalizationMethod {
-                algorithm: elem.attribute_value_req("Algorithm")?.into_owned(),
+                algorithm: elem.attribute_value_req("Algorithm")?.into(),
             }
         ))
     }
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn test_canonicalization_method_construction() {
         let method = CanonicalizationMethod::new("test-algorithm");
-        assert_eq!(method.algorithm, "test-algorithm");
+        assert_eq!(method.algorithm.as_ref(), "test-algorithm");
     }
 
     #[test]
@@ -55,7 +55,7 @@ mod tests {
             r#"<ds:CanonicalizationMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="test-algorithm"/>"#,
         );
         let method = CanonicalizationMethod::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(method.algorithm, "test-algorithm");
+        assert_eq!(method.algorithm.as_ref(), "test-algorithm");
 
         let xml_output = test_write_eml_element(&method, &[NS_DS]).unwrap();
         assert_eq!(xml_output, xml);

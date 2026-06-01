@@ -7,16 +7,16 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct LocalityName {
     /// Name of the locality
-    pub name: String,
+    pub name: Box<str>,
     /// Type of the locality, if any
-    pub locality_type: Option<String>,
+    pub locality_type: Option<Box<str>>,
     /// Associated code for the locality, if any
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl LocalityName {
     /// Creates a new `LocalityName` with the given name and no type or code.
-    pub fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<Box<str>>) -> Self {
         LocalityName {
             name: name.into(),
             locality_type: None,
@@ -25,13 +25,13 @@ impl LocalityName {
     }
 
     /// Sets the type of the locality and returns the modified `LocalityName`.
-    pub fn with_type(mut self, locality_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, locality_type: impl Into<Box<str>>) -> Self {
         self.locality_type = Some(locality_type.into());
         self
     }
 
     /// Sets the code of the locality and returns the modified `LocalityName`.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -39,6 +39,12 @@ impl LocalityName {
 
 impl From<String> for LocalityName {
     fn from(name: String) -> Self {
+        LocalityName::new(name)
+    }
+}
+
+impl From<Box<str>> for LocalityName {
+    fn from(name: Box<str>) -> Self {
         LocalityName::new(name)
     }
 }
@@ -56,8 +62,8 @@ impl EMLElement for LocalityName {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(LocalityName {
             name: elem.text_without_children()?,
-            locality_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
-            code: elem.attribute_value("Code")?.map(|s| s.into_owned()),
+            locality_type: elem.attribute_value("Type")?.map(|s| s.into()),
+            code: elem.attribute_value("Code")?.map(|s| s.into()),
         })
     }
 
@@ -83,7 +89,7 @@ mod tests {
         let loc = LocalityName::new("Amsterdam")
             .with_type("City")
             .with_code("AMS");
-        assert_eq!(loc.name, "Amsterdam");
+        assert_eq!(loc.name.as_ref(), "Amsterdam");
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));
     }
@@ -94,7 +100,7 @@ mod tests {
             r#"<xal:LocalityName xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Type="City" Code="AMS">Amsterdam</xal:LocalityName>"#,
         );
         let loc = LocalityName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(loc.name, "Amsterdam");
+        assert_eq!(loc.name.as_ref(), "Amsterdam");
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));
 

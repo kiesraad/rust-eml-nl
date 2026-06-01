@@ -14,7 +14,7 @@ static REPORTING_UNIT_IDENTIFIER_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// A string of type ReportingUnitIdentifier id as defined in the EML_NL specification
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct ReportingUnitIdentifierId(String);
+pub struct ReportingUnitIdentifierId(Box<str>);
 
 impl ReportingUnitIdentifierId {
     /// Create a new ReportingUnitIdentifierId from a string, validating its format
@@ -40,13 +40,13 @@ impl StringValueData for ReportingUnitIdentifierId {
         Self: Sized,
     {
         if REPORTING_UNIT_IDENTIFIER_ID_RE.is_match(s) {
-            Ok(ReportingUnitIdentifierId(s.to_string()))
+            Ok(ReportingUnitIdentifierId(s.into()))
         } else {
-            Err(InvalidReportingUnitIdentifierIdError(s.to_string()))
+            Err(InvalidReportingUnitIdentifierIdError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }

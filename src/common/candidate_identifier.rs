@@ -23,7 +23,7 @@ pub struct CandidateIdentifier {
     pub short_code: Option<StringValue<NameShortCode>>,
 
     /// The expected confirmation reference of the candidate.
-    pub expected_confirmation_reference: Option<String>,
+    pub expected_confirmation_reference: Option<Box<str>>,
 }
 
 impl CandidateIdentifier {
@@ -50,7 +50,7 @@ impl CandidateIdentifier {
     }
 
     /// Set the expected confirmation reference of the candidate.
-    pub fn with_expected_confirmation_reference(mut self, reference: impl Into<String>) -> Self {
+    pub fn with_expected_confirmation_reference(mut self, reference: impl Into<Box<str>>) -> Self {
         self.expected_confirmation_reference = Some(reference.into());
         self
     }
@@ -72,7 +72,7 @@ impl EMLElement for CandidateIdentifier {
         let short_code = elem.string_value_attr_opt("ShortCode")?;
         let expected_confirmation_reference = elem
             .attribute_value("ExpectedConfirmationReference")?
-            .map(|s| s.into_owned());
+            .map(|s| s.into());
 
         struct CandidateIdentifierTmp {
             short_code: Option<StringValue<NameShortCode>>,
@@ -153,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             can_id.expected_confirmation_reference,
-            Some("Ref123".to_string())
+            Some("Ref123".into())
         );
 
         let xml_output = test_write_eml_element(&can_id, &[NS_EML]).unwrap();
@@ -180,7 +180,7 @@ mod tests {
         );
         assert_eq!(
             can_id.expected_confirmation_reference,
-            Some("reference".to_string())
+            Some("reference".into())
         );
     }
 }

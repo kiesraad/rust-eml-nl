@@ -380,7 +380,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
 
     /// Extracts the text content of this element. If the element is an empty
     /// element or the element contains no text, this returns None.
-    pub fn text_without_children_opt(&mut self) -> Result<Option<String>, EMLError> {
+    pub fn text_without_children_opt(&mut self) -> Result<Option<Box<str>>, EMLError> {
         if self.is_empty {
             Ok(None)
         } else {
@@ -396,7 +396,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// Extracts the text content of this element, consuming all events until
     /// the end of the element. If anything other than text is found, this will
     /// return an error (not consuming everything).
-    pub fn text_without_children(&mut self) -> Result<String, EMLError> {
+    pub fn text_without_children(&mut self) -> Result<Box<str>, EMLError> {
         let mut text = String::new();
         loop {
             match self.next()? {
@@ -423,7 +423,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
                 }
             }
         }
-        Ok(text)
+        Ok(text.into())
     }
 
     /// Skip all remaining content/events in this element. Stops reading just
@@ -489,7 +489,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// The exact parsing behavior depends on the parsing mode set in the reader.
     pub(crate) fn string_value_from_text<'a, 'b, T: StringValueData>(
         &mut self,
-        text: String,
+        text: Box<str>,
         name: Option<QualifiedName<'a, 'b>>,
         span: Span,
     ) -> Result<StringValue<T>, EMLError> {
@@ -553,7 +553,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         let attr_name = attr_name.into();
         match self.attribute_value(attr_name.clone())? {
             Some(value) => Ok(Some(self.string_value_from_text(
-                value.into_owned(),
+                value.into(),
                 Some(attr_name),
                 self.span(),
             )?)),
@@ -576,9 +576,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             .attribute_value(attr_name.clone())?
             .or_else(|| default_value.map(Cow::Borrowed));
         match value {
-            Some(value) => {
-                self.string_value_from_text(value.into_owned(), Some(attr_name), self.span())
-            }
+            Some(value) => self.string_value_from_text(value.into(), Some(attr_name), self.span()),
             None => {
                 Err(EMLErrorKind::MissingAttribute(attr_name.as_owned())).with_span(self.span())
             }

@@ -327,7 +327,7 @@ pub struct ElectionResultElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -470,8 +470,8 @@ impl StringValueData for RankingType {
         RankingType::from_str(s).ok_or_else(|| InvalidRankingTypeError(s.to_string()))
     }
 
-    fn to_raw_value(&self) -> String {
-        self.as_str().to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.as_str().into()
     }
 }
 
@@ -537,8 +537,8 @@ impl StringValueData for YesNoType {
         Self::from_eml_value(s)
     }
 
-    fn to_raw_value(&self) -> String {
-        self.to_eml_value().to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_eml_value().into()
     }
 }
 
@@ -770,8 +770,8 @@ pub struct CandidateSelectionBuilder {
     name: Option<PersonNameStructure>,
     gender: Option<StringValue<Gender>>,
     qualifying_address: Option<MinimalQualifyingAddress>,
-    locality_name: Option<String>,
-    country_name_code: Option<String>,
+    locality_name: Option<Box<str>>,
+    country_name_code: Option<Box<str>>,
 }
 
 impl CandidateSelectionBuilder {
@@ -821,7 +821,7 @@ impl CandidateSelectionBuilder {
     ///
     /// Has no effect if the qualifying address is already set using the
     /// [`Self::qualifying_address`] method.
-    pub fn locality_name(mut self, locality_name: impl Into<String>) -> Self {
+    pub fn locality_name(mut self, locality_name: impl Into<Box<str>>) -> Self {
         self.locality_name = Some(locality_name.into());
         self
     }
@@ -830,7 +830,7 @@ impl CandidateSelectionBuilder {
     ///
     /// Has no effect if the qualifying address is already set using the
     /// [`Self::qualifying_address`] method.
-    pub fn country_name_code(mut self, country_name_code: impl Into<String>) -> Self {
+    pub fn country_name_code(mut self, country_name_code: impl Into<Box<str>>) -> Self {
         self.country_name_code = Some(country_name_code.into());
         self
     }
@@ -905,12 +905,12 @@ pub struct AffiliationSelection {
     pub id: StringValue<AffiliationId>,
 
     /// Name of the affiliation.
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl AffiliationSelection {
     /// Create a new AffiliationSelection with the given id and name.
-    pub fn new(id: impl Into<AffiliationId>, name: impl Into<String>) -> Self {
+    pub fn new(id: impl Into<AffiliationId>, name: impl Into<Box<str>>) -> Self {
         AffiliationSelection {
             id: StringValue::from_value(id.into()),
             name: name.into(),

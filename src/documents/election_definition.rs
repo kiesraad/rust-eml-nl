@@ -522,7 +522,7 @@ pub struct ElectionDefinitionElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: String,
+    pub name: Box<str>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -628,7 +628,7 @@ impl EMLElement for ElectionDefinitionContest {
             voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
                 // Default value of MaxVotes in EML is 1
-                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
+                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
         }))
@@ -661,12 +661,12 @@ impl EMLElement for ElectionDefinitionContest {
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionRegisteredParty {
     /// Name of the registered party (as registered at the CSB)
-    pub registered_appellation: String,
+    pub registered_appellation: Box<str>,
 }
 
 impl ElectionDefinitionRegisteredParty {
     /// Create a new registered party with the provided name.
-    pub fn new(registered_appellation: impl Into<String>) -> Self {
+    pub fn new(registered_appellation: impl Into<Box<str>>) -> Self {
         Self {
             registered_appellation: registered_appellation.into(),
         }
@@ -675,6 +675,12 @@ impl ElectionDefinitionRegisteredParty {
 
 impl From<String> for ElectionDefinitionRegisteredParty {
     fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<Box<str>> for ElectionDefinitionRegisteredParty {
+    fn from(value: Box<str>) -> Self {
         Self::new(value)
     }
 }
