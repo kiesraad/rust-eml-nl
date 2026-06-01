@@ -270,7 +270,7 @@ pub(crate) const EML_COUNT_DISTRICT_ID: &str = "510c";
 pub(crate) const EML_COUNT_CENTRAL_ID: &str = "510d";
 
 /// Type of Count document.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountType {
     /// Representing a `510a` document, containing the count for a polling station.
     PollingStation,
@@ -775,6 +775,23 @@ impl TotalVotes {
         selections_per_affiliation(&self.selections)
     }
 
+    /// Return the number of valid votes for the given candidate.
+    pub fn find_candidate_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+        candidate_id: CandidateId,
+    ) -> Result<u64, EMLError> {
+        find_candidate_valid_votes(&self.selections, affiliation_id, candidate_id)
+    }
+
+    /// Return the number of valid votes for the given affiliation.
+    pub fn find_affiliation_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+    ) -> Result<u64, EMLError> {
+        find_affiliation_valid_votes(&self.selections, affiliation_id)
+    }
+
     /// Return the total number of blank votes.
     pub fn blank_votes(&self) -> Result<&StringValue<u64>, EMLError> {
         self.rejected_votes
@@ -953,6 +970,23 @@ impl ReportingUnitVotes {
         selections_per_affiliation(&self.selections)
     }
 
+    /// Return the number of valid votes for the given candidate.
+    pub fn find_candidate_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+        candidate_id: CandidateId,
+    ) -> Result<u64, EMLError> {
+        find_candidate_valid_votes(&self.selections, affiliation_id, candidate_id)
+    }
+
+    /// Return the number of valid votes for the given affiliation.
+    pub fn find_affiliation_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+    ) -> Result<u64, EMLError> {
+        find_affiliation_valid_votes(&self.selections, affiliation_id)
+    }
+
     /// Return the number of blank votes for this reporting unit.
     pub fn blank_votes(&self) -> Result<&StringValue<u64>, EMLError> {
         self.rejected_votes
@@ -1032,6 +1066,43 @@ fn selections_per_affiliation(
     }
 
     Ok(result)
+}
+
+fn find_candidate_valid_votes(
+    selections: &[ElectionCountSelection],
+    affiliation_id: AffiliationId,
+    candidate_id: CandidateId,
+) -> Result<u64, EMLError> {
+    let mut last_affiliation_id = None;
+    for selection in selections {
+        if let ElectionCountSelectionType::Affiliation(affiliation) = &selection.selection_type {
+            last_affiliation_id = Some(affiliation.id.copied_value()?);
+        }
+
+        if let ElectionCountSelectionType::Candidate(candidate) = &selection.selection_type
+            && last_affiliation_id == Some(affiliation_id)
+            && candidate.identifier.id.copied_value()? == candidate_id
+        {
+            return selection.valid_votes.copied_value();
+        }
+    }
+
+    Err(EMLErrorKind::UnknownCandidate(affiliation_id, candidate_id).without_span())
+}
+
+fn find_affiliation_valid_votes(
+    selections: &[ElectionCountSelection],
+    affiliation_id: AffiliationId,
+) -> Result<u64, EMLError> {
+    for selection in selections {
+        if let ElectionCountSelectionType::Affiliation(affiliation) = &selection.selection_type
+            && affiliation.id.copied_value()? == affiliation_id
+        {
+            return selection.valid_votes.copied_value();
+        }
+    }
+
+    Err(EMLErrorKind::UnknownAffiliation(affiliation_id).without_span())
 }
 
 /// A builder for [`ReportingUnitVotes`].
@@ -2144,7 +2215,7 @@ mod tests {
         let xml = ec.write_eml_root_str(true, true).unwrap();
         assert_eq!(
             xml,
-            include_str!("../../test-emls/election_count/eml510b_construction_output.eml.xml")
+            include_str!("../../test-files/election_count/eml510b_construction_output.eml.xml")
         );
 
         // check if it still is the same after a second parse and write
@@ -2155,7 +2226,7 @@ mod tests {
 
     #[test]
     fn test_parse_510b() {
-        let xml = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
+        let xml = include_str!("../../test-files/election_count/deserialize_eml510b_test.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
@@ -2166,7 +2237,7 @@ mod tests {
 
     #[test]
     fn test_parse_510d() {
-        let xml = include_str!("../../test-emls/election_count/deserialize_eml510d_test.eml.xml");
+        let xml = include_str!("../../test-files/election_count/deserialize_eml510d_test.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
@@ -2178,7 +2249,7 @@ mod tests {
     #[test]
     fn test_parse_with_investigations() {
         let xml =
-            include_str!("../../test-emls/election_count/eml510b_with_investigations.eml.xml");
+            include_str!("../../test-files/election_count/eml510b_with_investigations.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)

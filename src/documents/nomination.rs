@@ -1184,7 +1184,7 @@ mod tests {
         let xml = nomination.write_eml_root_str(true, true).unwrap();
         assert_eq!(
             xml,
-            include_str!("../../test-emls/nomination/eml210_construction_output.eml.xml")
+            include_str!("../../test-files/nomination/eml210_construction_output.eml.xml")
         );
 
         let parsed = Nomination::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
@@ -1194,7 +1194,7 @@ mod tests {
 
     #[test]
     fn test_nomination_parse_and_write_roundtrip() {
-        let doc = include_str!("../../test-emls/nomination/eml210_test.eml.xml");
+        let doc = include_str!("../../test-files/nomination/eml210_test.eml.xml");
         let nomination = Nomination::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML 210 document");
