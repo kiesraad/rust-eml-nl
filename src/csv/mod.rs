@@ -284,7 +284,7 @@ impl ElectionCount {
             normalise(&format!(
                 "{}{}",
                 election_category.to_eml_value(),
-                election_date.date.year().to_string(),
+                election_date.date.year(),
             ))
         };
         if election_category == ElectionCategory::GR {
