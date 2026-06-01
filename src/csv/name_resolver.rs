@@ -4,6 +4,11 @@ use crate::{
 };
 
 /// A trait for resolving the names of candidates and affiliations based on their ids.
+///
+/// The OSV4-3 format includes names of candidates and affiliations, whereas the
+/// ElectionCount document does not include those. To resolve these, the eml2csv
+/// utility uses a CandidateLists document. This trait allows external libraries
+/// to use alternative implementations for retrieving these details.
 pub trait NameResolver {
     /// Resolve the name for an affiliation given its id.
     /// Returns None if the affiliation id is not found.

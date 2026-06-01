@@ -2257,4 +2257,88 @@ mod tests {
                 .is_ok()
         );
     }
+
+    #[test]
+    fn test_total_votes_find_votes() {
+        let xml = include_str!("../../test-files/csv/Telling_GR2022_WestMaasenWaal.eml.xml");
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        let contest = eml.count.election.contests.first().unwrap();
+        let total_votes = contest.total_votes.as_ref().unwrap();
+
+        assert_eq!(
+            total_votes
+                .find_affiliation_valid_votes(AffiliationId::from_u64(1).unwrap())
+                .unwrap(),
+            1893
+        );
+        assert_eq!(
+            total_votes
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(1).unwrap(),
+                    CandidateId::from_u64(1).unwrap()
+                )
+                .unwrap(),
+            581
+        );
+        assert_eq!(
+            total_votes
+                .find_affiliation_valid_votes(AffiliationId::from_u64(2).unwrap())
+                .unwrap(),
+            1345
+        );
+        assert_eq!(
+            total_votes
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(2).unwrap(),
+                    CandidateId::from_u64(2).unwrap()
+                )
+                .unwrap(),
+            85
+        );
+    }
+
+    #[test]
+    fn test_reporting_unit_find_votes() {
+        let xml = include_str!("../../test-files/csv/Telling_GR2022_WestMaasenWaal.eml.xml");
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        let contest = eml.count.election.contests.first().unwrap();
+        let first_ps = contest.reporting_unit_votes.first().unwrap();
+
+        assert_eq!(
+            first_ps
+                .find_affiliation_valid_votes(AffiliationId::from_u64(1).unwrap())
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            first_ps
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(1).unwrap(),
+                    CandidateId::from_u64(1).unwrap()
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            first_ps
+                .find_affiliation_valid_votes(AffiliationId::from_u64(2).unwrap())
+                .unwrap(),
+            181
+        );
+        assert_eq!(
+            first_ps
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(2).unwrap(),
+                    CandidateId::from_u64(2).unwrap()
+                )
+                .unwrap(),
+            0
+        );
+    }
 }

@@ -220,12 +220,14 @@
 //! underscore (`_`) and then followed by the name of the authority (all in
 //! lower case again).
 
+mod matcher;
 mod name_resolver;
 mod utils;
 mod writer;
 
 use std::{borrow::Cow, path::PathBuf};
 
+pub use matcher::{EMLMatchError, find_matching_documents};
 pub use name_resolver::NameResolver;
 use tracing::{debug, info};
 pub use writer::CsvWriter;
@@ -291,6 +293,19 @@ impl ElectionCount {
     }
 
     /// Convert the ElectionCount to a CSV string in the OSV4-3 format.
+    ///
+    /// The OSV4-3 format prints the names of candidates and affiliations in
+    /// certain rows, but this data is not available in the ElectionCount
+    /// document. To deal with this, this method takes a [`NameResolver`]
+    /// implementation. The eml2csv binary uses a matching
+    /// [`CandidateLists`](crate::documents::candidate_lists::CandidateLists)
+    /// document for this. Note that the caller needs to make sure that these
+    /// documents are for the same elections.
+    ///
+    /// The OSV4-3 format normally includes an UTF-8 BOM and does not include
+    /// a final newline. To achieve this behavior, the `include_bom` parameter
+    /// should be set to `true`, whereas the `include_final_newline` parameter
+    /// should be set to `false`.
     pub fn as_osv4_3_csv(
         &self,
         name_resolver: &impl NameResolver,

@@ -3,10 +3,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use clap::{Parser, error::ErrorKind};
 use eml_nl::{
-    documents::{EML, candidate_lists::CandidateLists, election_count::ElectionCount},
+    csv::find_matching_documents,
+    documents::EML,
     io::{EMLParsingMode, EMLRead as _},
 };
-use tracing::{debug, error, info, level_filters::LevelFilter};
+use tracing::{debug, info, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
 
 /// Arguments for the eml2csv CLI tool
@@ -144,80 +145,6 @@ fn load_and_parse(path: impl AsRef<Path>) -> Result<EML, anyhow::Error> {
     Ok(eml)
 }
 
-/// Find the relevant documents and contests in both EML files, ensuring they match.
-fn find_matching_documents<'a>(
-    first_xml: &'a EML,
-    second_xml: &'a EML,
-) -> Result<(&'a ElectionCount, &'a CandidateLists), anyhow::Error> {
-    // Determine which file is counts and which is candidates based on document type
-    let (counts, candidates) = if let Some(election_count) = first_xml.as_count_doc() {
-        debug!("First file is identified as counts document");
-        if let Some(candidate_lists) = second_xml.as_candidate_lists_doc() {
-            debug!("Second file is identified as candidates document");
-            (election_count, candidate_lists)
-        } else {
-            error!("Second file does not contain a valid EML-230b candidates document");
-            anyhow::bail!(
-                "I got an EML-510 counts document, but you did not provide a valid EML-230b candidates file"
-            );
-        }
-    } else if let Some(candidate_lists) = first_xml.as_candidate_lists_doc() {
-        debug!("First file is identified as candidates document");
-        if let Some(election_count) = second_xml.as_count_doc() {
-            debug!("Second file is identified as counts document");
-            (election_count, candidate_lists)
-        } else {
-            error!("Second file does not contain a valid EML-510 counts document");
-            anyhow::bail!(
-                "I got an EML-230b candidates document, but you did not provide a valid EML-510 counts file"
-            );
-        }
-    } else {
-        error!("Neither file provided contains a valid counts or candidates document");
-        anyhow::bail!(
-            "You must provide a valid EML-510 counts file and a valid EML-230b candidates file"
-        );
-    };
-
-    // Make sure both files are talking about the same election
-    let counts_election_id = &counts.count.election.identifier.id;
-    let candidates_election_id = &candidates.candidate_list.election.identifier.id;
-    if counts_election_id != candidates_election_id {
-        error!("Failed to match election ids of documents provided");
-        anyhow::bail!(
-            "Election ids of files provided do not match: '{}' vs '{}'",
-            counts_election_id.raw(),
-            candidates_election_id.raw()
-        );
-    }
-
-    // Extract the contests from both files
-    let count_contest = counts
-        .count
-        .election
-        .contests
-        .first()
-        .context("No contests found in counts file")?;
-    let candidates_contest = candidates
-        .candidate_list
-        .election
-        .contests
-        .first()
-        .context("No contests found in candidates file")?;
-
-    // Make sure both files are talking about the same contest
-    if count_contest.identifier.id.raw() != candidates_contest.identifier.id.raw() {
-        error!("Failed to match contest ids of documents provided");
-        anyhow::bail!(
-            "Contest ids of files provided do not match: '{}' vs '{}'",
-            count_contest.identifier.id.raw(),
-            candidates_contest.identifier.id.raw()
-        );
-    }
-
-    Ok((counts, candidates))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,7 +178,7 @@ mod tests {
         .unwrap_err();
         assert_error_contains!(
             err,
-            "I got an EML-230b candidates document, but you did not provide a valid EML-510 counts file"
+            "EML-230b candidates document found, but missing EML-510 counts document"
         );
     }
 
@@ -267,7 +194,7 @@ mod tests {
         .unwrap_err();
         assert_error_contains!(
             err,
-            "I got an EML-510 counts document, but you did not provide a valid EML-230b candidates file"
+            "EML-510 counts document found, but missing EML-230b candidate lists document"
         );
     }
 
@@ -283,7 +210,7 @@ mod tests {
         .unwrap_err();
         assert_error_contains!(
             err,
-            "Election ids of files provided do not match: 'GR2022_Groningen' vs 'GR2022_WestMaasenWaal'"
+            "Election id of counts file ('GR2022_Groningen') does not match candidate lists id ('GR2022_WestMaasenWaal')"
         );
     }
 
@@ -299,7 +226,7 @@ mod tests {
         .unwrap_err();
         assert_error_contains!(
             err,
-            "Contest ids of files provided do not match: '6' vs '10'"
+            "Contest id of counts file ('6') does not match candidate lists id ('10')"
         );
     }
 
