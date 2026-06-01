@@ -258,6 +258,7 @@ impl ElectionCount {
         let election_identifier = &self.count.election.identifier;
         let election_id = election_identifier.id.cloned_value()?;
         let election_category = election_identifier.category.copied_value()?;
+        let election_date = election_identifier.election_date.copied_value()?;
         let authority_identifier = &self.managing_authority.authority_identifier;
         let authority_name = authority_identifier.name.as_deref().unwrap_or("");
         let authority_type = if self.count_type == CountType::Municipal {
@@ -270,11 +271,22 @@ impl ElectionCount {
             ""
         };
         debug!(
-            "Inputs for filename: authority name: '{}', election id: '{:?}', election category: '{:?}', authority type: '{}'",
-            authority_name, election_id, election_category, authority_type
+            "Inputs for filename: authority name: '{}', election id: '{:?}', election category: '{:?}', election date: '{:?}', authority type: '{}'",
+            authority_name, election_id, election_category, election_date, authority_type
         );
         let norm_authority_name = normalise(authority_name);
-        let norm_election_id = normalise(&election_id.value()[..6]);
+        let base_election_id_value = election_id.value();
+        let norm_election_id = if base_election_id_value.len() >= 6 {
+            normalise(&base_election_id_value[..6])
+        } else {
+            // backup in case election id is unexpectedly short
+            use chrono::Datelike as _;
+            normalise(&format!(
+                "{}{}",
+                election_category.to_eml_value(),
+                election_date.date.year().to_string(),
+            ))
+        };
         if election_category == ElectionCategory::GR {
             debug!("Election category is GR, omitting authority type from filename");
             Ok(PathBuf::from(format!(

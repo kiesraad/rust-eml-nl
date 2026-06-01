@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_gr2022_groningen() {
-        let err = process(
+        let res = process(
             "test-files/csv/Kandidatenlijsten_GR2022_Groningen.eml.xml",
             "test-files/csv/Telling_GR2022_Groningen.eml.xml",
             None::<PathBuf>,
@@ -241,14 +241,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            err.0,
+            res.0,
             include_str!("../test-files/csv/osv4-3_telling_gr2022_groningen.csv")
         );
     }
 
     #[test]
     fn test_gr2022_west_maas_en_waal_reverse() {
-        let err = process(
+        let res = process(
             "test-files/csv/Telling_GR2022_WestMaasenWaal.eml.xml",
             "test-files/csv/Kandidatenlijsten_GR2022_WestMaasenWaal.eml.xml",
             None::<PathBuf>,
@@ -257,7 +257,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            err.0,
+            res.0,
             include_str!("../test-files/csv/osv4-3_telling_gr2022_westmaasenwaal.csv")
         );
     }
