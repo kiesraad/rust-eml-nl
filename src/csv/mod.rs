@@ -10,12 +10,12 @@
 //!
 //! ## Format definition
 //!
-//! The OSV4-3 format broadly consists of a header block, followed by some
-//! statistical information, followed by detailed counts for each affiliation
-//! and candidate. The format uses a semicolon (`;`) as the separator, uses
-//! quotes (`"`) around each field, unless the field is empty. Technically this
-//! would make the format more of a *SSV*, but the name *CSV* is more widely
-//! known and accepted for formats following this general style.
+//! The OSV4-3 format broadly consists of some meta information and then vote
+//! counts for each candidate and affiliation in an election. The format uses a
+//! semicolon (`;`) as the separator, uses quotes (`"`) around each field,
+//! unless the field is empty. Technically this would make the format more of a
+//! *SSV*, but the name *CSV* is more widely known and accepted for formats
+//! following this general style.
 //!
 //! This specific format appears to be an attempt to make importing in Dutch
 //! language versions of Excel easy. To facilitate this, the format also emits
@@ -108,7 +108,6 @@
 //! ```csv
 //! "Lijstnummer";"Aanduiding";"Volgnummer";"Naam kandidaat";"Totaal"
 //! "Gebiednummer";;;;
-//! "Postcode";;;;
 //! ```
 //!
 //! And here is a simplied example of the header for a GSB election count
