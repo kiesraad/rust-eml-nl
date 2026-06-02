@@ -3,7 +3,7 @@ name = "eml-nl"
 version = "0.5.0"
 edition = "2024"
 license = "EUPL-1.2"
-rust-version = "1.91" # MSRV
+rust-version = "1.95" # MSRV
 description = "Parse, manipulate and emit EML_NL documents"
 documentation = "https://docs.rs/eml-nl"
 repository = "https://github.com/kiesraad/rust-eml-nl"
@@ -49,3 +49,7 @@ tokio = { version = "1.49.0", optional = true, features = ["io-std", "io-util", 
 tracing-subscriber = { version = "0.3.22", optional = true, default-features = false, features = ["fmt", "env-filter"] }
 # Used for SHA-256 hashing of EML files (in validator)
 sha2 = { version = "0.10.9", optional = true , default-features = false }
+
+[dev-dependencies]
+# For showing much nicer diffs in test assertions
+pretty_assertions = "1.4.1"

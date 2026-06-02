@@ -1016,7 +1016,7 @@ mod tests {
         let xml = election_result.write_eml_root_str(true, true).unwrap();
         assert_eq!(
             xml,
-            include_str!("../../test-emls/election_result/eml520_construction_output.eml.xml")
+            include_str!("../../test-files/election_result/eml520_construction_output.eml.xml")
         );
 
         // check if it still is the same after a second parse and write

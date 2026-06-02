@@ -1790,7 +1790,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-emls/candidate_lists/eml230b_candidate_lists_construction_output.eml.xml"
+                "../../test-files/candidate_lists/eml230b_candidate_lists_construction_output.eml.xml"
             )
         );
 
@@ -1805,7 +1805,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_document_type.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_document_type.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1819,7 +1819,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1833,7 +1833,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1847,7 +1847,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1861,7 +1861,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1875,7 +1875,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_category.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_category.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1889,7 +1889,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1903,7 +1903,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_test_without_addresses.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_test_without_addresses.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )

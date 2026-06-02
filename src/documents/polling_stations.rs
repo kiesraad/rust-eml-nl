@@ -1102,7 +1102,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-emls/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
+                "../../test-files/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
             )
         );
 
@@ -1114,8 +1114,9 @@ mod tests {
 
     #[test]
     fn test_read_polling_stations_with_max_votes_empty() {
-        let xml =
-            include_str!("../../test-emls/polling_stations/eml110b_empty_number_of_voters.eml.xml");
+        let xml = include_str!(
+            "../../test-files/polling_stations/eml110b_empty_number_of_voters.eml.xml"
+        );
 
         let parsed = PollingStations::parse_eml(xml, EMLParsingMode::Strict).unwrap();
         // empty MaxVotes should be parsed to 1, because 1 is the default value according to the EML standard
@@ -1174,7 +1175,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-emls/polling_stations/eml110b_empty_polling_station.eml.xml"
+                    "../../test-files/polling_stations/eml110b_empty_polling_station.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1188,7 +1189,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-emls/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
+                    "../../test-files/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1200,7 +1201,7 @@ mod tests {
     #[test]
     fn test_one_station() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-emls/polling_stations/eml110b_1_station.eml.xml"),
+            include_str!("../../test-files/polling_stations/eml110b_1_station.eml.xml"),
             EMLParsingMode::Strict,
         )
         .unwrap();
@@ -1213,7 +1214,7 @@ mod tests {
     #[test]
     fn test_less_than_10_stations() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-emls/polling_stations/eml110b_less_than_10_stations.eml.xml"),
+            include_str!("../../test-files/polling_stations/eml110b_less_than_10_stations.eml.xml"),
             EMLParsingMode::Strict,
         )
         .unwrap();
