@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use quick_xml::{
-    NsReader,
+    NsReader, XmlVersion,
     escape::unescape,
     events::{BytesStart, Event},
     name::{QName, ResolveResult},
@@ -179,6 +179,7 @@ impl EMLParsingMode {
 /// works on byte slices. Furthermore, all files should be encoded in UTF-8.
 pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
+    xml_version: XmlVersion,
     parsing_mode: EMLParsingMode,
     errors: Vec<EMLError>,
 }
@@ -192,6 +193,7 @@ impl<'a> EMLReader<'a> {
     pub fn from_reader(reader: NsReader<&'a [u8]>, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
         EMLReader {
             inner: reader,
+            xml_version: XmlVersion::default(),
             parsing_mode,
             errors: Vec::new(),
         }
@@ -217,6 +219,12 @@ impl<'a> EMLReader<'a> {
             }
         };
         let span = Span::new(span_start, self.inner.buffer_position());
+
+        // Capture XML version from declaration
+        if let Event::Decl(d) = &event {
+            self.xml_version = d.xml_version().with_span(span)?;
+        }
+
         Ok((event, span))
     }
 
@@ -354,8 +362,11 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             if self.is_resolved_name(attr.key, self.span, name.clone(), true)? {
                 return Ok(Some(
-                    attr.decode_and_unescape_value(self.reader.inner.decoder())
-                        .with_span(self.span)?,
+                    attr.decoded_and_normalized_value(
+                        self.reader.xml_version,
+                        self.reader.inner.decoder(),
+                    )
+                    .with_span(self.span)?,
                 ));
             }
         }
@@ -371,7 +382,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             let name = self.get_resolved_name(attr.key, self.span, true)?;
             let value = attr
-                .decode_and_unescape_value(self.reader.inner.decoder())
+                .decoded_and_normalized_value(self.reader.xml_version, self.reader.inner.decoder())
                 .with_span(self.span)?;
             attributes.insert(name, value);
         }
@@ -401,11 +412,11 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         loop {
             match self.next()? {
                 Some((Event::Text(t), span)) => {
-                    let decoded = t.xml_content().with_span(span)?;
+                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
                     text.push_str(decoded.as_ref());
                 }
                 Some((Event::CData(t), span)) => {
-                    let decoded = t.xml_content().with_span(span)?;
+                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
                     text.push_str(decoded.as_ref());
                 }
                 Some((Event::GeneralRef(r), span)) => {
