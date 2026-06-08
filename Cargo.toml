@@ -30,7 +30,7 @@ required-features = ["bin-utils"]
 # Used for simpler error handling and reporting
 thiserror = { version = "2.0", default-features = false }
 # Used as our XML parsing library
-quick-xml = "0.38.2"
+quick-xml = "0.40.0"
 # Used for logging and diagnostics
 tracing = { version = "0.1.43", default-features = false }
 # Used for date and time handling
