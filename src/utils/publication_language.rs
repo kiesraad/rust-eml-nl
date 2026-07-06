@@ -53,8 +53,8 @@ impl StringValueData for PublicationLanguage {
         Self::from_eml_value(s)
     }
 
-    fn to_raw_value(&self) -> String {
-        self.to_eml_value().to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_eml_value().into()
     }
 }
 

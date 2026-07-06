@@ -215,6 +215,7 @@ impl ElectionDefinitionBuilder {
     }
 
     /// Set the maximum number of votes for the election (number of eligible voters).
+    /// EML specifies the default value as 1, so providing the value of 1 will result in an empty xml tag.
     pub fn max_votes(mut self, max_votes: impl Into<NonZeroU64>) -> Self {
         self.max_votes = Some(StringValue::from_value(max_votes.into()));
         self
@@ -520,7 +521,7 @@ pub struct ElectionDefinitionElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: String,
+    pub name: Box<str>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -598,6 +599,7 @@ pub struct ElectionDefinitionContest {
     pub voting_method: StringValue<VotingMethod>,
 
     /// Maximum number of votes allowed.
+    /// EML specifies the default value as 1, so an empty tag will be parsed as 1 and vice versa.
     pub max_votes: StringValue<NonZeroU64>,
 }
 
@@ -624,7 +626,8 @@ impl EMLElement for ElectionDefinitionContest {
             identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
             voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
-                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".to_string());
+                // Default value of MaxVotes in EML is 1
+                let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
         }))
@@ -638,6 +641,7 @@ impl EMLElement for ElectionDefinitionContest {
             })?
             .child(("MaxVotes", NS_EML), |elem| {
                 let raw_text = self.max_votes.raw();
+                // Default value of MaxVotes in EML is 1
                 if raw_text == "1" {
                     elem.empty()
                 } else {
@@ -656,12 +660,12 @@ impl EMLElement for ElectionDefinitionContest {
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionRegisteredParty {
     /// Name of the registered party (as registered at the CSB)
-    pub registered_appellation: String,
+    pub registered_appellation: Box<str>,
 }
 
 impl ElectionDefinitionRegisteredParty {
     /// Create a new registered party with the provided name.
-    pub fn new(registered_appellation: impl Into<String>) -> Self {
+    pub fn new(registered_appellation: impl Into<Box<str>>) -> Self {
         Self {
             registered_appellation: registered_appellation.into(),
         }
@@ -670,6 +674,12 @@ impl ElectionDefinitionRegisteredParty {
 
 impl From<String> for ElectionDefinitionRegisteredParty {
     fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<Box<str>> for ElectionDefinitionRegisteredParty {
+    fn from(value: Box<str>) -> Self {
         Self::new(value)
     }
 }
@@ -788,7 +798,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-emls/election_definition/eml110a_election_definition_construction_output.eml.xml"
+                "../../test-files/election_definition/eml110a_election_definition_construction_output.eml.xml"
             )
         );
 
@@ -799,9 +809,58 @@ mod tests {
     }
 
     #[test]
+    fn test_read_election_definition_with_max_votes_empty() {
+        let xml = include_str!("../../test-files/election_definition/eml110a_test.eml.xml");
+
+        let parsed = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).unwrap();
+        // empty MaxVotes should be parsed to 1, because 1 is the default value according to the EML standard
+        assert_eq!(
+            parsed.election_event.election.contest.max_votes,
+            StringValue::Parsed(NonZeroU64::new(1).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_write_election_definition_with_max_votes_empty() {
+        let election_definition = ElectionDefinition::builder()
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                ElectionDefinitionElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .name("Test election")
+                    .category(ElectionCategory::GR)
+                    .subcategory(ElectionSubcategory::GR1)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_definition()
+                    .unwrap(),
+            )
+            .contest_identifier(ContestIdentifier::geen())
+            .voting_method(VotingMethod::SPV)
+            .max_votes(NonZeroU64::new(1).unwrap())
+            .number_of_seats(10u32)
+            .preference_threshold(50u32)
+            .push_registered_party("Party a")
+            .push_registered_party("Party one")
+            .build()
+            .unwrap();
+
+        let xml = election_definition.write_eml_root_str(true, true).unwrap();
+        // max_votes of 1 should result in an empty MaxVotes tag, because 1 is the default value according to the EML standard
+        assert!(xml.contains("<MaxVotes/>"))
+    }
+
+    #[test]
     fn test_invalid_election_date_format() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_date_format.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_date_format.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -811,7 +870,7 @@ mod tests {
     #[test]
     fn test_invalid_election_date_nomination_format() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_date_nomination_format.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_date_nomination_format.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -821,7 +880,7 @@ mod tests {
     #[test]
     fn test_invalid_election_mismatch_preference_threshold() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_mismatch_preference_threshold.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -831,7 +890,7 @@ mod tests {
     #[test]
     fn test_invalid_election_mismatch_preference_threshold_small_election() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_mismatch_preference_threshold_small_election.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_mismatch_preference_threshold_small_election.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -841,7 +900,7 @@ mod tests {
     #[test]
     fn test_election_missing_election_domain() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_election_missing_election_domain.eml.xml"
+            "../../test-files/election_definition/eml110a_election_missing_election_domain.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -851,7 +910,7 @@ mod tests {
     #[test]
     fn test_invalid_election_missing_election_tree() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_missing_election_tree.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_missing_election_tree.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -861,7 +920,7 @@ mod tests {
     #[test]
     fn test_invalid_election_missing_nomination_date() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_missing_nomination_date.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_missing_nomination_date.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -871,7 +930,7 @@ mod tests {
     #[test]
     fn test_invalid_election_missing_number_of_seats() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_missing_number_of_seats.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_missing_number_of_seats.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -881,7 +940,7 @@ mod tests {
     #[test]
     fn test_invalid_election_missing_preference_threshold() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_missing_preference_threshold.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_missing_preference_threshold.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -891,7 +950,7 @@ mod tests {
     #[test]
     fn test_invalid_election_missing_subcategory() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_missing_subcategory.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_missing_subcategory.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -901,7 +960,7 @@ mod tests {
     #[test]
     fn test_invalid_election_number_of_seats() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_number_of_seats.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_number_of_seats.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -911,7 +970,7 @@ mod tests {
     #[test]
     fn test_invalid_election_subcategory() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_subcategory.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_subcategory.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
@@ -921,7 +980,7 @@ mod tests {
     #[test]
     fn test_invalid_election_voting_method() {
         let xml = include_str!(
-            "../../test-emls/election_definition/eml110a_invalid_election_voting_method.eml.xml"
+            "../../test-files/election_definition/eml110a_invalid_election_voting_method.eml.xml"
         );
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();

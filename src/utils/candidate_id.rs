@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     num::{NonZeroU64, ParseIntError},
     str::FromStr,
 };
@@ -10,7 +11,7 @@ use crate::{EMLError, EMLValueResultExt, utils::StringValueData};
 /// A string of type candidate id as defined in the EML_NL specification
 ///
 /// Called CandidateIdType in the schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct CandidateId(NonZeroU64);
 
@@ -37,6 +38,12 @@ impl FromStr for CandidateId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         StringValueData::parse_from_str(s).wrap_value_error()
+    }
+}
+
+impl Display for CandidateId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -70,8 +77,8 @@ impl StringValueData for CandidateId {
         Ok(CandidateId::new(value))
     }
 
-    fn to_raw_value(&self) -> String {
-        self.0.to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.0.to_string().into()
     }
 }
 

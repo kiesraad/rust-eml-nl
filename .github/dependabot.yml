@@ -9,3 +9,17 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+      semver-major-days: 21
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      cargo:
+        patterns: ["*"]
+    allow:
+      - dependency-type: all

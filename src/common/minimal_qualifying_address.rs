@@ -176,8 +176,8 @@ mod tests {
             MinimalQualifyingAddress::new_country(CountryNameCode::new("NL"), locality_name);
 
         if let MinimalQualifyingAddress::Country(country) = locality {
-            assert_eq!(country.country_name_code.value, "NL");
-            assert_eq!(country.locality.locality_name.name, "Amsterdam");
+            assert_eq!(country.country_name_code.value.as_ref(), "NL");
+            assert_eq!(country.locality.locality_name.name.as_ref(), "Amsterdam");
         } else {
             panic!("Expected a country qualifying address");
         }
@@ -185,7 +185,7 @@ mod tests {
         let locality_name = LocalityName::new("Rotterdam");
         let locality = MinimalQualifyingAddress::new_locality(locality_name);
         if let MinimalQualifyingAddress::Locality(locality) = locality {
-            assert_eq!(locality.locality_name.name, "Rotterdam");
+            assert_eq!(locality.locality_name.name.as_ref(), "Rotterdam");
         } else {
             panic!("Expected a locality qualifying address");
         }
@@ -209,8 +209,8 @@ mod tests {
         let address = MinimalQualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
 
         if let MinimalQualifyingAddress::Country(country) = &address {
-            assert_eq!(country.country_name_code.value, "NL");
-            assert_eq!(country.locality.locality_name.name, "Amsterdam");
+            assert_eq!(country.country_name_code.value.as_ref(), "NL");
+            assert_eq!(country.locality.locality_name.name.as_ref(), "Amsterdam");
         } else {
             panic!("Expected a country qualifying address");
         }
@@ -234,7 +234,7 @@ mod tests {
         let address = MinimalQualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
 
         if let MinimalQualifyingAddress::Locality(locality) = &address {
-            assert_eq!(locality.locality_name.name, "Amsterdam");
+            assert_eq!(locality.locality_name.name.as_ref(), "Amsterdam");
         } else {
             panic!("Expected a locality qualifying address");
         }

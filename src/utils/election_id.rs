@@ -14,7 +14,7 @@ static ELECTION_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// A string of type ElectionId as defined in the EML_NL specification
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct ElectionId(String);
+pub struct ElectionId(Box<str>);
 
 impl ElectionId {
     /// Create a new ElectionId from a string, validating its format
@@ -41,13 +41,13 @@ impl StringValueData for ElectionId {
         Self: Sized,
     {
         if ELECTION_ID_RE.is_match(s) {
-            Ok(ElectionId(s.to_string()))
+            Ok(ElectionId(s.into()))
         } else {
-            Err(InvalidElectionIdError(s.to_string()))
+            Err(InvalidElectionIdError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }

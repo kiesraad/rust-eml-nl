@@ -8,7 +8,7 @@ use crate::{EMLError, EMLValueResultExt, utils::StringValueData};
 /// EML_NL authority id (called XSBType in the schema) value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct AuthorityId(String);
+pub struct AuthorityId(Box<str>);
 
 impl AuthorityId {
     /// Create a new AuthorityId from a string, validating its format
@@ -41,13 +41,13 @@ impl StringValueData for AuthorityId {
         Self: Sized,
     {
         if AUTHORITY_ID_RE.is_match(s) {
-            Ok(AuthorityId(s.to_string()))
+            Ok(AuthorityId(s.into()))
         } else {
-            Err(InvalidAuthorityIdError(s.to_string()))
+            Err(InvalidAuthorityIdError(s.into()))
         }
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         self.0.clone()
     }
 }

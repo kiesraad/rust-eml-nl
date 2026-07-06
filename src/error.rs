@@ -1,4 +1,7 @@
-use crate::io::{OwnedQualifiedName, Span};
+use crate::{
+    io::{OwnedQualifiedName, Span},
+    utils::{AffiliationId, CandidateId},
+};
 
 /// Different kinds of errors that can occur during EML_NL processing.
 #[derive(thiserror::Error, Debug)]
@@ -155,6 +158,22 @@ pub enum EMLErrorKind {
     /// A candidate was found without an affiliation, which is not allowed.
     #[error("A candidate without affiliation was found")]
     CandidateWithoutAffiliationFound,
+
+    /// Missing a Contest element when at least one was expected.
+    #[error("Missing a Contest element when at least one was expected")]
+    MissingContest,
+
+    /// Missing the TotalVotes element (while creating CSV).
+    #[error("Missing the TotalVotes element")]
+    MissingTotalVotes,
+
+    /// Could not find a candidate for the given affiliation and candidate ids.
+    #[error("Could not find a candidate for affiliation id {0} and candidate id {1}")]
+    UnknownCandidate(AffiliationId, CandidateId),
+
+    /// Could not find an affiliation for the given affiliation id.
+    #[error("Could not find an affiliation for affiliation id {0}")]
+    UnknownAffiliation(AffiliationId),
 
     /// A custom error with something that can be displayed
     #[error("Custom error: {0}")]

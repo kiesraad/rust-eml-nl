@@ -10,12 +10,12 @@ pub struct PostalCode {
     pub number: PostalCodeNumber,
 
     /// The `Type` attribute of the `PostalCode` element, if present.
-    pub postal_code_type: Option<String>,
+    pub postal_code_type: Option<Box<str>>,
 }
 
 impl PostalCode {
     /// Create a new `PostalCode` for a specific postal code number.
-    pub fn new(number: impl Into<String>) -> Self {
+    pub fn new(number: impl Into<Box<str>>) -> Self {
         PostalCode {
             number: PostalCodeNumber {
                 number_type: None,
@@ -32,19 +32,19 @@ impl PostalCode {
     }
 
     /// Set the `Type` attribute of the `PostalCode` element.
-    pub fn with_type(mut self, postal_code_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, postal_code_type: impl Into<Box<str>>) -> Self {
         self.postal_code_type = Some(postal_code_type.into());
         self
     }
 
     /// Set the `Type` attribute of the `PostalCodeNumber` element.
-    pub fn with_number_type(mut self, number_type: impl Into<String>) -> Self {
+    pub fn with_number_type(mut self, number_type: impl Into<Box<str>>) -> Self {
         self.number.number_type = Some(number_type.into());
         self
     }
 
     /// Set the `Code` attribute of the `PostalCodeNumber` element.
-    pub fn with_number_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_number_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.number.code = Some(code.into());
         self
     }
@@ -52,6 +52,12 @@ impl PostalCode {
 
 impl From<String> for PostalCode {
     fn from(number: String) -> Self {
+        PostalCode::new(number)
+    }
+}
+
+impl From<Box<str>> for PostalCode {
+    fn from(number: Box<str>) -> Self {
         PostalCode::new(number)
     }
 }
@@ -68,7 +74,7 @@ impl EMLElement for PostalCode {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PostalCode {
             number: PostalCodeNumber::EML_NAME => |elem| PostalCodeNumber::read_eml(elem)?,
-            postal_code_type: elem.attribute_value("Type")?.map(|s| s.into_owned()),
+            postal_code_type: elem.attribute_value("Type")?.map(|s| s.into()),
         }))
     }
 
@@ -84,11 +90,11 @@ impl EMLElement for PostalCode {
 #[derive(Debug, Clone)]
 pub struct PostalCodeNumber {
     /// Type attribute of the postal code number
-    pub number_type: Option<String>,
+    pub number_type: Option<Box<str>>,
     /// Code attribute of the postal code number
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
     /// The postal code value
-    pub number: String,
+    pub number: Box<str>,
 }
 
 impl EMLElement for PostalCodeNumber {
@@ -96,8 +102,8 @@ impl EMLElement for PostalCodeNumber {
         QualifiedName::from_static("PostalCodeNumber", Some(NS_XAL));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let number_type = elem.attribute_value("Type")?.map(|s| s.into_owned());
-        let code = elem.attribute_value("Code")?.map(|s| s.into_owned());
+        let number_type = elem.attribute_value("Type")?.map(|s| s.into());
+        let code = elem.attribute_value("Code")?.map(|s| s.into());
         let number = elem.text_without_children()?;
         Ok(PostalCodeNumber {
             number_type,

@@ -15,7 +15,7 @@ pub trait StringValueData: Clone {
         Self: Sized;
 
     /// Convert the value to its raw string representation.
-    fn to_raw_value(&self) -> String;
+    fn to_raw_value(&self) -> Box<str>;
 }
 
 /// A string value that can either be stored as a raw unparsed string or as a parsed value of type `T`.
@@ -50,7 +50,7 @@ pub trait StringValueData: Clone {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StringValue<T: StringValueData> {
     /// A raw unparsed string value that potentially can be parsed into a value of type `T`.
-    Raw(String),
+    Raw(Box<str>),
     /// Parsed value of type `T`.
     Parsed(T),
 }
@@ -63,7 +63,7 @@ impl<T: StringValueData> StringValue<T> {
     }
 
     /// Create a [`StringValue`] from a raw string.
-    pub fn from_raw(s: impl Into<String>) -> Self {
+    pub fn from_raw(s: impl Into<Box<str>>) -> Self {
         StringValue::Raw(s.into())
     }
 
@@ -76,7 +76,7 @@ impl<T: StringValueData> StringValue<T> {
     pub fn raw(&self) -> Cow<'_, str> {
         match self {
             StringValue::Raw(s) => Cow::Borrowed(s),
-            StringValue::Parsed(v) => Cow::Owned(v.to_raw_value()),
+            StringValue::Parsed(v) => Cow::Owned(v.to_raw_value().into()),
         }
     }
 
@@ -141,7 +141,22 @@ impl StringValueData for String {
         Ok(s.to_string())
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
+        self.clone().into()
+    }
+}
+
+impl StringValueData for Box<str> {
+    type Error = Infallible;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        Ok(s.into())
+    }
+
+    fn to_raw_value(&self) -> Box<str> {
         self.clone()
     }
 }
@@ -156,8 +171,8 @@ impl StringValueData for u64 {
         s.parse::<u64>()
     }
 
-    fn to_raw_value(&self) -> String {
-        self.to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_string().into()
     }
 }
 
@@ -171,8 +186,8 @@ impl StringValueData for NonZeroU64 {
         s.parse()
     }
 
-    fn to_raw_value(&self) -> String {
-        self.get().to_string()
+    fn to_raw_value(&self) -> Box<str> {
+        self.get().to_string().into()
     }
 }
 
@@ -195,9 +210,9 @@ impl StringValueData for bool {
         })
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         // Note: We use "true" and "false" as the raw string representation for
         // boolean values, as this is more human-readable than "1" and "0".
-        self.to_string()
+        self.to_string().into()
     }
 }

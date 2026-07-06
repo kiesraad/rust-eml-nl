@@ -85,10 +85,10 @@ impl StringValueData for XsDate {
         s.parse()
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         match self.tz {
-            Some(tz) => format!("{}{}", self.date.format("%Y-%m-%d"), tz),
-            None => self.date.format("%Y-%m-%d").to_string(),
+            Some(tz) => format!("{}{}", self.date.format("%Y-%m-%d"), tz).into(),
+            None => self.date.format("%Y-%m-%d").to_string().into(),
         }
     }
 }
@@ -194,17 +194,18 @@ impl StringValueData for XsDateTime {
         s.parse()
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         match self.tz {
             Some(tz) => {
                 let dt_with_tz =
                     DateTime::<FixedOffset>::from_naive_utc_and_offset(self.naive_date_time, tz);
-                dt_with_tz.to_rfc3339()
+                dt_with_tz.to_rfc3339().into()
             }
             None => self
                 .naive_date_time
                 .format("%Y-%m-%dT%H:%M:%S%.f")
-                .to_string(),
+                .to_string()
+                .into(),
         }
     }
 }
@@ -299,7 +300,7 @@ impl StringValueData for XsDateOrDateTime {
         s.parse()
     }
 
-    fn to_raw_value(&self) -> String {
+    fn to_raw_value(&self) -> Box<str> {
         match self {
             XsDateOrDateTime::Date(d) => d.to_raw_value(),
             XsDateOrDateTime::DateTime(dt) => dt.to_raw_value(),

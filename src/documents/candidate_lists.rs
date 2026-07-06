@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Candidate List (`230b`) document.
 
-use std::{borrow::Cow, num::NonZeroU64, str::FromStr};
+use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
     EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR, NS_XAL,
@@ -496,7 +496,7 @@ pub struct CandidateListsElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -719,7 +719,7 @@ impl CandidateListsAffiliation {
 /// Builder for an affiliation participating in the contest.
 pub struct CandidateListsAffiliationBuilder {
     id: Option<AffiliationId>,
-    registered_name: Option<String>,
+    registered_name: Option<Box<str>>,
     affiliation_type: Option<AffiliationType>,
     publish_gender: Option<bool>,
     publication_language: Option<PublicationLanguage>,
@@ -750,7 +750,7 @@ impl CandidateListsAffiliationBuilder {
     }
 
     /// Set the registered name for the affiliation.
-    pub fn registered_name(mut self, registered_name: impl Into<String>) -> Self {
+    pub fn registered_name(mut self, registered_name: impl Into<Box<str>>) -> Self {
         self.registered_name = Some(registered_name.into());
         self
     }
@@ -881,12 +881,12 @@ pub struct AffiliationIdentifier {
     pub id: StringValue<AffiliationId>,
 
     /// The registered name of the affiliation.
-    pub registered_name: Option<String>,
+    pub registered_name: Option<Box<str>>,
 }
 
 impl AffiliationIdentifier {
     /// Create a new AffiliationIdentifier.
-    pub fn new(id: AffiliationId, registered_name: Option<impl Into<String>>) -> Self {
+    pub fn new(id: AffiliationId, registered_name: Option<impl Into<Box<str>>>) -> Self {
         Self {
             id: StringValue::Parsed(id),
             registered_name: registered_name.map(|name| name.into()),
@@ -1186,18 +1186,18 @@ pub struct QualifyingAddressLocality {
     pub postal_code: Option<PostalCode>,
 
     /// The Type attribute, if present.
-    pub locality_type: Option<String>,
+    pub locality_type: Option<Box<str>>,
 
     /// The UsageType attribute, if present.
-    pub usage_type: Option<String>,
+    pub usage_type: Option<Box<str>>,
 
     /// The Indicator attribute, if present.
-    pub indicator: Option<String>,
+    pub indicator: Option<Box<str>>,
 }
 
 impl QualifyingAddressLocality {
     /// Create a new QualifyingAddressLocality.
-    pub fn new(locality_name: impl Into<String>) -> Self {
+    pub fn new(locality_name: impl Into<Box<str>>) -> Self {
         QualifyingAddressLocality {
             address_line: None,
             locality_name: LocalityName::new(locality_name),
@@ -1239,34 +1239,34 @@ impl QualifyingAddressLocality {
     }
 
     /// Set the Type attribute for the locality.
-    pub fn with_locality_type(self, locality_type: impl Into<String>) -> Self {
+    pub fn with_locality_type(self, locality_type: impl Into<Box<str>>) -> Self {
         self.with_locality_type_option(Some(locality_type))
     }
 
     /// Set the Type attribute for the locality, if present.
-    pub fn with_locality_type_option(mut self, locality_type: Option<impl Into<String>>) -> Self {
+    pub fn with_locality_type_option(mut self, locality_type: Option<impl Into<Box<str>>>) -> Self {
         self.locality_type = locality_type.map(Into::into);
         self
     }
 
     /// Set the UsageType attribute for the locality.
-    pub fn with_usage_type(self, usage_type: impl Into<String>) -> Self {
+    pub fn with_usage_type(self, usage_type: impl Into<Box<str>>) -> Self {
         self.with_usage_type_option(Some(usage_type))
     }
 
     /// Set the UsageType attribute for the locality, if present.
-    pub fn with_usage_type_option(mut self, usage_type: Option<impl Into<String>>) -> Self {
+    pub fn with_usage_type_option(mut self, usage_type: Option<impl Into<Box<str>>>) -> Self {
         self.usage_type = usage_type.map(Into::into);
         self
     }
 
     /// Set the Indicator attribute for the locality.
-    pub fn with_indicator(self, indicator: impl Into<String>) -> Self {
+    pub fn with_indicator(self, indicator: impl Into<Box<str>>) -> Self {
         self.with_indicator_option(Some(indicator))
     }
 
     /// Set the Indicator attribute for the locality, if present.
-    pub fn with_indicator_option(mut self, indicator: Option<impl Into<String>>) -> Self {
+    pub fn with_indicator_option(mut self, indicator: Option<impl Into<Box<str>>>) -> Self {
         self.indicator = indicator.map(Into::into);
         self
     }
@@ -1284,6 +1284,12 @@ impl From<String> for QualifyingAddressLocality {
     }
 }
 
+impl From<Box<str>> for QualifyingAddressLocality {
+    fn from(value: Box<str>) -> Self {
+        QualifyingAddressLocality::new(value)
+    }
+}
+
 impl EMLElement for QualifyingAddressLocality {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Locality", Some(NS_XAL));
 
@@ -1292,9 +1298,9 @@ impl EMLElement for QualifyingAddressLocality {
             address_line as Option: AddressLine::EML_NAME => |elem| AddressLine::read_eml(elem)?,
             locality_name: LocalityName::EML_NAME => |elem| LocalityName::read_eml(elem)?,
             postal_code as Option: PostalCode::EML_NAME => |elem| PostalCode::read_eml(elem)?,
-            locality_type: elem.attribute_value("Type")?.map(Cow::into_owned),
-            usage_type: elem.attribute_value("UsageType")?.map(Cow::into_owned),
-            indicator: elem.attribute_value("Indicator")?.map(Cow::into_owned),
+            locality_type: elem.attribute_value("Type")?.map(Into::into),
+            usage_type: elem.attribute_value("UsageType")?.map(Into::into),
+            indicator: elem.attribute_value("Indicator")?.map(Into::into),
         }))
     }
 
@@ -1314,18 +1320,18 @@ impl EMLElement for QualifyingAddressLocality {
 #[derive(Debug, Clone)]
 pub struct AddressLine {
     /// The address line value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute, if present.
-    pub address_line_type: Option<String>,
+    pub address_line_type: Option<Box<str>>,
 
     /// The Code attribute, if present.
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl AddressLine {
     /// Create a new AddressLine.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         AddressLine {
             value: value.into(),
             address_line_type: None,
@@ -1334,13 +1340,13 @@ impl AddressLine {
     }
 
     /// Set the Type attribute for the address line.
-    pub fn with_type(mut self, address_line_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, address_line_type: impl Into<Box<str>>) -> Self {
         self.address_line_type = Some(address_line_type.into());
         self
     }
 
     /// Set the Code attribute for the address line.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -1358,14 +1364,20 @@ impl From<String> for AddressLine {
     }
 }
 
+impl From<Box<str>> for AddressLine {
+    fn from(value: Box<str>) -> Self {
+        AddressLine::new(value)
+    }
+}
+
 impl EMLElement for AddressLine {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("AddressLine", Some(NS_XAL));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(AddressLine {
             value: elem.text_without_children()?,
-            address_line_type: elem.attribute_value("Type")?.map(Cow::into_owned),
-            code: elem.attribute_value("Code")?.map(Cow::into_owned),
+            address_line_type: elem.attribute_value("Type")?.map(Into::into),
+            code: elem.attribute_value("Code")?.map(Into::into),
         })
     }
 
@@ -1406,6 +1418,12 @@ impl From<String> for PostalCode {
     }
 }
 
+impl From<Box<str>> for PostalCode {
+    fn from(value: Box<str>) -> Self {
+        PostalCode::new(value)
+    }
+}
+
 impl From<PostalCodeNumber> for PostalCode {
     fn from(postal_code_number: PostalCodeNumber) -> Self {
         PostalCode { postal_code_number }
@@ -1432,13 +1450,13 @@ impl EMLElement for PostalCode {
 #[derive(Debug, Clone)]
 pub struct PostalCodeNumber {
     /// The postal code number value.
-    pub value: String,
+    pub value: Box<str>,
 
     /// The Type attribute, if present.
-    pub postal_code_number_type: Option<String>,
+    pub postal_code_number_type: Option<Box<str>>,
 
     /// The Code attribute, if present.
-    pub code: Option<String>,
+    pub code: Option<Box<str>>,
 }
 
 impl EMLElement for PostalCodeNumber {
@@ -1448,8 +1466,8 @@ impl EMLElement for PostalCodeNumber {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(PostalCodeNumber {
             value: elem.text_without_children()?,
-            postal_code_number_type: elem.attribute_value("Type")?.map(Cow::into_owned),
-            code: elem.attribute_value("Code")?.map(Cow::into_owned),
+            postal_code_number_type: elem.attribute_value("Type")?.map(Into::into),
+            code: elem.attribute_value("Code")?.map(Into::into),
         })
     }
 
@@ -1464,7 +1482,7 @@ impl EMLElement for PostalCodeNumber {
 
 impl PostalCodeNumber {
     /// Create a new PostalCodeNumber.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         PostalCodeNumber {
             value: value.into(),
             postal_code_number_type: None,
@@ -1473,13 +1491,13 @@ impl PostalCodeNumber {
     }
 
     /// Set the Type attribute for the postal code number.
-    pub fn with_type(mut self, postal_code_number_type: impl Into<String>) -> Self {
+    pub fn with_type(mut self, postal_code_number_type: impl Into<Box<str>>) -> Self {
         self.postal_code_number_type = Some(postal_code_number_type.into());
         self
     }
 
     /// Set the Code attribute for the postal code number.
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
         self.code = Some(code.into());
         self
     }
@@ -1497,6 +1515,12 @@ impl From<String> for PostalCodeNumber {
     }
 }
 
+impl From<Box<str>> for PostalCodeNumber {
+    fn from(value: Box<str>) -> Self {
+        PostalCodeNumber::new(value)
+    }
+}
+
 /// Qualifying address country.
 #[derive(Debug, Clone)]
 pub struct QualifyingAddressCountry {
@@ -1509,7 +1533,7 @@ pub struct QualifyingAddressCountry {
 impl QualifyingAddressCountry {
     /// Create a new QualifyingAddressCountry.
     pub fn new(
-        country_code: Option<impl Into<String>>,
+        country_code: Option<impl Into<Box<str>>>,
         locality: impl Into<QualifyingAddressLocality>,
     ) -> Self {
         Self {
@@ -1569,7 +1593,7 @@ mod tests {
         );
         assert_eq!(
             affiliation_identifier.registered_name,
-            Some("Affiliation 1".to_string())
+            Some("Affiliation 1".into())
         );
 
         let xml_output = test_write_eml_element(&affiliation_identifier, &[NS_EML]).unwrap();
@@ -1620,8 +1644,11 @@ mod tests {
         );
 
         assert_eq!(c.country_name_code, Some(CountryNameCode::new("NL")));
-        assert_eq!(c.locality.locality_name.name, "Amsterdam");
-        assert_eq!(c.locality.address_line.as_ref().unwrap().value, "Test 1");
+        assert_eq!(c.locality.locality_name.name.as_ref(), "Amsterdam");
+        assert_eq!(
+            c.locality.address_line.as_ref().unwrap().value.as_ref(),
+            "Test 1"
+        );
         assert_eq!(
             c.locality
                 .address_line
@@ -1629,7 +1656,8 @@ mod tests {
                 .unwrap()
                 .code
                 .as_ref()
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             "TestCode"
         );
         assert_eq!(
@@ -1639,7 +1667,8 @@ mod tests {
                 .unwrap()
                 .address_line_type
                 .as_ref()
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             "TestType"
         );
         assert_eq!(
@@ -1648,7 +1677,8 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .postal_code_number
-                .value,
+                .value
+                .as_ref(),
             "1234 AB"
         );
         assert_eq!(
@@ -1659,7 +1689,8 @@ mod tests {
                 .postal_code_number
                 .code
                 .as_ref()
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             "TestCode"
         );
         assert_eq!(
@@ -1670,12 +1701,13 @@ mod tests {
                 .postal_code_number
                 .postal_code_number_type
                 .as_ref()
-                .unwrap(),
+                .unwrap()
+                .as_ref(),
             "TestType"
         );
-        assert_eq!(c.locality.indicator.as_ref().unwrap(), "Test");
-        assert_eq!(c.locality.locality_type.as_ref().unwrap(), "City");
-        assert_eq!(c.locality.usage_type.as_ref().unwrap(), "Example");
+        assert_eq!(c.locality.indicator.as_ref().unwrap().as_ref(), "Test");
+        assert_eq!(c.locality.locality_type.as_ref().unwrap().as_ref(), "City");
+        assert_eq!(c.locality.usage_type.as_ref().unwrap().as_ref(), "Example");
 
         test_write_eml_element(&c, &[NS_XAL]).unwrap();
     }
@@ -1700,7 +1732,7 @@ mod tests {
         match &qualifying_address {
             QualifyingAddress::Country(country) => {
                 assert_eq!(country.country_name_code, None);
-                assert_eq!(country.locality.locality_name.name, "Amsterdam");
+                assert_eq!(country.locality.locality_name.name.as_ref(), "Amsterdam");
             }
             _ => panic!("Expected country qualifying address"),
         }
@@ -1758,7 +1790,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-emls/candidate_lists/eml230b_candidate_lists_construction_output.eml.xml"
+                "../../test-files/candidate_lists/eml230b_candidate_lists_construction_output.eml.xml"
             )
         );
 
@@ -1773,7 +1805,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_document_type.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_document_type.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1787,7 +1819,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1801,7 +1833,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1815,7 +1847,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1829,7 +1861,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_domain.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1843,7 +1875,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_incorrect_election_category.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_category.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1857,7 +1889,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1871,7 +1903,7 @@ mod tests {
         assert!(
             CandidateLists::parse_eml(
                 include_str!(
-                    "../../test-emls/candidate_lists/eml230b_test_without_addresses.eml.xml"
+                    "../../test-files/candidate_lists/eml230b_test_without_addresses.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )

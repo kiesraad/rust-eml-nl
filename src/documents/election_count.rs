@@ -270,7 +270,7 @@ pub(crate) const EML_COUNT_DISTRICT_ID: &str = "510c";
 pub(crate) const EML_COUNT_CENTRAL_ID: &str = "510d";
 
 /// Type of Count document.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountType {
     /// Representing a `510a` document, containing the count for a polling station.
     PollingStation,
@@ -444,7 +444,7 @@ pub struct ElectionCountElectionIdentifier {
     pub id: StringValue<ElectionId>,
 
     /// Name of the election
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Category of the election
     pub category: StringValue<ElectionCategory>,
@@ -775,6 +775,23 @@ impl TotalVotes {
         selections_per_affiliation(&self.selections)
     }
 
+    /// Return the number of valid votes for the given candidate.
+    pub fn find_candidate_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+        candidate_id: CandidateId,
+    ) -> Result<u64, EMLError> {
+        find_candidate_valid_votes(&self.selections, affiliation_id, candidate_id)
+    }
+
+    /// Return the number of valid votes for the given affiliation.
+    pub fn find_affiliation_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+    ) -> Result<u64, EMLError> {
+        find_affiliation_valid_votes(&self.selections, affiliation_id)
+    }
+
     /// Return the total number of blank votes.
     pub fn blank_votes(&self) -> Result<&StringValue<u64>, EMLError> {
         self.rejected_votes
@@ -953,6 +970,23 @@ impl ReportingUnitVotes {
         selections_per_affiliation(&self.selections)
     }
 
+    /// Return the number of valid votes for the given candidate.
+    pub fn find_candidate_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+        candidate_id: CandidateId,
+    ) -> Result<u64, EMLError> {
+        find_candidate_valid_votes(&self.selections, affiliation_id, candidate_id)
+    }
+
+    /// Return the number of valid votes for the given affiliation.
+    pub fn find_affiliation_valid_votes(
+        &self,
+        affiliation_id: AffiliationId,
+    ) -> Result<u64, EMLError> {
+        find_affiliation_valid_votes(&self.selections, affiliation_id)
+    }
+
     /// Return the number of blank votes for this reporting unit.
     pub fn blank_votes(&self) -> Result<&StringValue<u64>, EMLError> {
         self.rejected_votes
@@ -1032,6 +1066,43 @@ fn selections_per_affiliation(
     }
 
     Ok(result)
+}
+
+fn find_candidate_valid_votes(
+    selections: &[ElectionCountSelection],
+    affiliation_id: AffiliationId,
+    candidate_id: CandidateId,
+) -> Result<u64, EMLError> {
+    let mut last_affiliation_id = None;
+    for selection in selections {
+        if let ElectionCountSelectionType::Affiliation(affiliation) = &selection.selection_type {
+            last_affiliation_id = Some(affiliation.id.copied_value()?);
+        }
+
+        if let ElectionCountSelectionType::Candidate(candidate) = &selection.selection_type
+            && last_affiliation_id == Some(affiliation_id)
+            && candidate.identifier.id.copied_value()? == candidate_id
+        {
+            return selection.valid_votes.copied_value();
+        }
+    }
+
+    Err(EMLErrorKind::UnknownCandidate(affiliation_id, candidate_id).without_span())
+}
+
+fn find_affiliation_valid_votes(
+    selections: &[ElectionCountSelection],
+    affiliation_id: AffiliationId,
+) -> Result<u64, EMLError> {
+    for selection in selections {
+        if let ElectionCountSelectionType::Affiliation(affiliation) = &selection.selection_type
+            && affiliation.id.copied_value()? == affiliation_id
+        {
+            return selection.valid_votes.copied_value();
+        }
+    }
+
+    Err(EMLErrorKind::UnknownAffiliation(affiliation_id).without_span())
 }
 
 /// A builder for [`ReportingUnitVotes`].
@@ -1488,10 +1559,10 @@ pub struct ElectionCountSelection {
     pub valid_votes: StringValue<u64>,
 
     /// Value of the `Value` attribute, if present.
-    pub value: Option<String>,
+    pub value: Option<Box<str>>,
 
     /// Value of the `Category` attribute, if present.
-    pub category: Option<String>,
+    pub category: Option<Box<str>>,
 }
 
 impl ElectionCountSelection {
@@ -1506,8 +1577,8 @@ impl ElectionCountSelection {
 pub struct ElectionCountSelectionBuilder {
     selection_type: Option<ElectionCountSelectionType>,
     valid_votes: Option<StringValue<u64>>,
-    value: Option<String>,
-    category: Option<String>,
+    value: Option<Box<str>>,
+    category: Option<Box<str>>,
 }
 
 impl ElectionCountSelectionBuilder {
@@ -1555,13 +1626,13 @@ impl ElectionCountSelectionBuilder {
     }
 
     /// Set the Value attribute of the election count selection.
-    pub fn value(mut self, value: impl Into<String>) -> Self {
+    pub fn value(mut self, value: impl Into<Box<str>>) -> Self {
         self.value = Some(value.into());
         self
     }
 
     /// Set the Category attribute of the election count selection.
-    pub fn category(mut self, category: impl Into<String>) -> Self {
+    pub fn category(mut self, category: impl Into<Box<str>>) -> Self {
         self.category = Some(category.into());
         self
     }
@@ -1594,8 +1665,8 @@ impl EMLElement for ElectionCountSelection {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Selection", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let value = elem.attribute_value("Value")?.map(|s| s.to_string());
-        let category = elem.attribute_value("Category")?.map(|s| s.to_string());
+        let value = elem.attribute_value("Value")?.map(|s| s.into());
+        let category = elem.attribute_value("Category")?.map(|s| s.into());
         let mut selection_type = None;
         let mut valid_votes = None;
 
@@ -1776,8 +1847,8 @@ pub struct CandidateSelectionBuilder {
     name: Option<PersonNameStructure>,
     gender: Option<StringValue<Gender>>,
     qualifying_address: Option<MinimalQualifyingAddress>,
-    locality_name: Option<String>,
-    country_name_code: Option<String>,
+    locality_name: Option<Box<str>>,
+    country_name_code: Option<Box<str>>,
 }
 
 impl CandidateSelectionBuilder {
@@ -1827,7 +1898,7 @@ impl CandidateSelectionBuilder {
     ///
     /// Has no effect if the qualifying address is already set using the
     /// [`Self::qualifying_address`] method.
-    pub fn locality_name(mut self, locality_name: impl Into<String>) -> Self {
+    pub fn locality_name(mut self, locality_name: impl Into<Box<str>>) -> Self {
         self.locality_name = Some(locality_name.into());
         self
     }
@@ -1836,7 +1907,7 @@ impl CandidateSelectionBuilder {
     ///
     /// Has no effect if the qualifying address is already set using the
     /// [`Self::qualifying_address`] method.
-    pub fn country_name_code(mut self, country_name_code: impl Into<String>) -> Self {
+    pub fn country_name_code(mut self, country_name_code: impl Into<Box<str>>) -> Self {
         self.country_name_code = Some(country_name_code.into());
         self
     }
@@ -1919,12 +1990,12 @@ pub struct AffiliationSelection {
     pub id: StringValue<AffiliationId>,
 
     /// Name of the affiliation.
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl AffiliationSelection {
     /// Create a new AffiliationSelection with the given id and name.
-    pub fn new(id: impl Into<AffiliationId>, name: impl Into<String>) -> Self {
+    pub fn new(id: impl Into<AffiliationId>, name: impl Into<Box<str>>) -> Self {
         AffiliationSelection {
             id: StringValue::from_value(id.into()),
             name: name.into(),
@@ -1957,24 +2028,24 @@ impl EMLElement for AffiliationSelection {
 #[derive(Debug, Clone)]
 pub struct ReferendumOptionSelection {
     /// Value of the referendum option.
-    pub value: String,
+    pub value: Box<str>,
 
     /// Id of the referendum option, if present.
-    pub id: Option<String>,
+    pub id: Option<Box<str>>,
 
     /// Display order of the referendum option, if present.
     pub display_order: Option<StringValue<NonZeroU64>>,
 
     /// Short code of the referendum option, if present.
-    pub short_code: Option<String>,
+    pub short_code: Option<Box<str>>,
 
     /// Expected confirmation reference of the referendum option, if present.
-    pub expected_confirmation_reference: Option<String>,
+    pub expected_confirmation_reference: Option<Box<str>>,
 }
 
 impl ReferendumOptionSelection {
     /// Create a new ReferendumOptionSelection with the given value.
-    pub fn new(value: impl Into<String>) -> Self {
+    pub fn new(value: impl Into<Box<str>>) -> Self {
         ReferendumOptionSelection {
             value: value.into(),
             id: None,
@@ -1985,7 +2056,7 @@ impl ReferendumOptionSelection {
     }
 
     /// Set the Id attribute of the referendum option.
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+    pub fn with_id(mut self, id: impl Into<Box<str>>) -> Self {
         self.id = Some(id.into());
         self
     }
@@ -1997,7 +2068,7 @@ impl ReferendumOptionSelection {
     }
 
     /// Set the ShortCode attribute of the referendum option.
-    pub fn with_short_code(mut self, short_code: impl Into<String>) -> Self {
+    pub fn with_short_code(mut self, short_code: impl Into<Box<str>>) -> Self {
         self.short_code = Some(short_code.into());
         self
     }
@@ -2005,7 +2076,7 @@ impl ReferendumOptionSelection {
     /// Set the ExpectedConfirmationReference attribute of the referendum option.
     pub fn with_expected_confirmation_reference(
         mut self,
-        expected_confirmation_reference: impl Into<String>,
+        expected_confirmation_reference: impl Into<Box<str>>,
     ) -> Self {
         self.expected_confirmation_reference = Some(expected_confirmation_reference.into());
         self
@@ -2019,12 +2090,12 @@ impl EMLElement for ReferendumOptionSelection {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(ReferendumOptionSelection {
             value: elem.text_without_children()?,
-            id: elem.attribute_value("Id")?.map(|s| s.into_owned()),
+            id: elem.attribute_value("Id")?.map(|s| s.into()),
             display_order: elem.string_value_attr_opt("DisplayOrder")?,
-            short_code: elem.attribute_value("ShortCode")?.map(|s| s.into_owned()),
+            short_code: elem.attribute_value("ShortCode")?.map(|s| s.into()),
             expected_confirmation_reference: elem
                 .attribute_value("ExpectedConfirmationReference")?
-                .map(|s| s.into_owned()),
+                .map(|s| s.into()),
         })
     }
 
@@ -2144,7 +2215,7 @@ mod tests {
         let xml = ec.write_eml_root_str(true, true).unwrap();
         assert_eq!(
             xml,
-            include_str!("../../test-emls/election_count/eml510b_construction_output.eml.xml")
+            include_str!("../../test-files/election_count/eml510b_construction_output.eml.xml")
         );
 
         // check if it still is the same after a second parse and write
@@ -2155,7 +2226,7 @@ mod tests {
 
     #[test]
     fn test_parse_510b() {
-        let xml = include_str!("../../test-emls/election_count/deserialize_eml510b_test.eml.xml");
+        let xml = include_str!("../../test-files/election_count/deserialize_eml510b_test.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
@@ -2166,7 +2237,7 @@ mod tests {
 
     #[test]
     fn test_parse_510d() {
-        let xml = include_str!("../../test-emls/election_count/deserialize_eml510d_test.eml.xml");
+        let xml = include_str!("../../test-files/election_count/deserialize_eml510d_test.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
@@ -2178,12 +2249,96 @@ mod tests {
     #[test]
     fn test_parse_with_investigations() {
         let xml =
-            include_str!("../../test-emls/election_count/eml510b_with_investigations.eml.xml");
+            include_str!("../../test-files/election_count/eml510b_with_investigations.eml.xml");
 
         assert!(
             ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
                 .ok_with_errors()
                 .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_total_votes_find_votes() {
+        let xml = include_str!("../../test-files/csv/Telling_GR2022_WestMaasenWaal.eml.xml");
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        let contest = eml.count.election.contests.first().unwrap();
+        let total_votes = contest.total_votes.as_ref().unwrap();
+
+        assert_eq!(
+            total_votes
+                .find_affiliation_valid_votes(AffiliationId::from_u64(1).unwrap())
+                .unwrap(),
+            1893
+        );
+        assert_eq!(
+            total_votes
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(1).unwrap(),
+                    CandidateId::from_u64(1).unwrap()
+                )
+                .unwrap(),
+            581
+        );
+        assert_eq!(
+            total_votes
+                .find_affiliation_valid_votes(AffiliationId::from_u64(2).unwrap())
+                .unwrap(),
+            1345
+        );
+        assert_eq!(
+            total_votes
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(2).unwrap(),
+                    CandidateId::from_u64(2).unwrap()
+                )
+                .unwrap(),
+            85
+        );
+    }
+
+    #[test]
+    fn test_reporting_unit_find_votes() {
+        let xml = include_str!("../../test-files/csv/Telling_GR2022_WestMaasenWaal.eml.xml");
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        let contest = eml.count.election.contests.first().unwrap();
+        let first_ps = contest.reporting_unit_votes.first().unwrap();
+
+        assert_eq!(
+            first_ps
+                .find_affiliation_valid_votes(AffiliationId::from_u64(1).unwrap())
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            first_ps
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(1).unwrap(),
+                    CandidateId::from_u64(1).unwrap()
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            first_ps
+                .find_affiliation_valid_votes(AffiliationId::from_u64(2).unwrap())
+                .unwrap(),
+            181
+        );
+        assert_eq!(
+            first_ps
+                .find_candidate_valid_votes(
+                    AffiliationId::from_u64(2).unwrap(),
+                    CandidateId::from_u64(2).unwrap()
+                )
+                .unwrap(),
+            0
         );
     }
 }

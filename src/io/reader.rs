@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use quick_xml::{
-    NsReader,
+    NsReader, XmlVersion,
     escape::unescape,
     events::{BytesStart, Event},
     name::{QName, ResolveResult},
@@ -179,6 +179,7 @@ impl EMLParsingMode {
 /// works on byte slices. Furthermore, all files should be encoded in UTF-8.
 pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
+    xml_version: XmlVersion,
     parsing_mode: EMLParsingMode,
     errors: Vec<EMLError>,
 }
@@ -192,6 +193,7 @@ impl<'a> EMLReader<'a> {
     pub fn from_reader(reader: NsReader<&'a [u8]>, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
         EMLReader {
             inner: reader,
+            xml_version: XmlVersion::default(),
             parsing_mode,
             errors: Vec::new(),
         }
@@ -217,6 +219,12 @@ impl<'a> EMLReader<'a> {
             }
         };
         let span = Span::new(span_start, self.inner.buffer_position());
+
+        // Capture XML version from declaration
+        if let Event::Decl(d) = &event {
+            self.xml_version = d.xml_version().with_span(span)?;
+        }
+
         Ok((event, span))
     }
 
@@ -354,8 +362,11 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             if self.is_resolved_name(attr.key, self.span, name.clone(), true)? {
                 return Ok(Some(
-                    attr.decode_and_unescape_value(self.reader.inner.decoder())
-                        .with_span(self.span)?,
+                    attr.decoded_and_normalized_value(
+                        self.reader.xml_version,
+                        self.reader.inner.decoder(),
+                    )
+                    .with_span(self.span)?,
                 ));
             }
         }
@@ -371,7 +382,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             let name = self.get_resolved_name(attr.key, self.span, true)?;
             let value = attr
-                .decode_and_unescape_value(self.reader.inner.decoder())
+                .decoded_and_normalized_value(self.reader.xml_version, self.reader.inner.decoder())
                 .with_span(self.span)?;
             attributes.insert(name, value);
         }
@@ -380,7 +391,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
 
     /// Extracts the text content of this element. If the element is an empty
     /// element or the element contains no text, this returns None.
-    pub fn text_without_children_opt(&mut self) -> Result<Option<String>, EMLError> {
+    pub fn text_without_children_opt(&mut self) -> Result<Option<Box<str>>, EMLError> {
         if self.is_empty {
             Ok(None)
         } else {
@@ -396,16 +407,16 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// Extracts the text content of this element, consuming all events until
     /// the end of the element. If anything other than text is found, this will
     /// return an error (not consuming everything).
-    pub fn text_without_children(&mut self) -> Result<String, EMLError> {
+    pub fn text_without_children(&mut self) -> Result<Box<str>, EMLError> {
         let mut text = String::new();
         loop {
             match self.next()? {
                 Some((Event::Text(t), span)) => {
-                    let decoded = t.xml_content().with_span(span)?;
+                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
                     text.push_str(decoded.as_ref());
                 }
                 Some((Event::CData(t), span)) => {
-                    let decoded = t.xml_content().with_span(span)?;
+                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
                     text.push_str(decoded.as_ref());
                 }
                 Some((Event::GeneralRef(r), span)) => {
@@ -423,7 +434,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
                 }
             }
         }
-        Ok(text)
+        Ok(text.into())
     }
 
     /// Skip all remaining content/events in this element. Stops reading just
@@ -489,7 +500,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     /// The exact parsing behavior depends on the parsing mode set in the reader.
     pub(crate) fn string_value_from_text<'a, 'b, T: StringValueData>(
         &mut self,
-        text: String,
+        text: Box<str>,
         name: Option<QualifiedName<'a, 'b>>,
         span: Span,
     ) -> Result<StringValue<T>, EMLError> {
@@ -553,7 +564,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         let attr_name = attr_name.into();
         match self.attribute_value(attr_name.clone())? {
             Some(value) => Ok(Some(self.string_value_from_text(
-                value.into_owned(),
+                value.into(),
                 Some(attr_name),
                 self.span(),
             )?)),
@@ -576,9 +587,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             .attribute_value(attr_name.clone())?
             .or_else(|| default_value.map(Cow::Borrowed));
         match value {
-            Some(value) => {
-                self.string_value_from_text(value.into_owned(), Some(attr_name), self.span())
-            }
+            Some(value) => self.string_value_from_text(value.into(), Some(attr_name), self.span()),
             None => {
                 Err(EMLErrorKind::MissingAttribute(attr_name.as_owned())).with_span(self.span())
             }
