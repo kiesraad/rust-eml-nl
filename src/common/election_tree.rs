@@ -76,13 +76,13 @@ mod tests {
         let tree = ElectionTree::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
         assert_eq!(tree.regions.len(), 4);
 
-        assert_eq!(tree.regions[0].name, "Region 1");
+        assert_eq!(tree.regions[0].name.as_ref(), "Region 1");
         assert_eq!(tree.regions[0].category, RegionCategory::Staat);
         assert_eq!(tree.regions[0].number, None);
         assert_eq!(tree.regions[0].superior_region_category, None);
         assert!(tree.regions[0].committees.is_empty());
 
-        assert_eq!(tree.regions[1].name, "Region 2");
+        assert_eq!(tree.regions[1].name.as_ref(), "Region 2");
         assert_eq!(tree.regions[1].number, Some(1));
         assert_eq!(tree.regions[1].category, RegionCategory::Provincie);
         assert_eq!(
@@ -95,7 +95,7 @@ mod tests {
             CommitteeCategory::HSB
         );
 
-        assert_eq!(tree.regions[2].name, "Region 3");
+        assert_eq!(tree.regions[2].name.as_ref(), "Region 3");
         assert_eq!(tree.regions[2].number, Some(2));
         assert_eq!(tree.regions[2].category, RegionCategory::Gemeente);
         assert_eq!(
@@ -108,7 +108,7 @@ mod tests {
             CommitteeCategory::CSB
         );
 
-        assert_eq!(tree.regions[3].name, "Region 4");
+        assert_eq!(tree.regions[3].name.as_ref(), "Region 4");
         assert_eq!(tree.regions[3].number, Some(3));
         assert_eq!(tree.regions[3].category, RegionCategory::Kieskring);
         assert_eq!(

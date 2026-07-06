@@ -10,7 +10,7 @@ const MAX_COMMITTEES: usize = 3;
 #[derive(Debug, Clone)]
 pub struct Region {
     /// The name of the region.
-    pub name: String,
+    pub name: Box<str>,
     /// The committees in this region.
     pub committees: Vec<Committee>,
     /// The number of the region.
@@ -29,7 +29,7 @@ pub struct Region {
 
 impl Region {
     /// Create a new region.
-    pub fn new(region_name: impl Into<String>, region_category: RegionCategory) -> Self {
+    pub fn new(region_name: impl Into<Box<str>>, region_category: RegionCategory) -> Self {
         Region {
             name: region_name.into(),
             committees: Vec::new(),
@@ -172,14 +172,14 @@ mod tests {
             "#,
         );
         let region = Region::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(region.name, "Region 1".to_string());
+        assert_eq!(region.name.as_ref(), "Region 1");
         assert_eq!(region.committees.len(), 2);
         assert_eq!(region.committees[0].category, CommitteeCategory::HSB);
         assert_eq!(region.committees[1].category, CommitteeCategory::PSB);
         assert_eq!(region.number, Some(1));
         assert_eq!(region.category, RegionCategory::Waterschap);
-        assert_eq!(region.roman_numerals, false);
-        assert_eq!(region.frysian_export_allowed, false);
+        assert!(!region.roman_numerals);
+        assert!(!region.frysian_export_allowed);
         assert_eq!(region.superior_region_number, Some(0));
         assert_eq!(region.superior_region_category, Some(RegionCategory::Staat));
 
