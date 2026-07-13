@@ -30,7 +30,7 @@ required-features = ["bin-utils"]
 # Used for simpler error handling and reporting
 thiserror = { version = "2.0", default-features = false }
 # Used as our XML parsing library
-quick-xml = "0.40.0"
+quick-xml = "0.41.0"
 # Used for logging and diagnostics
 tracing = { version = "0.1.43", default-features = false }
 # Used for date and time handling
@@ -48,7 +48,7 @@ tokio = { version = "1.49.0", optional = true, features = ["io-std", "io-util", 
 # Used for emitting logging in binaries
 tracing-subscriber = { version = "0.3.22", optional = true, default-features = false, features = ["fmt", "env-filter"] }
 # Used for SHA-256 hashing of EML files (in validator)
-sha2 = { version = "0.10.9", optional = true , default-features = false }
+sha2 = { version = "0.11.0", optional = true , default-features = false }
 
 [dev-dependencies]
 # For showing much nicer diffs in test assertions
