@@ -1,6 +1,6 @@
 use crate::common::region::Region;
 use crate::{
-    EMLError, NS_KR,
+    EMLError, EMLErrorKind, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
 };
 
@@ -30,9 +30,24 @@ impl EMLElement for ElectionTree {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("ElectionTree", Some(NS_KR));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, ElectionTree {
+        let tree = collect_struct!(elem, ElectionTree {
             regions as Vec: Region::EML_NAME => |elem| Region::read_eml(elem)?,
-        }))
+        });
+
+        // The XSD declares `Region` with an implicit `minOccurs="1"`
+        // (`maxOccurs="unbounded"`), so an election tree must contain at least
+        // one region.
+        if tree.regions.is_empty() {
+            let err = EMLErrorKind::MissingElement(Region::EML_NAME.as_owned())
+                .with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
+
+        Ok(tree)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -124,5 +139,15 @@ mod tests {
 
         let xml_output = test_write_eml_element(&tree, &[NS_KR]).unwrap();
         pretty_assertions::assert_eq!(xml_output, xml);
+    }
+
+    #[test]
+    fn test_election_tree_rejects_empty() {
+        let xml =
+            test_xml_fragment(r#"<kr:ElectionTree xmlns:kr="http://www.kiesraad.nl/extensions"/>"#);
+        let error = ElectionTree::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(error.kind(), EMLErrorKind::MissingElement(_)));
     }
 }
