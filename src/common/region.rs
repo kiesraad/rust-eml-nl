@@ -86,6 +86,19 @@ impl Region {
         self.superior_region_category = Some(superior_region_category);
         self
     }
+
+    /// Set the `Committee` elements of the `Region` element.
+    ///
+    /// Note: this will replace any existing committees in the region.
+    pub fn with_committees(mut self, committees: Vec<Committee>) -> Self {
+        self.committees = committees;
+        self
+    }
+
+    /// Add a `Committee` element to the `Region` element.
+    pub fn push_committee(&mut self, committee: Committee) {
+        self.committees.push(committee);
+    }
 }
 
 impl EMLElement for Region {
