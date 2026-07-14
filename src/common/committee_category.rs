@@ -6,13 +6,18 @@ use thiserror::Error;
 /// Committee category
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CommitteeCategory {
-    /// Todo: Unknown meaning
+    /// Central electoral committee, or 'centraal stembureau' in Dutch.
     CSB,
-    /// Todo: Unknown meaning
+    /// District electoral committee, or 'hoofdstembureau' in Dutch.
     HSB,
-    /// Todo: Unknown meaning
+    /// Provincial electoral committee, or 'provinciaal stembureau' in Dutch.
+    /// This is used during elections for the 'eerste kamer' (the senate).
     ProvSB,
-    /// Todo: Unknown meaning
+    /// In Dutch 'plaatselijk stembureau', literally 'local polling station'.
+    /// Used before the 'Wet nieuwe procedure vaststelling verkiezingsuitslagen',
+    /// which came into effect on 1st of Januari 2023. It is roughly similar
+    /// to the GSB ('gemeentelijk stembureau', municipal electoral committee)
+    /// that is being used since that date.
     PSB,
 }
 

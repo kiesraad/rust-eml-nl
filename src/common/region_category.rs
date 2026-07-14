@@ -6,28 +6,32 @@ use thiserror::Error;
 /// Region category
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RegionCategory {
-    /// Todo: Unknown meaning
-    Deelgemeente,
-    /// Todo: Unknown meaning
-    Gemeente,
-    /// Todo: Unknown meaning
-    Kieskring,
-    /// Todo: Unknown meaning
-    Provincie,
-    /// Todo: Unknown meaning
-    ProvinciaalKieskring,
-    /// Todo: Unknown meaning
-    ProvinciaalStembureau,
-    /// Todo: Unknown meaning
-    Staat,
-    /// Todo: Unknown meaning
-    Stembureau,
-    /// Todo: Unknown meaning
-    Waterschap,
-    /// Todo: Unknown meaning
-    WaterschapKieskring,
-    /// Todo: Unknown meaning
-    WaterschapGemeente,
+    /// A 'deelgemeente'. Note that these no longer exist since 2014.
+    SubMunicipality,
+    /// A 'gemeente', the lowest level of government region in mainland Netherlands.
+    Municipality,
+    /// A 'kieskring'
+    ElectoralDistrict,
+    /// A 'provincie'
+    Province,
+    /// 'provinciaal kieskring'
+    /// Note: it is currently unclear when this is used.
+    ProvinceElectoralDistrict,
+    /// 'provinciaal stembureau'
+    /// Note: it is currently unclear when this is used.
+    ProvincePollingStation,
+    /// The highest level of government, the 'staat'.
+    State,
+    /// A 'stembureau'
+    PollingStation,
+    /// A 'waterschap'
+    WaterAuthority,
+    /// 'waterschap kieskring'
+    /// Note: it is currently unclear when this is used.
+    WaterAuthorityElectoralDistrict,
+    /// 'waterschap gemeente'
+    /// Note: it is currently unclear when this is used.
+    WaterAuthorityMunicipality,
 }
 
 impl RegionCategory {
@@ -40,17 +44,17 @@ impl RegionCategory {
     pub fn from_eml_value(s: impl AsRef<str>) -> Result<Self, UnknownRegionCategoryError> {
         let data = s.as_ref();
         match data {
-            "DEELGEMEENTE" => Ok(Self::Deelgemeente),
-            "GEMEENTE" => Ok(Self::Gemeente),
-            "KIESKRING" => Ok(Self::Kieskring),
-            "PROVINCIE" => Ok(Self::Provincie),
-            "PROVINCIAAL_KIESKRING" => Ok(Self::ProvinciaalKieskring),
-            "PROVINCIAAL_STEMBUREAU" => Ok(Self::ProvinciaalStembureau),
-            "STAAT" => Ok(Self::Staat),
-            "STEMBUREAU" => Ok(Self::Stembureau),
-            "WATERSCHAP" => Ok(Self::Waterschap),
-            "WATERSCHAP_KIESKRING" => Ok(Self::WaterschapKieskring),
-            "WATERSCHAP_GEMEENTE" => Ok(Self::WaterschapGemeente),
+            "DEELGEMEENTE" => Ok(Self::SubMunicipality),
+            "GEMEENTE" => Ok(Self::Municipality),
+            "KIESKRING" => Ok(Self::ElectoralDistrict),
+            "PROVINCIE" => Ok(Self::Province),
+            "PROVINCIAAL_KIESKRING" => Ok(Self::ProvinceElectoralDistrict),
+            "PROVINCIAAL_STEMBUREAU" => Ok(Self::ProvincePollingStation),
+            "STAAT" => Ok(Self::State),
+            "STEMBUREAU" => Ok(Self::PollingStation),
+            "WATERSCHAP" => Ok(Self::WaterAuthority),
+            "WATERSCHAP_KIESKRING" => Ok(Self::WaterAuthorityElectoralDistrict),
+            "WATERSCHAP_GEMEENTE" => Ok(Self::WaterAuthorityMunicipality),
             _ => Err(UnknownRegionCategoryError(data.to_string())),
         }
     }
@@ -58,17 +62,17 @@ impl RegionCategory {
     /// Get the `&str` representation of this [`RegionCategory`].
     pub fn to_eml_value(&self) -> &'static str {
         match self {
-            RegionCategory::Deelgemeente => "DEELGEMEENTE",
-            RegionCategory::Gemeente => "GEMEENTE",
-            RegionCategory::Kieskring => "KIESKRING",
-            RegionCategory::Provincie => "PROVINCIE",
-            RegionCategory::ProvinciaalKieskring => "PROVINCIAAL_KIESKRING",
-            RegionCategory::ProvinciaalStembureau => "PROVINCIAAL_STEMBUREAU",
-            RegionCategory::Staat => "STAAT",
-            RegionCategory::Stembureau => "STEMBUREAU",
-            RegionCategory::Waterschap => "WATERSCHAP",
-            RegionCategory::WaterschapKieskring => "WATERSCHAP_KIESKRING",
-            RegionCategory::WaterschapGemeente => "WATERSCHAP_GEMEENTE",
+            RegionCategory::SubMunicipality => "DEELGEMEENTE",
+            RegionCategory::Municipality => "GEMEENTE",
+            RegionCategory::ElectoralDistrict => "KIESKRING",
+            RegionCategory::Province => "PROVINCIE",
+            RegionCategory::ProvinceElectoralDistrict => "PROVINCIAAL_KIESKRING",
+            RegionCategory::ProvincePollingStation => "PROVINCIAAL_STEMBUREAU",
+            RegionCategory::State => "STAAT",
+            RegionCategory::PollingStation => "STEMBUREAU",
+            RegionCategory::WaterAuthority => "WATERSCHAP",
+            RegionCategory::WaterAuthorityElectoralDistrict => "WATERSCHAP_KIESKRING",
+            RegionCategory::WaterAuthorityMunicipality => "WATERSCHAP_GEMEENTE",
         }
     }
 }

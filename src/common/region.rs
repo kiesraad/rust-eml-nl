@@ -6,7 +6,8 @@ use crate::{EMLError, EMLErrorKind, NS_KR};
 
 const MAX_COMMITTEES: usize = 3;
 
-/// Region
+/// Region in the election tree, which can contain a number of electoral
+/// committees and defines some properties of the region.
 #[derive(Debug, Clone)]
 pub struct Region {
     /// The name of the region.
@@ -14,15 +15,26 @@ pub struct Region {
     /// The committees in this region.
     pub committees: Vec<Committee>,
     /// The number of the region.
-    pub number: Option<i16>,
+    ///
+    /// The EML_NL spec tells us this should be i16, but it is in reality always
+    /// a positive number, because regions may not have negative numbers in the
+    /// rest of the EML spec. Therefore, we use u16 here to avoid processing
+    /// election trees that we can't actually use.
+    pub number: Option<u16>,
     /// The category of the region.
     pub category: RegionCategory,
-    /// TODO: Document
+    /// Whether this region uses roman numerals for the contest identifier in
+    /// other parts of the EML_NL spec.
+    ///
+    /// Note: this only happens within Limburg
     pub roman_numerals: bool,
-    /// TODO: Document
+    /// This region allows exporting in the Frysian language.
     pub frysian_export_allowed: bool,
     /// The number of the superior region on the tree.
-    pub superior_region_number: Option<i16>,
+    ///
+    /// Similar to `number`, this is a positive number in practice, so we use
+    /// `u16` here.
+    pub superior_region_number: Option<u16>,
     /// The category of the superior region on the tree.
     pub superior_region_category: Option<RegionCategory>,
 }
@@ -43,7 +55,7 @@ impl Region {
     }
 
     /// Set the `RegionNumber` attribute of the `ElectionTreeRegion` element.
-    pub fn with_number(mut self, region_number: i16) -> Self {
+    pub fn with_number(mut self, region_number: u16) -> Self {
         self.number = Some(region_number);
         self
     }
@@ -61,7 +73,7 @@ impl Region {
     }
 
     /// Set the `SuperiorRegionNumber` attribute of the `ElectionTreeRegion` element.
-    pub fn with_superior_region_number(mut self, superior_region_number: i16) -> Self {
+    pub fn with_superior_region_number(mut self, superior_region_number: u16) -> Self {
         self.superior_region_number = Some(superior_region_number);
         self
     }
@@ -82,7 +94,7 @@ impl EMLElement for Region {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let number = elem
             .attribute_value("RegionNumber")?
-            .map(|value| value.parse::<i16>())
+            .map(|value| value.parse::<u16>())
             .transpose()
             .wrap_value_error()?;
         let category = RegionCategory::new(elem.attribute_value_req("RegionCategory")?)?;
@@ -94,7 +106,7 @@ impl EMLElement for Region {
             .copied_value()?;
         let superior_region_number = elem
             .attribute_value("SuperiorRegionNumber")?
-            .map(|value| value.parse::<i16>())
+            .map(|value| value.parse::<u16>())
             .transpose()
             .wrap_value_error()?;
         let superior_region_category = elem
@@ -177,11 +189,11 @@ mod tests {
         assert_eq!(region.committees[0].category, CommitteeCategory::HSB);
         assert_eq!(region.committees[1].category, CommitteeCategory::PSB);
         assert_eq!(region.number, Some(1));
-        assert_eq!(region.category, RegionCategory::Waterschap);
+        assert_eq!(region.category, RegionCategory::WaterAuthority);
         assert!(!region.roman_numerals);
         assert!(!region.frysian_export_allowed);
         assert_eq!(region.superior_region_number, Some(0));
-        assert_eq!(region.superior_region_category, Some(RegionCategory::Staat));
+        assert_eq!(region.superior_region_category, Some(RegionCategory::State));
 
         let xml_output = test_write_eml_element(&region, &[NS_KR]).unwrap();
         assert_eq!(xml_output, xml);

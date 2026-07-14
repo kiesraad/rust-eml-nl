@@ -59,15 +59,15 @@ mod tests {
                 </kr:Region>
                 <kr:Region RegionNumber="1" RegionCategory="PROVINCIE" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionCategory="STAAT">
                     <kr:RegionName>Region 2</kr:RegionName>
-                    <kr:Committee CommitteeCategory="HSB"/>
-                </kr:Region>
-                <kr:Region RegionNumber="2" RegionCategory="GEMEENTE" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionCategory="PROVINCIE">
-                    <kr:RegionName>Region 3</kr:RegionName>
                     <kr:Committee CommitteeCategory="CSB"/>
                 </kr:Region>
-                <kr:Region RegionNumber="3" RegionCategory="KIESKRING" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionCategory="GEMEENTE">
+                <kr:Region RegionNumber="2" RegionCategory="KIESKRING" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionNumber="1" SuperiorRegionCategory="PROVINCIE">
+                    <kr:RegionName>Region 3</kr:RegionName>
+                    <kr:Committee CommitteeCategory="PROV_SB"/>
+                </kr:Region>
+                <kr:Region RegionNumber="3" RegionCategory="GEMEENTE" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionNumber="2" SuperiorRegionCategory="KIESKRING">
                     <kr:RegionName>Region 4</kr:RegionName>
-                    <kr:Committee CommitteeCategory="PSB"/>
+                    <kr:Committee CommitteeCategory="HSB"/>
                 </kr:Region>
             </kr:ElectionTree>
             "#,
@@ -77,51 +77,53 @@ mod tests {
         assert_eq!(tree.regions.len(), 4);
 
         assert_eq!(tree.regions[0].name.as_ref(), "Region 1");
-        assert_eq!(tree.regions[0].category, RegionCategory::Staat);
+        assert_eq!(tree.regions[0].category, RegionCategory::State);
         assert_eq!(tree.regions[0].number, None);
         assert_eq!(tree.regions[0].superior_region_category, None);
         assert!(tree.regions[0].committees.is_empty());
 
         assert_eq!(tree.regions[1].name.as_ref(), "Region 2");
         assert_eq!(tree.regions[1].number, Some(1));
-        assert_eq!(tree.regions[1].category, RegionCategory::Provincie);
+        assert_eq!(tree.regions[1].category, RegionCategory::Province);
         assert_eq!(
             tree.regions[1].superior_region_category,
-            Some(RegionCategory::Staat)
+            Some(RegionCategory::State)
         );
         assert_eq!(tree.regions[1].committees.len(), 1);
         assert_eq!(
             tree.regions[1].committees[0].category,
-            CommitteeCategory::HSB
+            CommitteeCategory::CSB
         );
 
         assert_eq!(tree.regions[2].name.as_ref(), "Region 3");
         assert_eq!(tree.regions[2].number, Some(2));
-        assert_eq!(tree.regions[2].category, RegionCategory::Gemeente);
+        assert_eq!(tree.regions[2].category, RegionCategory::ElectoralDistrict);
         assert_eq!(
             tree.regions[2].superior_region_category,
-            Some(RegionCategory::Provincie)
+            Some(RegionCategory::Province)
         );
+        assert_eq!(tree.regions[2].superior_region_number, Some(1));
         assert_eq!(tree.regions[2].committees.len(), 1);
         assert_eq!(
             tree.regions[2].committees[0].category,
-            CommitteeCategory::CSB
+            CommitteeCategory::ProvSB
         );
 
         assert_eq!(tree.regions[3].name.as_ref(), "Region 4");
         assert_eq!(tree.regions[3].number, Some(3));
-        assert_eq!(tree.regions[3].category, RegionCategory::Kieskring);
+        assert_eq!(tree.regions[3].category, RegionCategory::Municipality);
         assert_eq!(
             tree.regions[3].superior_region_category,
-            Some(RegionCategory::Gemeente)
+            Some(RegionCategory::ElectoralDistrict)
         );
+        assert_eq!(tree.regions[3].superior_region_number, Some(2));
         assert_eq!(tree.regions[3].committees.len(), 1);
         assert_eq!(
             tree.regions[3].committees[0].category,
-            CommitteeCategory::PSB
+            CommitteeCategory::HSB
         );
 
         let xml_output = test_write_eml_element(&tree, &[NS_KR]).unwrap();
-        assert_eq!(xml_output, xml);
+        pretty_assertions::assert_eq!(xml_output, xml);
     }
 }
