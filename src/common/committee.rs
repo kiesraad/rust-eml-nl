@@ -16,7 +16,7 @@ pub struct Committee {
 }
 
 impl Committee {
-    ///Create a new committee.
+    /// Create a new committee.
     pub fn new(category: CommitteeCategory) -> Self {
         Committee {
             category,
