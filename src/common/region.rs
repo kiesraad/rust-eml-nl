@@ -1,7 +1,7 @@
 use crate::common::committee::Committee;
-use crate::common::region_category::RegionCategory;
 use crate::error::EMLValueResultExt as _;
 use crate::io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct};
+use crate::utils::RegionCategory;
 use crate::{EMLError, EMLErrorKind, NS_KR};
 
 const MAX_COMMITTEES: usize = 3;
@@ -169,8 +169,8 @@ impl EMLElement for Region {
 mod tests {
     use super::*;
     use crate::EMLErrorKind;
-    use crate::common::committee_category::CommitteeCategory;
     use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::utils::CommitteeCategory;
 
     #[test]
     fn test_region_parsing() {

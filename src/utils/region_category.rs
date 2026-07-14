@@ -1,6 +1,4 @@
-use crate::EMLError;
-use crate::error::EMLValueResultExt;
-use crate::utils::StringValueData;
+use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 use thiserror::Error;
 
 /// Region category
@@ -35,7 +33,7 @@ pub enum RegionCategory {
 }
 
 impl RegionCategory {
-    /// Create a new ElectionCategory from a string, validating its format
+    /// Create a new RegionCategory from a string, validating its format
     pub fn new(s: impl AsRef<str>) -> Result<Self, EMLError> {
         Self::from_eml_value(s).wrap_value_error()
     }
@@ -77,7 +75,7 @@ impl RegionCategory {
     }
 }
 
-/// Error returned when an unknown election category string is encountered.
+/// Error returned when an unknown region category string is encountered.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 #[error("Unknown region category: {0}")]
 pub struct UnknownRegionCategoryError(String);
@@ -94,5 +92,40 @@ impl StringValueData for RegionCategory {
 
     fn to_raw_value(&self) -> Box<str> {
         self.to_eml_value().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_region_category_from_str() {
+        assert_eq!(
+            RegionCategory::from_eml_value("GEMEENTE"),
+            Ok(RegionCategory::Municipality)
+        );
+        assert_eq!(
+            RegionCategory::from_eml_value("STAAT"),
+            Ok(RegionCategory::State)
+        );
+        assert_eq!(
+            RegionCategory::from_eml_value("WATERSCHAP_GEMEENTE"),
+            Ok(RegionCategory::WaterAuthorityMunicipality)
+        );
+        assert_eq!(
+            RegionCategory::from_eml_value("UNKNOWN"),
+            Err(UnknownRegionCategoryError("UNKNOWN".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_region_category_to_str() {
+        assert_eq!(RegionCategory::Municipality.to_eml_value(), "GEMEENTE");
+        assert_eq!(RegionCategory::State.to_eml_value(), "STAAT");
+        assert_eq!(
+            RegionCategory::WaterAuthorityMunicipality.to_eml_value(),
+            "WATERSCHAP_GEMEENTE"
+        );
     }
 }

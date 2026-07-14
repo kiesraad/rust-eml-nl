@@ -45,9 +45,8 @@ impl EMLElement for ElectionTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::committee_category::CommitteeCategory;
-    use crate::common::region_category::RegionCategory;
     use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::utils::{CommitteeCategory, RegionCategory};
 
     #[test]
     fn test_election_tree_parsing() {

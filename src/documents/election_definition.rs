@@ -751,9 +751,9 @@ mod tests {
     use chrono::TimeZone as _;
 
     use crate::{
-        common::{Region, RegionCategory},
+        common::Region,
         io::{EMLParsingMode, EMLRead as _, EMLWrite},
-        utils::AuthorityId,
+        utils::{AuthorityId, RegionCategory},
     };
 
     use super::*;

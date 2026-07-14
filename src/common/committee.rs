@@ -1,5 +1,5 @@
-use crate::common::committee_category::CommitteeCategory;
 use crate::io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName};
+use crate::utils::CommitteeCategory;
 use crate::{EMLError, NS_KR};
 
 /// Committee

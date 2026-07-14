@@ -1,6 +1,4 @@
-use crate::EMLError;
-use crate::error::EMLValueResultExt;
-use crate::utils::StringValueData;
+use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 use thiserror::Error;
 
 /// Committee category
@@ -50,7 +48,7 @@ impl CommitteeCategory {
     }
 }
 
-/// Error returned when an unknown election category string is encountered.
+/// Error returned when an unknown committee category string is encountered.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 #[error("Unknown committee category: {0}")]
 pub struct UnknownCommitteeCategoryError(String);
@@ -67,5 +65,32 @@ impl StringValueData for CommitteeCategory {
 
     fn to_raw_value(&self) -> Box<str> {
         self.to_eml_value().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_committee_category_from_str() {
+        assert_eq!(
+            CommitteeCategory::from_eml_value("CSB"),
+            Ok(CommitteeCategory::CSB)
+        );
+        assert_eq!(
+            CommitteeCategory::from_eml_value("PROV_SB"),
+            Ok(CommitteeCategory::ProvSB)
+        );
+        assert_eq!(
+            CommitteeCategory::from_eml_value("UNKNOWN"),
+            Err(UnknownCommitteeCategoryError("UNKNOWN".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_committee_category_to_str() {
+        assert_eq!(CommitteeCategory::CSB.to_eml_value(), "CSB");
+        assert_eq!(CommitteeCategory::ProvSB.to_eml_value(), "PROV_SB");
     }
 }
