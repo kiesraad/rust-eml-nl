@@ -54,31 +54,31 @@ impl Region {
         }
     }
 
-    /// Set the `RegionNumber` attribute of the `ElectionTreeRegion` element.
+    /// Set the `RegionNumber` attribute of the `Region` element.
     pub fn with_number(mut self, region_number: u16) -> Self {
         self.number = Some(region_number);
         self
     }
 
-    /// Set the `RomanNumerals` attribute of the `ElectionTreeRegion` element.
+    /// Set the `RomanNumerals` attribute of the `Region` element.
     pub fn with_roman_numerals(mut self, roman_numerals: bool) -> Self {
         self.roman_numerals = roman_numerals;
         self
     }
 
-    /// Set the `FrysianExportAllowed` attribute of the `ElectionTreeRegion` element.
+    /// Set the `FrysianExportAllowed` attribute of the `Region` element.
     pub fn with_frysian_export_allowed(mut self, enabled: bool) -> Self {
         self.frysian_export_allowed = enabled;
         self
     }
 
-    /// Set the `SuperiorRegionNumber` attribute of the `ElectionTreeRegion` element.
+    /// Set the `SuperiorRegionNumber` attribute of the `Region` element.
     pub fn with_superior_region_number(mut self, superior_region_number: u16) -> Self {
         self.superior_region_number = Some(superior_region_number);
         self
     }
 
-    /// Set the `SuperiorRegionCategory` attribute of the `ElectionTreeRegion` element.
+    /// Set the `SuperiorRegionCategory` attribute of the `Region` element.
     pub fn with_superior_region_category(
         mut self,
         superior_region_category: RegionCategory,
