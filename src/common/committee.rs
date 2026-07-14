@@ -9,7 +9,7 @@ pub struct Committee {
     pub category: CommitteeCategory,
 
     /// Optional committee name.
-    pub name: Option<String>,
+    pub name: Option<Box<str>>,
 
     /// Whether the committee accepts central submissions.
     pub accept_central_submissions: Option<bool>,
@@ -26,7 +26,7 @@ impl Committee {
     }
 
     /// Set the `CommitteeName` attribute of the `Committee` element.
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+    pub fn with_name(mut self, name: impl Into<Box<str>>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -46,7 +46,7 @@ impl EMLElement for Committee {
             category: CommitteeCategory::new(elem.attribute_value_req("CommitteeCategory")?)?,
             name: elem
                 .attribute_value("CommitteeName")?
-                .map(|name| name.into_owned()),
+                .map(|name| name.into()),
             accept_central_submissions: elem
                 .string_value_attr_opt("AcceptCentralSubmissions")?
                 .map(|value| value.copied_value())
@@ -78,7 +78,7 @@ mod tests {
             r#"<kr:Committee xmlns:kr="http://www.kiesraad.nl/extensions" CommitteeCategory="HSB" CommitteeName="Committee 1" AcceptCentralSubmissions="false"/>"#,
         );
         let committee = Committee::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
-        assert_eq!(committee.name, Some("Committee 1".to_string()));
+        assert_eq!(committee.name, Some("Committee 1".into()));
         assert_eq!(committee.category, CommitteeCategory::HSB);
         assert_eq!(committee.accept_central_submissions, Some(false));
 
