@@ -847,7 +847,10 @@ mod tests {
             .max_votes(NonZeroU64::new(1).unwrap())
             .number_of_seats(10u32)
             .preference_threshold(50u32)
-            .election_tree(vec![])
+            .election_tree(ElectionTree::new(vec![Region::new(
+                "Region 1",
+                RegionCategory::Municipality,
+            )]))
             .push_registered_party("Party a")
             .push_registered_party("Party one")
             .build()
