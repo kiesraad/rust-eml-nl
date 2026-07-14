@@ -237,6 +237,9 @@ impl<'a> EMLReader<'a> {
                 (Event::Empty(start), span) => {
                     return Ok(EMLElementReader::from_start(self, start, true, span));
                 }
+                (Event::Eof, span) => {
+                    return Err(EMLErrorKind::UnexpectedEof).with_span(span);
+                }
                 _other => {
                     // Ignore other events
                 }
@@ -979,5 +982,22 @@ mod tests {
             error.kind(),
             EMLErrorKind::UnknownNamespace(ns) if ns == "eml"
         ));
+    }
+
+    /// Input without any XML element used to make `next_element` loop forever,
+    /// since quick-xml keeps returning `Event::Eof` (kiesraad/abacus#3582).
+    #[test]
+    fn test_input_without_element_returns_unexpected_eof() {
+        for document in [
+            "",
+            "5738 d520 a7f2 89b8 8875 ebfe cfc8 6012 d7b6 f65f 3271 d0e1 180b ccdd 8134 cd5d\n",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+        ] {
+            let mut reader = EMLReader::init_from_str(document, EMLParsingMode::Strict);
+            let Err(error) = reader.next_element() else {
+                panic!("expected an error for input {document:?}");
+            };
+            assert!(matches!(error.kind(), EMLErrorKind::UnexpectedEof));
+        }
     }
 }
