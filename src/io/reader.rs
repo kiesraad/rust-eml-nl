@@ -237,6 +237,9 @@ impl<'a> EMLReader<'a> {
                 (Event::Empty(start), span) => {
                     return Ok(EMLElementReader::from_start(self, start, true, span));
                 }
+                (Event::Eof, span) => {
+                    return Err(EMLErrorKind::UnexpectedEof).with_span(span);
+                }
                 _other => {
                     // Ignore other events
                 }
