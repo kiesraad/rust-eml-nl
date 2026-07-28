@@ -45,6 +45,12 @@ impl AffiliationType {
 #[error("Unknown affiliation type: {0}")]
 pub struct UnknownAffiliationTypeError(String);
 
+impl From<UnknownAffiliationTypeError> for EMLError {
+    fn from(err: UnknownAffiliationTypeError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for AffiliationType {
     type Error = UnknownAffiliationTypeError;
     fn parse_from_str(s: &str) -> Result<Self, Self::Error>

@@ -2,34 +2,39 @@ use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 use thiserror::Error;
 
 /// Region category
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// Note: these are ordered from highest to lowest, so a category that sorts
+/// before another category sits at a higher level in the election tree. Use
+/// [`RegionCategory::is_higher_level_than`] rather than comparing directly, since the
+/// direction of the comparison is easy to get wrong.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RegionCategory {
-    /// A 'deelgemeente'. Note that these no longer exist since 2014.
-    SubMunicipality,
-    /// A 'gemeente', the lowest level of government region in mainland Netherlands.
-    Municipality,
-    /// A 'kieskring'
-    ElectoralDistrict,
+    /// The highest level of government, the 'staat'.
+    State,
+    /// A 'waterschap'
+    WaterAuthority,
     /// A 'provincie'
     Province,
+    /// A 'kieskring'
+    ElectoralDistrict,
+    /// 'waterschap kieskring'
+    /// Note: it is currently unclear when this is used.
+    WaterAuthorityElectoralDistrict,
     /// 'provinciaal kieskring'
     /// Note: it is currently unclear when this is used.
     ProvinceElectoralDistrict,
     /// 'provinciaal stembureau'
     /// Note: it is currently unclear when this is used.
     ProvincePollingStation,
-    /// The highest level of government, the 'staat'.
-    State,
-    /// A 'stembureau'
-    PollingStation,
-    /// A 'waterschap'
-    WaterAuthority,
-    /// 'waterschap kieskring'
-    /// Note: it is currently unclear when this is used.
-    WaterAuthorityElectoralDistrict,
     /// 'waterschap gemeente'
     /// Note: it is currently unclear when this is used.
     WaterAuthorityMunicipality,
+    /// A 'gemeente', the lowest level of government region in mainland Netherlands.
+    Municipality,
+    /// A 'deelgemeente'. Note that these no longer exist since 2014.
+    SubMunicipality,
+    /// A 'stembureau'
+    PollingStation,
 }
 
 impl RegionCategory {
@@ -38,21 +43,30 @@ impl RegionCategory {
         Self::from_eml_value(s).wrap_value_error()
     }
 
+    /// Whether this region category sits at a higher level in the election tree
+    /// than the given region category.
+    ///
+    /// [`RegionCategory::State`] is the highest level and
+    /// [`RegionCategory::PollingStation`] the lowest.
+    pub fn is_higher_level_than(self, other: Self) -> bool {
+        self < other
+    }
+
     /// Create a [`RegionCategory`] from a `&str`, if possible.
     pub fn from_eml_value(s: impl AsRef<str>) -> Result<Self, UnknownRegionCategoryError> {
         let data = s.as_ref();
         match data {
-            "DEELGEMEENTE" => Ok(Self::SubMunicipality),
-            "GEMEENTE" => Ok(Self::Municipality),
-            "KIESKRING" => Ok(Self::ElectoralDistrict),
+            "STAAT" => Ok(Self::State),
+            "WATERSCHAP" => Ok(Self::WaterAuthority),
             "PROVINCIE" => Ok(Self::Province),
+            "KIESKRING" => Ok(Self::ElectoralDistrict),
+            "WATERSCHAP_KIESKRING" => Ok(Self::WaterAuthorityElectoralDistrict),
             "PROVINCIAAL_KIESKRING" => Ok(Self::ProvinceElectoralDistrict),
             "PROVINCIAAL_STEMBUREAU" => Ok(Self::ProvincePollingStation),
-            "STAAT" => Ok(Self::State),
-            "STEMBUREAU" => Ok(Self::PollingStation),
-            "WATERSCHAP" => Ok(Self::WaterAuthority),
-            "WATERSCHAP_KIESKRING" => Ok(Self::WaterAuthorityElectoralDistrict),
             "WATERSCHAP_GEMEENTE" => Ok(Self::WaterAuthorityMunicipality),
+            "GEMEENTE" => Ok(Self::Municipality),
+            "DEELGEMEENTE" => Ok(Self::SubMunicipality),
+            "STEMBUREAU" => Ok(Self::PollingStation),
             _ => Err(UnknownRegionCategoryError(data.to_string())),
         }
     }
@@ -60,17 +74,17 @@ impl RegionCategory {
     /// Get the `&str` representation of this [`RegionCategory`].
     pub fn to_eml_value(&self) -> &'static str {
         match self {
-            RegionCategory::SubMunicipality => "DEELGEMEENTE",
-            RegionCategory::Municipality => "GEMEENTE",
-            RegionCategory::ElectoralDistrict => "KIESKRING",
+            RegionCategory::State => "STAAT",
+            RegionCategory::WaterAuthority => "WATERSCHAP",
             RegionCategory::Province => "PROVINCIE",
+            RegionCategory::ElectoralDistrict => "KIESKRING",
+            RegionCategory::WaterAuthorityElectoralDistrict => "WATERSCHAP_KIESKRING",
             RegionCategory::ProvinceElectoralDistrict => "PROVINCIAAL_KIESKRING",
             RegionCategory::ProvincePollingStation => "PROVINCIAAL_STEMBUREAU",
-            RegionCategory::State => "STAAT",
-            RegionCategory::PollingStation => "STEMBUREAU",
-            RegionCategory::WaterAuthority => "WATERSCHAP",
-            RegionCategory::WaterAuthorityElectoralDistrict => "WATERSCHAP_KIESKRING",
             RegionCategory::WaterAuthorityMunicipality => "WATERSCHAP_GEMEENTE",
+            RegionCategory::Municipality => "GEMEENTE",
+            RegionCategory::SubMunicipality => "DEELGEMEENTE",
+            RegionCategory::PollingStation => "STEMBUREAU",
         }
     }
 }
@@ -79,6 +93,12 @@ impl RegionCategory {
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 #[error("Unknown region category: {0}")]
 pub struct UnknownRegionCategoryError(String);
+
+impl From<UnknownRegionCategoryError> for EMLError {
+    fn from(err: UnknownRegionCategoryError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
 
 impl StringValueData for RegionCategory {
     type Error = UnknownRegionCategoryError;
@@ -117,6 +137,20 @@ mod tests {
             RegionCategory::from_eml_value("UNKNOWN"),
             Err(UnknownRegionCategoryError("UNKNOWN".to_string()))
         );
+    }
+
+    #[test]
+    fn test_region_category_levels() {
+        // The state is the highest level, the polling station the lowest.
+        assert!(RegionCategory::State.is_higher_level_than(RegionCategory::Municipality));
+        assert!(
+            RegionCategory::ElectoralDistrict.is_higher_level_than(RegionCategory::PollingStation)
+        );
+        assert!(!RegionCategory::Municipality.is_higher_level_than(RegionCategory::State));
+        assert!(!RegionCategory::PollingStation.is_higher_level_than(RegionCategory::State));
+
+        // No category sits above itself.
+        assert!(!RegionCategory::Municipality.is_higher_level_than(RegionCategory::Municipality));
     }
 
     #[test]

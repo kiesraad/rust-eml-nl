@@ -268,7 +268,7 @@ impl ElectionDefinitionBuilder {
 
                     validate_election_details(&election_details)?;
 
-                    Ok(election_details.into())
+                    Ok::<_, EMLError>(election_details.into())
                 },
                 Ok,
             )?,

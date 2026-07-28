@@ -1,10 +1,16 @@
 use crate::common::region::Region;
+use crate::utils::{ElectionTreeHierarchy, ElectionTreeHierarchyError};
 use crate::{
     EMLError, EMLErrorKind, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
 };
 
 /// Election tree as defined in EML_NL.
+///
+/// This is the flat list of regions as it appears in an EML_NL document, where
+/// every region refers to its superior region by category and number. Use
+/// [`ElectionTree::hierarchy`] to resolve those references into an
+/// [`ElectionTreeHierarchy`], which exposes the same data as an actual tree.
 #[derive(Debug, Clone)]
 pub struct ElectionTree {
     /// Regions defined for this part of the election tree
@@ -17,6 +23,15 @@ impl ElectionTree {
         ElectionTree {
             regions: regions.into(),
         }
+    }
+
+    /// This election tree in a structured form, with the flat list of regions
+    /// resolved into an actual tree.
+    ///
+    /// Returns an error if the regions do not describe a valid tree, see
+    /// [`ElectionTreeHierarchyError`] for the ways in which that can happen.
+    pub fn hierarchy(&self) -> Result<ElectionTreeHierarchy, ElectionTreeHierarchyError> {
+        ElectionTreeHierarchy::try_from(self)
     }
 }
 
@@ -60,6 +75,7 @@ impl EMLElement for ElectionTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::region::RegionKey;
     use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
     use crate::utils::{CommitteeCategory, RegionCategory};
 
@@ -91,17 +107,21 @@ mod tests {
         assert_eq!(tree.regions.len(), 4);
 
         assert_eq!(tree.regions[0].name.as_ref(), "Region 1");
-        assert_eq!(tree.regions[0].category, RegionCategory::State);
-        assert_eq!(tree.regions[0].number, None);
-        assert_eq!(tree.regions[0].superior_region_category, None);
+        assert_eq!(
+            tree.regions[0].key,
+            RegionKey::new(RegionCategory::State, None)
+        );
+        assert_eq!(tree.regions[0].superior_region_key, None);
         assert!(tree.regions[0].committees.is_empty());
 
         assert_eq!(tree.regions[1].name.as_ref(), "Region 2");
-        assert_eq!(tree.regions[1].number, Some(1));
-        assert_eq!(tree.regions[1].category, RegionCategory::Province);
         assert_eq!(
-            tree.regions[1].superior_region_category,
-            Some(RegionCategory::State)
+            tree.regions[1].key,
+            RegionKey::new(RegionCategory::Province, Some(1))
+        );
+        assert_eq!(
+            tree.regions[1].superior_region_key,
+            Some(RegionKey::new(RegionCategory::State, None))
         );
         assert_eq!(tree.regions[1].committees.len(), 1);
         assert_eq!(
@@ -110,13 +130,14 @@ mod tests {
         );
 
         assert_eq!(tree.regions[2].name.as_ref(), "Region 3");
-        assert_eq!(tree.regions[2].number, Some(2));
-        assert_eq!(tree.regions[2].category, RegionCategory::ElectoralDistrict);
         assert_eq!(
-            tree.regions[2].superior_region_category,
-            Some(RegionCategory::Province)
+            tree.regions[2].key,
+            RegionKey::new(RegionCategory::ElectoralDistrict, Some(2))
         );
-        assert_eq!(tree.regions[2].superior_region_number, Some(1));
+        assert_eq!(
+            tree.regions[2].superior_region_key,
+            Some(RegionKey::new(RegionCategory::Province, Some(1)))
+        );
         assert_eq!(tree.regions[2].committees.len(), 1);
         assert_eq!(
             tree.regions[2].committees[0].category,
@@ -124,13 +145,14 @@ mod tests {
         );
 
         assert_eq!(tree.regions[3].name.as_ref(), "Region 4");
-        assert_eq!(tree.regions[3].number, Some(3));
-        assert_eq!(tree.regions[3].category, RegionCategory::Municipality);
         assert_eq!(
-            tree.regions[3].superior_region_category,
-            Some(RegionCategory::ElectoralDistrict)
+            tree.regions[3].key,
+            RegionKey::new(RegionCategory::Municipality, Some(3))
         );
-        assert_eq!(tree.regions[3].superior_region_number, Some(2));
+        assert_eq!(
+            tree.regions[3].superior_region_key,
+            Some(RegionKey::new(RegionCategory::ElectoralDistrict, Some(2)))
+        );
         assert_eq!(tree.regions[3].committees.len(), 1);
         assert_eq!(
             tree.regions[3].committees[0].category,

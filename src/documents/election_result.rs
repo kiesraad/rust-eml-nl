@@ -852,7 +852,7 @@ impl CandidateSelectionBuilder {
                     })?;
 
                     if let Some(country_name_code) = self.country_name_code {
-                        Ok(MinimalQualifyingAddress::new_country(
+                        Ok::<_, EMLError>(MinimalQualifyingAddress::new_country(
                             country_name_code,
                             locality_name,
                         ))

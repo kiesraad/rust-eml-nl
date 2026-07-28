@@ -33,6 +33,12 @@ impl ReportingUnitIdentifierId {
 #[error("Invalid reporting unit identifier id: {0}")]
 pub struct InvalidReportingUnitIdentifierIdError(String);
 
+impl From<InvalidReportingUnitIdentifierIdError> for EMLError {
+    fn from(err: InvalidReportingUnitIdentifierIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for ReportingUnitIdentifierId {
     type Error = InvalidReportingUnitIdentifierIdError;
     fn parse_from_str(s: &str) -> Result<Self, Self::Error>

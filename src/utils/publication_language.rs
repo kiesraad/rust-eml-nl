@@ -43,6 +43,12 @@ impl PublicationLanguage {
 #[error("Unknown publication language: {0}")]
 pub struct UnknownPublicationLanguageError(String);
 
+impl From<UnknownPublicationLanguageError> for EMLError {
+    fn from(err: UnknownPublicationLanguageError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for PublicationLanguage {
     type Error = UnknownPublicationLanguageError;
 

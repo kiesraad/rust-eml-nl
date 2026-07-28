@@ -41,6 +41,12 @@ impl VotingChannelType {
 #[error("Unknown voting channel: {0}")]
 pub struct UnknownVotingChannelError(String);
 
+impl From<UnknownVotingChannelError> for EMLError {
+    fn from(err: UnknownVotingChannelError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for VotingChannelType {
     type Error = UnknownVotingChannelError;
 

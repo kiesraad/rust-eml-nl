@@ -1,6 +1,6 @@
 use crate::{
     io::{OwnedQualifiedName, Span},
-    utils::{AffiliationId, CandidateId},
+    utils::{AffiliationId, CandidateId, ElectionTreeHierarchyError},
 };
 
 /// Different kinds of errors that can occur during EML_NL processing.
@@ -175,6 +175,10 @@ pub enum EMLErrorKind {
     #[error("Could not find an affiliation for affiliation id {0}")]
     UnknownAffiliation(AffiliationId),
 
+    /// The regions of an election tree do not describe a valid tree.
+    #[error("Invalid election tree: {0}")]
+    InvalidElectionTree(#[from] ElectionTreeHierarchyError),
+
     /// A custom error with something that can be displayed
     #[error("Custom error: {0}")]
     Custom(Box<dyn CustomError>),
@@ -258,6 +262,11 @@ impl EMLError {
     /// Create a new custom error.
     pub fn custom(source: impl CustomError) -> Self {
         EMLErrorKind::Custom(Box::new(source)).without_span()
+    }
+
+    /// Create a new value conversion error
+    pub fn value_conversion(source: impl std::error::Error + Send + Sync + 'static) -> Self {
+        EMLErrorKind::ValueConversionError(Box::new(source)).without_span()
     }
 
     /// Create an EMLError from a list of errors.
@@ -372,7 +381,7 @@ where
     }
 
     fn wrap_value_error(self) -> Result<T, EMLError> {
-        self.map_err(|e| EMLErrorKind::ValueConversionError(Box::new(e)).without_span())
+        self.map_err(EMLError::value_conversion)
     }
 }
 

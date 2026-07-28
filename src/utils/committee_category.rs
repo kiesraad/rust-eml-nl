@@ -53,6 +53,12 @@ impl CommitteeCategory {
 #[error("Unknown committee category: {0}")]
 pub struct UnknownCommitteeCategoryError(String);
 
+impl From<UnknownCommitteeCategoryError> for EMLError {
+    fn from(err: UnknownCommitteeCategoryError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for CommitteeCategory {
     type Error = UnknownCommitteeCategoryError;
 

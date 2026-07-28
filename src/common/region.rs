@@ -1,10 +1,128 @@
 use crate::common::committee::Committee;
 use crate::error::EMLValueResultExt as _;
-use crate::io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct};
+use crate::io::{
+    EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName, QualifiedName,
+    collect_struct,
+};
 use crate::utils::RegionCategory;
 use crate::{EMLError, EMLErrorKind, NS_KR};
 
 const MAX_COMMITTEES: usize = 3;
+
+/// The identity of a [`Region`] in the election tree.
+///
+/// EML_NL identifies a region by the combination of its `RegionCategory` and
+/// `RegionNumber` attributes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RegionKey {
+    /// The category of the region.
+    pub category: RegionCategory,
+
+    /// The number of the region.
+    ///
+    /// The EML_NL spec tells us this should be i16, but it is in reality always
+    /// a positive number, because regions may not have negative numbers in the
+    /// rest of the EML spec. Therefore, we use u16 here to avoid processing
+    /// election trees that we can't actually use.
+    ///
+    /// Not every region has a number.
+    pub number: Option<u16>,
+}
+
+impl RegionKey {
+    /// Create a new region key.
+    pub fn new(category: RegionCategory, number: Option<u16>) -> Self {
+        RegionKey { category, number }
+    }
+
+    /// Create a new region key for the [`RegionCategory::State`].
+    pub fn state() -> Self {
+        RegionKey {
+            category: RegionCategory::State,
+            number: None,
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::WaterAuthority`].
+    pub fn water_authority(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::WaterAuthority,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::Province`].
+    pub fn province(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::Province,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::ElectoralDistrict`].
+    pub fn electoral_district(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::ElectoralDistrict,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::WaterAuthorityElectoralDistrict`].
+    pub fn water_authority_electoral_district(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::WaterAuthorityElectoralDistrict,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::ProvinceElectoralDistrict`].
+    pub fn province_electoral_district(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::ProvinceElectoralDistrict,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::ProvincePollingStation`].
+    pub fn province_polling_station(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::ProvincePollingStation,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::WaterAuthorityMunicipality`].
+    pub fn water_authority_municipality(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::WaterAuthorityMunicipality,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::Municipality`].
+    pub fn municipality(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::Municipality,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::SubMunicipality`].
+    pub fn sub_municipality(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::SubMunicipality,
+            number: Some(number),
+        }
+    }
+
+    /// Create a new region key for the [`RegionCategory::PollingStation`].
+    pub fn polling_station(number: u16) -> Self {
+        RegionKey {
+            category: RegionCategory::PollingStation,
+            number: Some(number),
+        }
+    }
+}
 
 /// Region in the election tree, which can contain a number of electoral
 /// committees and defines some properties of the region.
@@ -14,15 +132,8 @@ pub struct Region {
     pub name: Box<str>,
     /// The committees in this region.
     pub committees: Vec<Committee>,
-    /// The number of the region.
-    ///
-    /// The EML_NL spec tells us this should be i16, but it is in reality always
-    /// a positive number, because regions may not have negative numbers in the
-    /// rest of the EML spec. Therefore, we use u16 here to avoid processing
-    /// election trees that we can't actually use.
-    pub number: Option<u16>,
-    /// The category of the region.
-    pub category: RegionCategory,
+    /// The key identifying this region, its category and number.
+    pub key: RegionKey,
     /// Whether this region uses roman numerals for the contest identifier in
     /// other parts of the EML_NL spec.
     ///
@@ -30,13 +141,10 @@ pub struct Region {
     pub roman_numerals: bool,
     /// This region allows exporting in the Frysian language.
     pub frysian_export_allowed: bool,
-    /// The number of the superior region on the tree.
-    ///
-    /// Similar to `number`, this is a positive number in practice, so we use
-    /// `u16` here.
-    pub superior_region_number: Option<u16>,
-    /// The category of the superior region on the tree.
-    pub superior_region_category: Option<RegionCategory>,
+    /// The key identifying the superior region on the tree, if this region has
+    /// one. Regions at the root of an election tree do not have a superior
+    /// region.
+    pub superior_region_key: Option<RegionKey>,
 }
 
 impl Region {
@@ -45,18 +153,16 @@ impl Region {
         Region {
             name: region_name.into(),
             committees: Vec::new(),
-            number: None,
-            category: region_category,
+            key: RegionKey::new(region_category, None),
             roman_numerals: false,
             frysian_export_allowed: false,
-            superior_region_number: None,
-            superior_region_category: None,
+            superior_region_key: None,
         }
     }
 
     /// Set the `RegionNumber` attribute of the `Region` element.
     pub fn with_number(mut self, region_number: u16) -> Self {
-        self.number = Some(region_number);
+        self.key.number = Some(region_number);
         self
     }
 
@@ -72,18 +178,10 @@ impl Region {
         self
     }
 
-    /// Set the `SuperiorRegionNumber` attribute of the `Region` element.
-    pub fn with_superior_region_number(mut self, superior_region_number: u16) -> Self {
-        self.superior_region_number = Some(superior_region_number);
-        self
-    }
-
-    /// Set the `SuperiorRegionCategory` attribute of the `Region` element.
-    pub fn with_superior_region_category(
-        mut self,
-        superior_region_category: RegionCategory,
-    ) -> Self {
-        self.superior_region_category = Some(superior_region_category);
+    /// Set the `SuperiorRegionCategory` and `SuperiorRegionNumber` attributes of
+    /// the `Region` element.
+    pub fn with_superior_region_key(mut self, superior_region_key: RegionKey) -> Self {
+        self.superior_region_key = Some(superior_region_key);
         self
     }
 
@@ -127,13 +225,33 @@ impl EMLElement for Region {
             .map(RegionCategory::new)
             .transpose()?;
 
+        // A superior region is identified by its category and number combined,
+        // so a superior region number without a category does not refer to any
+        // region at all. In non-strict mode we ignore the number and treat the
+        // region as having no superior region.
+        let superior_region_key = match (superior_region_category, superior_region_number) {
+            (Some(category), number) => Some(RegionKey::new(category, number)),
+            (None, None) => None,
+            (None, Some(_)) => {
+                let err = EMLErrorKind::MissingAttribute(OwnedQualifiedName::from_static(
+                    "SuperiorRegionCategory",
+                    None,
+                ))
+                .with_span(elem.span());
+                if elem.parsing_mode().is_strict() {
+                    return Err(err);
+                } else {
+                    elem.push_err(err);
+                    None
+                }
+            }
+        };
+
         let region = collect_struct!(elem, Region {
-        number: number,
-        category: category,
+        key: RegionKey::new(category, number),
         roman_numerals: roman_numerals,
         frysian_export_allowed: frysian_export_allowed,
-        superior_region_number: superior_region_number,
-        superior_region_category: superior_region_category,
+        superior_region_key: superior_region_key,
         name: ("RegionName", NS_KR) => |elem| elem.text_without_children()?,
         committees as Vec: Committee::EML_NAME => |elem| Committee::read_eml(elem)?,
             });
@@ -156,18 +274,23 @@ impl EMLElement for Region {
         let frysian_export_allowed = self.frysian_export_allowed.to_string();
 
         writer
-            .attr_opt("RegionNumber", self.number.map(|number| number.to_string()))?
-            .attr("RegionCategory", self.category.to_eml_value())?
+            .attr_opt(
+                "RegionNumber",
+                self.key.number.map(|number| number.to_string()),
+            )?
+            .attr("RegionCategory", self.key.category.to_eml_value())?
             .attr("RomanNumerals", &roman_numerals)?
             .attr("FrysianExportAllowed", &frysian_export_allowed)?
             .attr_opt(
                 "SuperiorRegionNumber",
-                self.superior_region_number.map(|number| number.to_string()),
+                self.superior_region_key
+                    .and_then(|key| key.number)
+                    .map(|number| number.to_string()),
             )?
             .attr_opt(
                 "SuperiorRegionCategory",
-                self.superior_region_category
-                    .map(|category| category.to_eml_value()),
+                self.superior_region_key
+                    .map(|key| key.category.to_eml_value()),
             )?
             .content()?
             .child(("RegionName", NS_KR), |writer| {
@@ -201,12 +324,16 @@ mod tests {
         assert_eq!(region.committees.len(), 2);
         assert_eq!(region.committees[0].category, CommitteeCategory::HSB);
         assert_eq!(region.committees[1].category, CommitteeCategory::PSB);
-        assert_eq!(region.number, Some(1));
-        assert_eq!(region.category, RegionCategory::WaterAuthority);
+        assert_eq!(
+            region.key,
+            RegionKey::new(RegionCategory::WaterAuthority, Some(1))
+        );
         assert!(!region.roman_numerals);
         assert!(!region.frysian_export_allowed);
-        assert_eq!(region.superior_region_number, Some(0));
-        assert_eq!(region.superior_region_category, Some(RegionCategory::State));
+        assert_eq!(
+            region.superior_region_key,
+            Some(RegionKey::new(RegionCategory::State, Some(0)))
+        );
 
         let xml_output = test_write_eml_element(&region, &[NS_KR]).unwrap();
         assert_eq!(xml_output, xml);

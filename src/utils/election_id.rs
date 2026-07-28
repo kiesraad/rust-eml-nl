@@ -33,6 +33,12 @@ impl ElectionId {
 #[error("Invalid election id: {0}")]
 pub struct InvalidElectionIdError(String);
 
+impl From<InvalidElectionIdError> for EMLError {
+    fn from(err: InvalidElectionIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for ElectionId {
     type Error = InvalidElectionIdError;
 
