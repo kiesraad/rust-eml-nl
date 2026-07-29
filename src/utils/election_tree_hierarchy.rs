@@ -45,6 +45,19 @@ pub enum ElectionTreeHierarchyError {
         superior: RegionKey,
     },
 
+    /// A region sits below a region it does not refer to as its superior region,
+    /// while the position of a region within the election tree and the superior
+    /// region it refers to have to agree.
+    #[error(
+        "Region {region:?} sits below region {superior:?}, but does not refer to it as its superior region"
+    )]
+    InconsistentSuperiorRegion {
+        /// The region referring to the wrong superior region.
+        region: RegionKey,
+        /// The region it sits below.
+        superior: RegionKey,
+    },
+
     /// The election tree does not contain a region with the given identity.
     #[error("Election tree has no region with identity {0:?}")]
     UnknownRegion(RegionKey),
@@ -64,10 +77,10 @@ impl From<ElectionTreeHierarchyError> for EMLError {
 /// A region within an [`ElectionTreeHierarchy`], together with the regions
 /// directly subordinate to it.
 ///
-/// The superior region key of the contained [`Region`] always matches the
-/// position of the region within the tree: it is set when the region is attached
-/// to a superior region by [`ElectionTreeHierarchy::insert`], and cleared for
-/// the root region of the tree.
+/// The superior region key of the contained [`Region`] should match the position
+/// of the region within the tree: it is set when the region is attached to a
+/// superior region by [`RegionNode::add_child`], and cleared for the root region
+/// of the tree.
 #[derive(Debug, Clone)]
 pub struct RegionNode {
     region: Region,
@@ -75,9 +88,27 @@ pub struct RegionNode {
 }
 
 impl RegionNode {
+    /// Create a new region node for a region and its subordinate regions.
+    pub fn new(region: Region, children: impl Into<Vec<RegionNode>>) -> Self {
+        RegionNode {
+            region,
+            children: children.into(),
+        }
+    }
+
     /// The region itself, including its committees.
     pub fn region(&self) -> &Region {
         &self.region
+    }
+
+    /// The region itself, allowing it to be modified.
+    ///
+    /// The key and the superior region key of the region are part of the
+    /// structure of an election tree, so keeping them pointing at the regions
+    /// around this one is up to the caller. Both are checked again when this
+    /// region node enters an election tree hierarchy.
+    pub fn region_mut(&mut self) -> &mut Region {
+        &mut self.region
     }
 
     /// The regions directly subordinate to this region, in document order.
@@ -113,7 +144,7 @@ impl RegionNode {
     }
 
     /// Find the region with the given key, allowing it to be modified.
-    fn find_mut(&mut self, key: RegionKey) -> Option<&mut RegionNode> {
+    pub fn find_mut(&mut self, key: RegionKey) -> Option<&mut RegionNode> {
         let mut stack = vec![self];
 
         while let Some(node) = stack.pop() {
@@ -129,7 +160,7 @@ impl RegionNode {
 
     /// Detach the region with the given key from the regions below this region,
     /// returning it together with all regions below it.
-    fn take_descendant(&mut self, key: RegionKey) -> Option<RegionNode> {
+    pub fn take_descendant(&mut self, key: RegionKey) -> Option<RegionNode> {
         let mut stack = vec![self];
 
         while let Some(node) = stack.pop() {
@@ -144,14 +175,79 @@ impl RegionNode {
 
         None
     }
+
+    /// Add a region below this region, setting the superior region key of the
+    /// added region accordingly.
+    ///
+    /// The region being added must be of a lower region category than this
+    /// region. The regions below the added region are left as they are, so it is
+    /// only once the region enters an election tree that they are checked.
+    pub fn add_child(
+        &mut self,
+        mut child: RegionNode,
+    ) -> Result<RegionKey, ElectionTreeHierarchyError> {
+        let child_key = child.key();
+        let parent_key = self.key();
+        if !parent_key.category.is_higher_level_than(child_key.category) {
+            return Err(ElectionTreeHierarchyError::InvalidSuperiorRegionCategory {
+                region: child_key,
+                superior: parent_key,
+            });
+        }
+
+        child.region.superior_region_key = Some(parent_key);
+        self.children.push(child);
+
+        Ok(child_key)
+    }
+
+    /// Verify that this region and the regions below it describe a valid part of
+    /// an election tree: every region below this one refers to the region it sits
+    /// below as its superior region and is of a lower region category, and no
+    /// region appears more than once.
+    ///
+    /// The superior region key of this region itself is not checked, since where
+    /// this region sits is not known here.
+    fn check_subtree(
+        &self,
+        keys: &mut HashSet<RegionKey>,
+    ) -> Result<(), ElectionTreeHierarchyError> {
+        let mut stack = vec![self];
+
+        while let Some(node) = stack.pop() {
+            if !keys.insert(node.key()) {
+                return Err(ElectionTreeHierarchyError::DuplicateRegion(node.key()));
+            }
+
+            let superior = node.key();
+            for child in &node.children {
+                let key = child.key();
+
+                if !superior.category.is_higher_level_than(key.category) {
+                    return Err(ElectionTreeHierarchyError::InvalidSuperiorRegionCategory {
+                        region: key,
+                        superior,
+                    });
+                }
+
+                if child.region.superior_region_key != Some(superior) {
+                    return Err(ElectionTreeHierarchyError::InconsistentSuperiorRegion {
+                        region: key,
+                        superior,
+                    });
+                }
+            }
+
+            stack.extend(node.children.iter());
+        }
+
+        Ok(())
+    }
 }
 
 impl From<Region> for RegionNode {
     fn from(region: Region) -> Self {
-        RegionNode {
-            region,
-            children: Vec::new(),
-        }
+        RegionNode::new(region, vec![])
     }
 }
 
@@ -189,6 +285,15 @@ impl ElectionTreeHierarchy {
         ElectionTreeHierarchy { root }
     }
 
+    /// Create an election tree from a region and the regions below it, checking
+    /// that the tree invariants are satisfied.
+    pub fn from_region_node(
+        node: impl Into<RegionNode>,
+    ) -> Result<Self, ElectionTreeHierarchyError> {
+        let node: RegionNode = node.into();
+        node.try_into()
+    }
+
     /// The root region of this election tree.
     pub fn root(&self) -> &RegionNode {
         &self.root
@@ -222,13 +327,18 @@ impl ElectionTreeHierarchy {
     /// region it is attached to, since a region is always subordinate to a
     /// region at a higher level of the election tree.
     ///
+    /// The regions below the region being inserted are inserted along with it,
+    /// and have to describe a valid part of an election tree themselves: each of
+    /// them refers to the region it sits below as its superior region and is of a
+    /// lower region category, and no region ends up in the tree twice.
+    ///
     /// Returns the key identifying the inserted region.
     pub fn insert(
         &mut self,
         parent: RegionKey,
         region: impl Into<RegionNode>,
     ) -> Result<RegionKey, ElectionTreeHierarchyError> {
-        let mut node = region.into();
+        let node = region.into();
         let key = node.key();
 
         if !parent.category.is_higher_level_than(key.category) {
@@ -244,10 +354,7 @@ impl ElectionTreeHierarchy {
             return Err(ElectionTreeHierarchyError::UnknownRegion(parent));
         };
 
-        node.region.superior_region_key = Some(parent);
-        parent_node.children.push(node);
-
-        Ok(key)
+        parent_node.add_child(node)
     }
 
     /// Detach the region identified by `key` together with all regions below
@@ -265,30 +372,24 @@ impl ElectionTreeHierarchy {
             .ok_or(ElectionTreeHierarchyError::UnknownRegion(key))
     }
 
-    /// Verify that every region in the given node can be added to this election
-    /// tree without introducing regions with the same identity.
+    /// Verify that the given region and the regions below it can be added to this
+    /// election tree without breaking its invariants.
     fn check_can_insert(&self, node: &RegionNode) -> Result<(), ElectionTreeHierarchyError> {
-        let existing: HashSet<RegionKey> = self.iter().map(|node| node.key()).collect();
-        let mut inserted = HashSet::new();
-
-        for node in node.iter() {
-            let key = node.key();
-
-            if existing.contains(&key) || !inserted.insert(key) {
-                return Err(ElectionTreeHierarchyError::DuplicateRegion(key));
-            }
-        }
-
-        Ok(())
+        node.check_subtree(&mut self.iter().map(|node| node.key()).collect())
     }
 
     /// This election tree in the flat form EML_NL uses, with every region
     /// referring to its superior region by category and number.
     ///
-    /// The regions are listed breadth-first, so a region always appears after
-    /// the region it refers to as its superior region.
+    /// The regions are listed breadth-first.
     pub fn flattened(&self) -> ElectionTree {
         ElectionTree::from(self)
+    }
+
+    /// Consume the tree and retrieve the root node, allowing manipulation
+    /// on the node level.
+    pub fn into_inner(self) -> RegionNode {
+        self.root
     }
 
     /// Build a structured election tree from the flat list of regions of an
@@ -305,6 +406,19 @@ impl ElectionTreeHierarchy {
         };
 
         Ok(tree)
+    }
+}
+
+impl TryFrom<RegionNode> for ElectionTreeHierarchy {
+    type Error = ElectionTreeHierarchyError;
+
+    /// Build an election tree around the given region and the regions below it,
+    /// checking the tree invariants for the entire tree.
+    fn try_from(mut root: RegionNode) -> Result<Self, Self::Error> {
+        root.check_subtree(&mut HashSet::new())?;
+        root.region.superior_region_key = None;
+
+        Ok(ElectionTreeHierarchy { root })
     }
 }
 
@@ -404,13 +518,13 @@ fn index_regions(
 fn assemble(index: &RegionIndex<'_>, key: RegionKey) -> RegionNode {
     let (region, subordinates) = &index[&key];
 
-    RegionNode {
-        region: (*region).clone(),
-        children: subordinates
+    RegionNode::new(
+        (*region).clone(),
+        subordinates
             .iter()
             .map(|&child| assemble(index, child))
-            .collect(),
-    }
+            .collect::<Vec<_>>(),
+    )
 }
 
 #[cfg(test)]
@@ -993,6 +1107,108 @@ mod tests {
             Err(ElectionTreeHierarchyError::UnknownRegion(
                 RegionKey::electoral_district(2)
             ))
+        );
+    }
+
+    #[test]
+    fn test_insert_checks_the_regions_below_the_inserted_region() {
+        let mut tree = ElectionTreeHierarchy::new(region(RegionKey::state(), None));
+        let district = RegionKey::electoral_district(1);
+        let node = |superior| {
+            RegionNode::new(
+                region(district, None),
+                [RegionNode::from(region(
+                    RegionKey::municipality(14),
+                    superior,
+                ))],
+            )
+        };
+
+        // The municipality below the district being inserted has to refer to that
+        // district as its superior region.
+        assert_eq!(
+            tree.insert(RegionKey::state(), node(None)),
+            Err(ElectionTreeHierarchyError::InconsistentSuperiorRegion {
+                region: RegionKey::municipality(14),
+                superior: district,
+            })
+        );
+        assert_eq!(tree.region_count(), 1);
+
+        // Once it does, both regions are inserted.
+        tree.insert(RegionKey::state(), node(Some(district)))
+            .unwrap();
+        assert_eq!(tree.region_count(), 3);
+
+        // A region already in the tree cannot be inserted again, wherever below
+        // the inserted region it appears.
+        let duplicated = RegionNode::new(
+            region(RegionKey::electoral_district(2), None),
+            [RegionNode::from(region(
+                RegionKey::municipality(14),
+                Some(RegionKey::electoral_district(2)),
+            ))],
+        );
+        assert_eq!(
+            tree.insert(RegionKey::state(), duplicated),
+            Err(ElectionTreeHierarchyError::DuplicateRegion(
+                RegionKey::municipality(14)
+            ))
+        );
+        assert_eq!(tree.region_count(), 3);
+    }
+
+    #[test]
+    fn test_hierarchy_from_a_region_node() {
+        let mut tk2025 = tk2025_hierarchy();
+        let leeuwarden = tk2025.remove(RegionKey::electoral_district(2)).unwrap();
+
+        // A detached region becomes the root region of an election tree of its
+        // own, which clears the superior region it used to refer to.
+        let district = ElectionTreeHierarchy::try_from(leeuwarden).unwrap();
+        assert_eq!(district.root().key(), RegionKey::electoral_district(2));
+        assert_eq!(district.root().region().superior_region_key, None);
+        assert_eq!(district.region_count(), 19);
+
+        // The root region of a tree can be taken out and put back unchanged.
+        let mut root = ElectionTreeHierarchy::try_from(tk2025_hierarchy().into_inner())
+            .unwrap()
+            .into_inner();
+        assert_eq!(root.iter().count(), TK2025_REGION_COUNT);
+
+        // Manipulating a region below the root region into disagreeing about
+        // where it sits is rejected.
+        root.find_mut(RegionKey::municipality(80))
+            .unwrap()
+            .region_mut()
+            .superior_region_key = Some(RegionKey::state());
+        assert_eq!(
+            ElectionTreeHierarchy::try_from(root).unwrap_err(),
+            ElectionTreeHierarchyError::InconsistentSuperiorRegion {
+                region: RegionKey::municipality(80),
+                superior: RegionKey::electoral_district(2),
+            }
+        );
+    }
+
+    #[test]
+    fn test_hierarchy_from_a_region_node_checks_region_categories() {
+        // The electoral district below the municipality does not sit at a lower
+        // level of the election tree, so these regions do not form a tree.
+        let inverted = RegionNode::new(
+            region(RegionKey::municipality(14), None),
+            [RegionNode::from(region(
+                RegionKey::electoral_district(1),
+                Some(RegionKey::municipality(14)),
+            ))],
+        );
+
+        assert_eq!(
+            ElectionTreeHierarchy::try_from(inverted).unwrap_err(),
+            ElectionTreeHierarchyError::InvalidSuperiorRegionCategory {
+                region: RegionKey::electoral_district(1),
+                superior: RegionKey::municipality(14),
+            }
         );
     }
 }
