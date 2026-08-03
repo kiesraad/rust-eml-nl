@@ -18,16 +18,20 @@ pub enum RegionCategory {
     /// A 'kieskring'
     ElectoralDistrict,
     /// 'waterschap kieskring'
-    /// Note: it is currently unclear when this is used.
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::ElectoralDistrict`] instead.
     WaterAuthorityElectoralDistrict,
     /// 'provinciaal kieskring'
-    /// Note: it is currently unclear when this is used.
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::ElectoralDistrict`] instead.
     ProvinceElectoralDistrict,
     /// 'provinciaal stembureau'
-    /// Note: it is currently unclear when this is used.
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::PollingStation`] instead.
     ProvincePollingStation,
     /// 'waterschap gemeente'
-    /// Note: it is currently unclear when this is used.
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::Municipality`] instead.
     WaterAuthorityMunicipality,
     /// A 'gemeente', the lowest level of government region in mainland Netherlands.
     Municipality,
