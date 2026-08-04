@@ -206,7 +206,7 @@
 //!
 //! Note that this example includes a final newline and no UTF-8 BOM, whereas an
 //! actual exported CSV by default will not include a final newline, but will
-//! include an UTF-8 BOM.
+//! include an UTF-8 BOM. Newlines are encoded as \n.
 //!
 //! ### Filename convention
 //!
@@ -445,21 +445,17 @@ fn emit_stat_rows(
     // Helper macro to reduce repetition for various totals rows
     macro_rules! stat_row {
         ($label:expr, $votes_type:ident, $filter_type:expr) => {
-            stat_row_start(
-                $label,
-                totals
-                    .$votes_type
-                    .get(&$filter_type)
-                    .map(|v| v.raw())
-                    .unwrap_or(Cow::Borrowed("0")),
-            )
-            .chain(stations.iter().map(|s| {
-                s.reporting_unit
-                    .$votes_type
-                    .get(&$filter_type)
-                    .map(|v| v.raw())
-                    .unwrap_or(Cow::Borrowed("0"))
-            }))
+            if let Some(total) = totals.$votes_type.get(&$filter_type) {
+                output.row(
+                    stat_row_start($label, total.raw()).chain(stations.iter().map(|s| {
+                        s.reporting_unit
+                            .$votes_type
+                            .get(&$filter_type)
+                            .map(|v| v.raw())
+                            .unwrap_or(Cow::Borrowed("0"))
+                    })),
+                );
+            }
         };
     }
 
@@ -471,29 +467,29 @@ fn emit_stat_rows(
         ),
     );
 
-    output.row(stat_row!(
+    stat_row!(
         "geldige stempas",
         uncounted_votes,
         UncountedVotesReason::ValidPollCards
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "geldig volmachtbewijs",
         uncounted_votes,
         UncountedVotesReason::ValidProxyCertificates
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "geldige kiezerspas",
         uncounted_votes,
         UncountedVotesReason::ValidVoterCards
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "toegelaten kiezers",
         uncounted_votes,
         UncountedVotesReason::AdmittedVoters
-    ));
+    );
 
     output.row(
         stat_row_start("geldige stembiljetten", totals.candidate_votes_count.raw()).chain(
@@ -503,17 +499,17 @@ fn emit_stat_rows(
         ),
     );
 
-    output.row(stat_row!(
+    stat_row!(
         "blanco stembiljetten",
         rejected_votes,
         RejectedVotesReason::Blank
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "ongeldige stembiljetten",
         rejected_votes,
         RejectedVotesReason::Invalid
-    ));
+    );
 
     let counted_ballots = (totals.blank_votes()?.copied_value()?
         + totals.invalid_votes()?.copied_value()?
@@ -535,47 +531,47 @@ fn emit_stat_rows(
             .chain(reporting_unit_counted_ballots),
     );
 
-    output.row(stat_row!(
+    stat_row!(
         "meer stembiljetten dan toegelaten kiezers",
         uncounted_votes,
         UncountedVotesReason::MoreBallotsCounted
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "minder stembiljetten dan toegelaten kiezers",
         uncounted_votes,
         UncountedVotesReason::FewerBallotsCounted
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "kiezers met stembiljet hebben niet gestemd",
         uncounted_votes,
         UncountedVotesReason::BallotsTaken
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "er zijn te weinig stembiljetten uitgereikt",
         uncounted_votes,
         UncountedVotesReason::TooFewBallotsIssued
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "er zijn te veel stembiljetten uitgereikt",
         uncounted_votes,
         UncountedVotesReason::TooManyBallotsIssued
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "geen verklaring",
         uncounted_votes,
         UncountedVotesReason::NoExplanation
-    ));
+    );
 
-    output.row(stat_row!(
+    stat_row!(
         "andere verklaring",
         uncounted_votes,
         UncountedVotesReason::OtherExplanation
-    ));
+    );
 
     Ok(())
 }
@@ -676,6 +672,29 @@ mod tests {
         assert_eq!(
             result,
             include_str!("../../test-files/csv/osv4-3_telling_gr2022_westmaasenwaal.csv")
+        );
+    }
+
+    #[test]
+    fn test_gr2026_assen() {
+        let cl = CandidateLists::parse_eml(
+            include_str!("../../test-files/csv/Kandidatenlijsten_GR2026_Assen.eml.xml"),
+            EMLParsingMode::Strict,
+        )
+        .unwrap();
+
+        let count = ElectionCount::parse_eml(
+            include_str!("../../test-files/csv/Telling_GR2026_Assen.eml.xml"),
+            EMLParsingMode::Strict,
+        )
+        .unwrap();
+
+        let result = count.as_osv4_3_csv(&cl, true, false).unwrap();
+        // Note: original CSV has been converted from \r\n to \n line endings
+        // and Gebied "Assen" has been changed to "Gemeente Assen"
+        assert_eq!(
+            result,
+            include_str!("../../test-files/csv/osv4-3_telling_gr2026_assen.csv")
         );
     }
 
