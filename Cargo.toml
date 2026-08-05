@@ -1,6 +1,6 @@
 [package]
 name = "eml-nl"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 license = "EUPL-1.2"
 rust-version = "1.95" # MSRV
