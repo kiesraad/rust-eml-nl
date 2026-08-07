@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MasterElectionTree CreationDate="2025-07-16T06:24:52+00:00">
+    <Region RegionCategory="STAAT">
+        <RegionName>Nederland</RegionName>
+        <Council NumberOfSeats="75" ElectionCategory="EK"/>
+        <Council NumberOfSeats="150" ElectionCategory="TK"/>
+        <Council NumberOfSeats="31" ElectionCategory="EP"/>
+        <Committee CommitteeCategory="CSB" ElectionCategory="EP" CommitteeName="De Kiesraad"/>
+        <Committee CommitteeCategory="HSB" ElectionCategory="EP" CommitteeName="De Kiesraad" AcceptCentralSubmissions="true"/>
+        <Region RegionNumber="2" RegionCategory="PROVINCIE" FrysianExportAllowed="true">
+            <RegionName>Fryslân</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="2" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Fryslân</RegionName>
+                <Region RegionNumber="2" RegionCategory="KIESKRING">
+                    <RegionName>Leeuwarden</RegionName>
+                    <Committee CommitteeCategory="HSB" ElectionCategory="TK"/>
+                    <Committee CommitteeCategory="HSB" ElectionCategory="NR"/>
+                    <Region RegionNumber="1" RegionCategory="PROVINCIAAL_KIESKRING">
+                        <RegionName>Leeuwarden</RegionName>
+                        <Committee CommitteeCategory="CSB" ElectionCategory="PS"/>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PS"/>
+                        <Committee CommitteeCategory="CSB" ElectionCategory="PR"/>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PR"/>
+                        <Region RegionNumber="59" RegionCategory="GEMEENTE" FrysianExportAllowed="true">
+                            <RegionName>Achtkarspelen</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                        <Region RegionNumber="60" RegionCategory="GEMEENTE" FrysianExportAllowed="true">
+                            <RegionName>Ameland</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                        <Region RegionNumber="1891" RegionCategory="GEMEENTE" FrysianExportAllowed="true">
+                            <RegionName>Dantumadiel</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                    </Region>
+                </Region>
+            </Region>
+        </Region>
+        <Region RegionNumber="12" RegionCategory="PROVINCIE">
+            <RegionName>Limburg</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="12" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Limburg</RegionName>
+                <Region RegionNumber="19" RegionCategory="KIESKRING">
+                    <RegionName>Maastricht</RegionName>
+                    <Committee CommitteeCategory="HSB" ElectionCategory="TK"/>
+                    <Committee CommitteeCategory="HSB" ElectionCategory="NR"/>
+                    <Region RegionNumber="1" RegionCategory="PROVINCIAAL_KIESKRING" RomanNumerals="true">
+                        <RegionName>Maastricht</RegionName>
+                        <Committee CommitteeCategory="CSB" ElectionCategory="PS"/>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PS" AcceptCentralSubmissions="true"/>
+                        <Committee CommitteeCategory="CSB" ElectionCategory="PR"/>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PR"/>
+                        <Region RegionNumber="888" RegionCategory="GEMEENTE">
+                            <RegionName>Beek</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                    </Region>
+                    <Region RegionNumber="2" RegionCategory="PROVINCIAAL_KIESKRING" RomanNumerals="true">
+                        <RegionName>Venlo</RegionName>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PS"/>
+                        <Committee CommitteeCategory="HSB" ElectionCategory="PR"/>
+                        <Region RegionNumber="889" RegionCategory="GEMEENTE">
+                            <RegionName>Beesel</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                        <Region RegionNumber="893" RegionCategory="GEMEENTE">
+                            <RegionName>Bergen (L)</RegionName>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="GR"/>
+                            <Committee CommitteeCategory="CSB" ElectionCategory="LR"/>
+                            <Committee CommitteeCategory="HSB" ElectionCategory="LR"/>
+                        </Region>
+                    </Region>
+                </Region>
+            </Region>
+        </Region>
+        <Region RegionNumber="13" RegionCategory="KIESCOLLEGE">
+            <RegionName>Bonaire</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="13" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Bonaire</RegionName>
+            </Region>
+        </Region>
+        <Region RegionNumber="14" RegionCategory="KIESCOLLEGE">
+            <RegionName>Sint Eustatius</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="14" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Sint Eustatius</RegionName>
+            </Region>
+        </Region>
+        <Region RegionNumber="15" RegionCategory="KIESCOLLEGE">
+            <RegionName>Saba</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="15" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Saba</RegionName>
+            </Region>
+        </Region>
+        <Region RegionNumber="16" RegionCategory="KIESCOLLEGE">
+            <RegionName>Buitenland</RegionName>
+            <Committee CommitteeCategory="PROV_SB" ElectionCategory="EK"/>
+            <Region RegionNumber="16" RegionCategory="PROVINCIAAL_STEMBUREAU">
+                <RegionName>Buitenland</RegionName>
+            </Region>
+        </Region>
+        <Region RegionNumber="20" RegionCategory="KIESKRING">
+            <RegionName>Bonaire</RegionName>
+            <Committee CommitteeCategory="HSB" ElectionCategory="TK"/>
+            <Committee CommitteeCategory="HSB" ElectionCategory="NR"/>
+            <Region RegionNumber="9001" RegionCategory="EILANDSGEMEENTE">
+                <RegionName>Bonaire</RegionName>
+                <Committee CommitteeCategory="CSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="CSB" ElectionCategory="IR"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="IR"/>
+            </Region>
+            <Region RegionNumber="9002" RegionCategory="EILANDSGEMEENTE">
+                <RegionName>Sint Eustatius</RegionName>
+                <Committee CommitteeCategory="CSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="CSB" ElectionCategory="IR"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="IR"/>
+            </Region>
+            <Region RegionNumber="9003" RegionCategory="EILANDSGEMEENTE">
+                <RegionName>Saba</RegionName>
+                <Committee CommitteeCategory="CSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="ER"/>
+                <Committee CommitteeCategory="CSB" ElectionCategory="IR"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="IR"/>
+            </Region>
+        </Region>
+        <Region RegionNumber="1" RegionCategory="WATERSCHAP">
+            <RegionName>Noorderzijlvest</RegionName>
+            <Region RegionNumber="1" RegionCategory="WATERSCHAP_KIESKRING">
+                <RegionName>Noorderzijlvest</RegionName>
+                <Committee CommitteeCategory="CSB" ElectionCategory="AB"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="AB"/>
+                <Region RegionNumber="106" RegionCategory="WATERSCHAP_GEMEENTE">
+                    <RegionName>Assen</RegionName>
+                </Region>
+                <Region RegionNumber="1979" RegionCategory="WATERSCHAP_GEMEENTE">
+                    <RegionName>Eemsdelta</RegionName>
+                </Region>
+            </Region>
+        </Region>
+        <Region RegionNumber="2" RegionCategory="WATERSCHAP" FrysianExportAllowed="true">
+            <RegionName>Fryslân</RegionName>
+            <Region RegionNumber="1" RegionCategory="WATERSCHAP_KIESKRING">
+                <RegionName>Fryslân</RegionName>
+                <Committee CommitteeCategory="CSB" ElectionCategory="AB"/>
+                <Committee CommitteeCategory="HSB" ElectionCategory="AB"/>
+                <Region RegionNumber="59" RegionCategory="WATERSCHAP_GEMEENTE" FrysianExportAllowed="true">
+                    <RegionName>Achtkarspelen</RegionName>
+                </Region>
+                <Region RegionNumber="60" RegionCategory="WATERSCHAP_GEMEENTE" FrysianExportAllowed="true">
+                    <RegionName>Ameland</RegionName>
+                </Region>
+            </Region>
+        </Region>
+    </Region>
+</MasterElectionTree>
