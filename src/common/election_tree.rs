@@ -84,18 +84,18 @@ mod tests {
         let xml = test_xml_fragment(
             r#"
             <kr:ElectionTree xmlns:kr="http://www.kiesraad.nl/extensions">
-                <kr:Region RegionCategory="STAAT" RomanNumerals="false" FrysianExportAllowed="false">
+                <kr:Region RegionCategory="STAAT">
                     <kr:RegionName>Region 1</kr:RegionName>
                 </kr:Region>
-                <kr:Region RegionNumber="1" RegionCategory="PROVINCIE" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionCategory="STAAT">
+                <kr:Region RegionNumber="1" RegionCategory="PROVINCIE" RomanNumerals="true" FrysianExportAllowed="true" SuperiorRegionCategory="STAAT">
                     <kr:RegionName>Region 2</kr:RegionName>
                     <kr:Committee CommitteeCategory="CSB"/>
                 </kr:Region>
-                <kr:Region RegionNumber="2" RegionCategory="KIESKRING" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionNumber="1" SuperiorRegionCategory="PROVINCIE">
+                <kr:Region RegionNumber="2" RegionCategory="KIESKRING" SuperiorRegionNumber="1" SuperiorRegionCategory="PROVINCIE">
                     <kr:RegionName>Region 3</kr:RegionName>
                     <kr:Committee CommitteeCategory="PROV_SB"/>
                 </kr:Region>
-                <kr:Region RegionNumber="3" RegionCategory="GEMEENTE" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionNumber="2" SuperiorRegionCategory="KIESKRING">
+                <kr:Region RegionNumber="3" RegionCategory="GEMEENTE" SuperiorRegionNumber="2" SuperiorRegionCategory="KIESKRING">
                     <kr:RegionName>Region 4</kr:RegionName>
                     <kr:Committee CommitteeCategory="HSB"/>
                 </kr:Region>
@@ -111,6 +111,8 @@ mod tests {
             tree.regions[0].key,
             RegionKey::new(RegionCategory::State, None)
         );
+        assert!(!tree.regions[0].roman_numerals);
+        assert!(!tree.regions[0].frysian_export_allowed);
         assert_eq!(tree.regions[0].superior_region_key, None);
         assert!(tree.regions[0].committees.is_empty());
 
@@ -119,6 +121,8 @@ mod tests {
             tree.regions[1].key,
             RegionKey::new(RegionCategory::Province, Some(1))
         );
+        assert!(tree.regions[1].roman_numerals);
+        assert!(tree.regions[1].frysian_export_allowed);
         assert_eq!(
             tree.regions[1].superior_region_key,
             Some(RegionKey::new(RegionCategory::State, None))
