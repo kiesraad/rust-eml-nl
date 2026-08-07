@@ -18,6 +18,10 @@ pub enum RegionCategory {
     /// A 'kiescollege'
     /// Note: for EK elections before EML_NL v1.3, these appear as [`Self::Province`] instead.
     ElectoralCollege,
+    /// 'provinciaal stembureau'
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::PollingStation`] instead.
+    ProvincePollingStation,
     /// A 'kieskring'
     ElectoralDistrict,
     /// 'waterschap kieskring'
@@ -28,10 +32,6 @@ pub enum RegionCategory {
     /// Note: these should not appear in regular EML_NL documents, and should be
     /// replaced with [`Self::ElectoralDistrict`] instead.
     ProvinceElectoralDistrict,
-    /// 'provinciaal stembureau'
-    /// Note: these should not appear in regular EML_NL documents, and should be
-    /// replaced with [`Self::PollingStation`] instead.
-    ProvincePollingStation,
     /// 'waterschap gemeente'
     /// Note: these should not appear in regular EML_NL documents, and should be
     /// replaced with [`Self::Municipality`] instead.
