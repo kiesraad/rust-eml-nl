@@ -10,11 +10,18 @@ of EML_NL that the current code supports is always linked as a git submodule
 on this repository as well. This current branch is aiming to support EML_NL
 versions 1.2.1 and 1.2.2.
 
+Here's an overview of the supported documents:
+
+![Overview of EML_NL documents](docs/eml-nl-overview.svg)
+
+Note that the Master Election Tree is not an official EML_NL document, but it
+defines the regions for all elections in the Netherlands.
+
 This library requires the entire EML_NL file to be available in memory at once
 and does not support streaming while reading or writing the document. The
 memory overhead of a parsed document is relatively low however. It is able to
 parse the entire GR2022 election definitions, candidate lists, counts and
-results of all municipalties that participated at that time in approximately
+results of all municipalities that participated at that time in approximately
 5 seconds (a little under 500MB of XML data) on a small laptop. The library
 should be functional on virtually any supported Rust target (including most
 desktop and mobile OSes and the web).
