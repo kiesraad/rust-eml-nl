@@ -61,6 +61,12 @@ pub enum InvalidCandidateIdError {
     StartsWithZero,
 }
 
+impl From<InvalidCandidateIdError> for EMLError {
+    fn from(err: InvalidCandidateIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for CandidateId {
     type Error = InvalidCandidateIdError;
 

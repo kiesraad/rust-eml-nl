@@ -34,6 +34,12 @@ impl NameShortCode {
 #[error("Invalid name short code: {0}")]
 pub struct InvalidNameShortCodeError(String);
 
+impl From<InvalidNameShortCodeError> for EMLError {
+    fn from(err: InvalidNameShortCodeError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for NameShortCode {
     type Error = InvalidNameShortCodeError;
     fn parse_from_str(s: &str) -> Result<Self, Self::Error>

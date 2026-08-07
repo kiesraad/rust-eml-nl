@@ -85,6 +85,12 @@ impl ElectionCategory {
 #[error("Unknown election category: {0}")]
 pub struct UnknownElectionCategoryError(String);
 
+impl From<UnknownElectionCategoryError> for EMLError {
+    fn from(err: UnknownElectionCategoryError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for ElectionCategory {
     type Error = UnknownElectionCategoryError;
 

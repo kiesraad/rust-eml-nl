@@ -53,6 +53,12 @@ impl ContestId {
 #[error("Invalid contest id: {0}")]
 pub struct InvalidContestIdError(String);
 
+impl From<InvalidContestIdError> for EMLError {
+    fn from(err: InvalidContestIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for ContestId {
     type Error = InvalidContestIdError;
 
@@ -101,6 +107,12 @@ impl Default for ContestIdGeen {
 #[derive(Debug, Clone, Error)]
 #[error("Invalid contest id, expected 'geen': {0}")]
 pub struct InvalidContestIdGeenError(String);
+
+impl From<InvalidContestIdGeenError> for EMLError {
+    fn from(err: InvalidContestIdGeenError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
 
 impl StringValueData for ContestIdGeen {
     type Error = InvalidContestIdGeenError;

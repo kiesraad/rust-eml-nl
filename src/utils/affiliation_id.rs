@@ -61,6 +61,12 @@ pub enum InvalidAffiliationIdError {
     StartsWithZero,
 }
 
+impl From<InvalidAffiliationIdError> for EMLError {
+    fn from(err: InvalidAffiliationIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for AffiliationId {
     type Error = InvalidAffiliationIdError;
 

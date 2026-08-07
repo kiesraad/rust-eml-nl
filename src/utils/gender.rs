@@ -45,6 +45,12 @@ impl Gender {
 #[error("Unknown gender: {0}")]
 pub struct UnknownGenderError(String);
 
+impl From<UnknownGenderError> for EMLError {
+    fn from(err: UnknownGenderError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for Gender {
     type Error = UnknownGenderError;
 

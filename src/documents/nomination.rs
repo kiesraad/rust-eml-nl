@@ -222,7 +222,7 @@ impl NominationBuilder {
             canonicalization_method: self.canonicalization_method,
             nomination_data: self.nomination_data.map_or_else(
                 || {
-                    Ok(NominationData {
+                    Ok::<_, EMLError>(NominationData {
                         election_identifier: self.election_identifier.ok_or(
                             EMLErrorKind::MissingBuildProperty("election_identifier")
                                 .without_span(),

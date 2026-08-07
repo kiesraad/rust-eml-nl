@@ -28,6 +28,12 @@ impl AuthorityId {
 #[error("Invalid authority id: {0}")]
 pub struct InvalidAuthorityIdError(String);
 
+impl From<InvalidAuthorityIdError> for EMLError {
+    fn from(err: InvalidAuthorityIdError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 /// Regular expression for validating AuthorityId values.
 static AUTHORITY_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(CSB|((HSB|SB)\d+)|(\d{4}))$").expect("Failed to compile AuthorityId regex")

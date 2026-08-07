@@ -23,6 +23,9 @@
                 <MaxVotes>100</MaxVotes>
             </Contest>
             <kr:ElectionTree>
+                <kr:Region RegionCategory="GEMEENTE" RomanNumerals="false" FrysianExportAllowed="false">
+                    <kr:RegionName>Region 1</kr:RegionName>
+                </kr:Region>
             </kr:ElectionTree>
             <kr:NumberOfSeats>10</kr:NumberOfSeats>
             <kr:PreferenceThreshold>50</kr:PreferenceThreshold>

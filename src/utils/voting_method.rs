@@ -93,6 +93,12 @@ impl VotingMethod {
 #[error("Unknown voting method: {0}")]
 pub struct UnknownVotingMethodError(String);
 
+impl From<UnknownVotingMethodError> for EMLError {
+    fn from(err: UnknownVotingMethodError) -> Self {
+        EMLError::value_conversion(err)
+    }
+}
+
 impl StringValueData for VotingMethod {
     type Error = UnknownVotingMethodError;
 
