@@ -30,7 +30,6 @@ pub trait EMLRead {
 
     /// Parse an EML fragment from the given string slice, using the specified
     /// parsing mode and document version.
-    #[cfg(test)]
     fn parse_eml_fragment(
         input: &str,
         parsing_mode: EMLParsingMode,
@@ -114,7 +113,6 @@ where
         }
     }
 
-    #[cfg(test)]
     fn parse_eml_fragment(
         input: &str,
         parsing_mode: EMLParsingMode,
@@ -239,7 +237,6 @@ impl<'a> EMLReader<'a> {
     }
 
     /// Create this reader from a string slice with a known version.
-    #[cfg(test)]
     pub fn init_from_str_with_version(
         data: &'a str,
         parsing_mode: EMLParsingMode,
