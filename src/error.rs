@@ -1,5 +1,6 @@
 use crate::{
     EMLVersion,
+    documents::master_election_tree::MasterElectionTreeError,
     io::{OwnedQualifiedName, Span},
     utils::{AffiliationId, CandidateId, ElectionTreeHierarchyError},
 };
@@ -7,7 +8,7 @@ use crate::{
 /// Different kinds of errors that can occur during EML_NL processing.
 #[derive(thiserror::Error, Debug)]
 pub enum EMLErrorKind {
-    /// An error originanting from the XML parser
+    /// An error originating from the XML parser
     #[error("XML error: {0}")]
     XmlError(#[from] quick_xml::Error),
 
@@ -183,6 +184,10 @@ pub enum EMLErrorKind {
     /// The regions of an election tree do not describe a valid tree.
     #[error("Invalid election tree: {0}")]
     InvalidElectionTree(#[from] ElectionTreeHierarchyError),
+
+    /// The regions of a master election tree do not describe a valid tree.
+    #[error("Invalid master election tree: {0}")]
+    InvalidMasterElectionTree(#[from] MasterElectionTreeError),
 
     /// A custom error with something that can be displayed
     #[error("Custom error: {0}")]
