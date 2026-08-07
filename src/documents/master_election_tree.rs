@@ -7,8 +7,10 @@
 //! contained in an EML_NL `110a` document for a specific election is derived
 //! from a subset of this tree.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::str::FromStr;
+
+use thiserror::Error;
 
 use crate::{
     EMLError, EMLErrorKind,
@@ -20,6 +22,76 @@ use crate::{
     },
     utils::{CommitteeCategory, ElectionCategory, RegionCategory, StringValue, XsDateTime},
 };
+
+/// Error returned when the regions of a [`MasterElectionTree`] do not describe
+/// a valid tree.
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
+pub enum MasterElectionTreeError {
+    /// The root region of a master election tree must be of category [`RegionCategory::State`].
+    #[error("The root region of a master election tree must be of category STAAT, found {0:?}")]
+    RootNotState(RegionKey),
+
+    /// A region has a subregion that does not sit at a lower level in the
+    /// election tree, while a region's subregions must always be of a lower
+    /// category than the region itself.
+    #[error(
+        "Region {region:?} has subregion {subregion:?}, which does not sit at a lower level in the election tree"
+    )]
+    InvalidSubregionCategory {
+        /// The region containing the invalid subregion.
+        region: RegionKey,
+        /// The subregion that does not sit at a lower level than its parent.
+        subregion: RegionKey,
+    },
+
+    /// A region of a category other than [`RegionCategory::State`] is missing
+    /// its `RegionNumber` attribute, which is required for every category but
+    /// the state.
+    #[error("Region of category {0:?} is missing its RegionNumber attribute")]
+    MissingRegionNumber(RegionCategory),
+
+    /// A region has more than one subregion with the same category and number.
+    #[error("Region {region:?} has more than one subregion with identity {subregion:?}")]
+    DuplicateSubregion {
+        /// The region containing the duplicate subregions.
+        region: RegionKey,
+        /// The identity shared by more than one subregion.
+        subregion: RegionKey,
+    },
+
+    /// A region has more than one `Council` for the same election category.
+    #[error(
+        "Region {region:?} has more than one Council for election category {election_category:?}"
+    )]
+    DuplicateCouncil {
+        /// The region containing the duplicate councils.
+        region: RegionKey,
+        /// The election category shared by more than one council.
+        election_category: ElectionCategory,
+    },
+}
+
+impl From<MasterElectionTreeError> for EMLError {
+    fn from(err: MasterElectionTreeError) -> Self {
+        EMLErrorKind::InvalidMasterElectionTree(err).without_span()
+    }
+}
+
+/// Reports a [`MasterElectionTreeError`] encountered while reading a
+/// [`MasterElectionTree`] or [`MetRegion`], failing immediately if the parsing
+/// mode is strict, or collecting it as a non-fatal error otherwise.
+fn report_tree_error(
+    elem: &mut EMLElementReader<'_, '_>,
+    err: MasterElectionTreeError,
+) -> Result<(), EMLError> {
+    let err = EMLErrorKind::InvalidMasterElectionTree(err).with_span(elem.full_span());
+    if elem.parsing_mode().is_strict() {
+        Err(err)
+    } else {
+        elem.push_err(err);
+        Ok(())
+    }
+}
 
 /// The Kiesraad master election tree, containing every region, council and
 /// committee for every election category.
@@ -97,10 +169,16 @@ impl EMLElement for MasterElectionTree {
 
         let creation_date = elem.string_value_attr("CreationDate", None)?;
 
-        Ok(collect_struct!(elem, MasterElectionTree {
+        let tree = collect_struct!(elem, MasterElectionTree {
             creation_date: creation_date,
             root: MetRegion::EML_NAME => |elem| MetRegion::read_eml(elem)?,
-        }))
+        });
+
+        if tree.root.key.category != RegionCategory::State {
+            report_tree_error(elem, MasterElectionTreeError::RootNotState(tree.root.key))?;
+        }
+
+        Ok(tree)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -228,7 +306,7 @@ impl EMLElement for MetRegion {
             .string_value_attr("FrysianExportAllowed", Some("false"))?
             .copied_value()?;
 
-        Ok(collect_struct!(elem, MetRegion {
+        let region = collect_struct!(elem, MetRegion {
             key: RegionKey::new(category, number),
             roman_numerals: roman_numerals,
             frysian_export_allowed: frysian_export_allowed,
@@ -236,7 +314,56 @@ impl EMLElement for MetRegion {
             councils as Vec: Council::EML_NAME => |elem| Council::read_eml(elem)?,
             committees as Vec: MetCommittee::EML_NAME => |elem| MetCommittee::read_eml(elem)?,
             subregions as Vec: MetRegion::EML_NAME => |elem| MetRegion::read_eml(elem)?,
-        }))
+        });
+
+        if region.key.category != RegionCategory::State && region.key.number.is_none() {
+            report_tree_error(
+                elem,
+                MasterElectionTreeError::MissingRegionNumber(region.key.category),
+            )?;
+        }
+
+        let mut seen_subregions = HashSet::new();
+        for subregion in &region.subregions {
+            if !region
+                .key
+                .category
+                .is_higher_level_than(subregion.key.category)
+            {
+                report_tree_error(
+                    elem,
+                    MasterElectionTreeError::InvalidSubregionCategory {
+                        region: region.key,
+                        subregion: subregion.key,
+                    },
+                )?;
+            }
+
+            if !seen_subregions.insert(subregion.key) {
+                report_tree_error(
+                    elem,
+                    MasterElectionTreeError::DuplicateSubregion {
+                        region: region.key,
+                        subregion: subregion.key,
+                    },
+                )?;
+            }
+        }
+
+        let mut seen_councils = HashSet::new();
+        for council in &region.councils {
+            if !seen_councils.insert(council.election_category) {
+                report_tree_error(
+                    elem,
+                    MasterElectionTreeError::DuplicateCouncil {
+                        region: region.key,
+                        election_category: council.election_category,
+                    },
+                )?;
+            }
+        }
+
+        Ok(region)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -466,6 +593,124 @@ mod tests {
 
         let xml_output = test_write_eml_element(&region, &[]).unwrap();
         pretty_assertions::assert_eq!(xml_output, xml);
+    }
+
+    #[test]
+    fn test_region_rejects_subregion_of_invalid_category() {
+        // A GEMEENTE cannot contain a PROVINCIE: subregions must always sit at
+        // a lower level in the election tree than their parent region.
+        let xml = test_xml_fragment(
+            r#"
+            <Region RegionNumber="14" RegionCategory="GEMEENTE">
+                <RegionName>Groningen</RegionName>
+                <Region RegionNumber="1" RegionCategory="PROVINCIE">
+                    <RegionName>Groningen</RegionName>
+                </Region>
+            </Region>
+            "#,
+        );
+
+        let error = MetRegion::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            EMLErrorKind::InvalidMasterElectionTree(
+                MasterElectionTreeError::InvalidSubregionCategory { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_region_rejects_missing_region_number() {
+        let xml = test_xml_fragment(
+            r#"
+            <Region RegionCategory="GEMEENTE">
+                <RegionName>Groningen</RegionName>
+            </Region>
+            "#,
+        );
+
+        let error = MetRegion::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            EMLErrorKind::InvalidMasterElectionTree(MasterElectionTreeError::MissingRegionNumber(
+                RegionCategory::Municipality
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_region_rejects_duplicate_subregion() {
+        let xml = test_xml_fragment(
+            r#"
+            <Region RegionNumber="1" RegionCategory="PROVINCIE">
+                <RegionName>Groningen</RegionName>
+                <Region RegionNumber="14" RegionCategory="GEMEENTE">
+                    <RegionName>Groningen</RegionName>
+                </Region>
+                <Region RegionNumber="14" RegionCategory="GEMEENTE">
+                    <RegionName>Groningen</RegionName>
+                </Region>
+            </Region>
+            "#,
+        );
+
+        let error = MetRegion::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            EMLErrorKind::InvalidMasterElectionTree(
+                MasterElectionTreeError::DuplicateSubregion { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_region_rejects_duplicate_council() {
+        let xml = test_xml_fragment(
+            r#"
+            <Region RegionCategory="STAAT">
+                <RegionName>Nederland</RegionName>
+                <Council NumberOfSeats="150" ElectionCategory="TK"/>
+                <Council NumberOfSeats="151" ElectionCategory="TK"/>
+            </Region>
+            "#,
+        );
+
+        let error = MetRegion::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            EMLErrorKind::InvalidMasterElectionTree(
+                MasterElectionTreeError::DuplicateCouncil { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_master_election_tree_rejects_non_state_root() {
+        let xml = test_xml_fragment(
+            r#"
+            <MasterElectionTree CreationDate="2025-07-16T06:24:52+00:00">
+                <Region RegionNumber="1" RegionCategory="PROVINCIE">
+                    <RegionName>Groningen</RegionName>
+                </Region>
+            </MasterElectionTree>
+            "#,
+        );
+
+        let error = MasterElectionTree::parse_eml(&xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            EMLErrorKind::InvalidMasterElectionTree(MasterElectionTreeError::RootNotState(_))
+        ));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::{
+    documents::master_election_tree::MasterElectionTreeError,
     io::{OwnedQualifiedName, Span},
     utils::{AffiliationId, CandidateId, ElectionTreeHierarchyError},
 };
@@ -178,6 +179,10 @@ pub enum EMLErrorKind {
     /// The regions of an election tree do not describe a valid tree.
     #[error("Invalid election tree: {0}")]
     InvalidElectionTree(#[from] ElectionTreeHierarchyError),
+
+    /// The regions of a master election tree do not describe a valid tree.
+    #[error("Invalid master election tree: {0}")]
+    InvalidMasterElectionTree(#[from] MasterElectionTreeError),
 
     /// A custom error with something that can be displayed
     #[error("Custom error: {0}")]
