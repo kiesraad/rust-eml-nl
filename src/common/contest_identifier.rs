@@ -1,6 +1,6 @@
 use crate::{
     EMLError, NS_EML,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
     utils::{ContestId, ContestIdGeen, StringValue},
 };
 
@@ -9,6 +9,9 @@ use crate::{
 pub struct ContestIdentifier {
     /// Id of the contest.
     pub id: StringValue<ContestId>,
+
+    /// Name of the contest.
+    pub name: Option<Box<str>>,
 }
 
 impl ContestIdentifier {
@@ -16,7 +19,14 @@ impl ContestIdentifier {
     pub fn new(id: ContestId) -> Self {
         ContestIdentifier {
             id: StringValue::Parsed(id),
+            name: None,
         }
+    }
+
+    /// Set a name for this contest identifier
+    pub fn with_name(mut self, name: impl Into<Box<str>>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Check if the contest identifier is of type 'geen'.
@@ -51,12 +61,22 @@ impl EMLElement for ContestIdentifier {
         QualifiedName::from_static("ContestIdentifier", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        Ok(ContestIdentifier { id })
+        Ok(collect_struct!(elem, ContestIdentifier {
+            id: elem.string_value_attr("Id", None)?,
+            name as Option: ("ContestName", NS_EML) => |elem| elem.text_without_children()?,
+        }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Id", self.id.raw().as_ref())?.empty()
+        let writer = writer.attr("Id", self.id.raw().as_ref())?;
+
+        if let Some(name) = &self.name {
+            writer
+                .child(("ContestName", NS_EML), |w| w.text(name.as_ref())?.finish())?
+                .finish()
+        } else {
+            writer.empty()
+        }
     }
 }
 

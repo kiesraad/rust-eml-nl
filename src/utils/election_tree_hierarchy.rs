@@ -251,6 +251,14 @@ impl From<Region> for RegionNode {
     }
 }
 
+impl std::ops::Deref for RegionNode {
+    type Target = Region;
+
+    fn deref(&self) -> &Self::Target {
+        &self.region
+    }
+}
+
 /// The election tree of an EML_NL election definition in a structured form.
 ///
 /// EML_NL encodes the election tree as a flat list of regions, where every
