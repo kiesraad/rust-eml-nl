@@ -802,13 +802,8 @@ impl PollingPlaceBuilder {
     }
 
     /// Set the additional data of the polling station at the polling place.
-    pub fn polling_station_data(self, data: impl Into<Box<str>>) -> Self {
-        self.polling_station_data_option(Some(data))
-    }
-
-    /// Set the additional data of the polling station at the polling place, if present.
-    pub fn polling_station_data_option(mut self, data: Option<impl Into<Box<str>>>) -> Self {
-        self.polling_station_data = data.map(|d| d.into());
+    pub fn polling_station_data(mut self, data: impl Into<Box<str>>) -> Self {
+        self.polling_station_data = Some(data.into());
         self
     }
 
