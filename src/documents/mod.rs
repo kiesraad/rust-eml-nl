@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML,
+    EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, OASIS_EML_SCHEMA_VERSION,
     common::ElectionDomain,
     documents::{
         candidate_lists::{CandidateLists, CandidateListsElectionIdentifier, CandidateListsType},
@@ -274,7 +274,7 @@ fn accepted_root(elem: &EMLElementReader<'_, '_>) -> Result<(), EMLError> {
     }
 
     let schema_version = elem.attribute_value_req(("SchemaVersion", None))?;
-    if schema_version == EML_SCHEMA_VERSION {
+    if schema_version == OASIS_EML_SCHEMA_VERSION {
         Ok(())
     } else {
         Err(EMLErrorKind::SchemaVersionNotSupported(

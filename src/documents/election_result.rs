@@ -3,7 +3,7 @@
 use std::{ops::Deref, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, NS_KR,
+    OASIS_EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, NS_KR,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
@@ -233,7 +233,7 @@ impl EMLElement for ElectionResult {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_ELECTION_RESULT_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?

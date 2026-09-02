@@ -3,7 +3,7 @@
 use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
+    OASIS_EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
     common::{
         CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
         IssueDate, ManagingAuthority, TransactionId,
@@ -376,7 +376,7 @@ impl EMLElement for ElectionDefinition {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,

@@ -5,7 +5,7 @@ use std::{borrow::Cow, str::FromStr};
 use thiserror::Error;
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLValueResultExt as _, NS_EML, NS_KR,
+    OASIS_EML_SCHEMA_VERSION, EMLError, EMLValueResultExt as _, NS_EML, NS_KR,
     common::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
@@ -277,7 +277,7 @@ impl EMLElement for Nomination {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_NOMINATION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,

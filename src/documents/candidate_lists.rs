@@ -3,7 +3,7 @@
 use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR, NS_XAL,
+    EMLError, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountryNameCode,
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
@@ -284,7 +284,7 @@ impl EMLElement for CandidateLists {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), self.lists_type.to_eml_id())?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(IssueDate::EML_NAME, &self.issue_date)?

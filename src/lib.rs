@@ -78,7 +78,7 @@ pub mod utils;
 pub use error::*;
 
 /// Supported EML schema version
-pub(crate) const EML_SCHEMA_VERSION: &str = "5";
+pub(crate) const OASIS_EML_SCHEMA_VERSION: &str = "5";
 
 /// Namespace URI for the EML standard
 pub(crate) const NS_EML: &str = "urn:oasis:names:tc:evs:schema:eml";

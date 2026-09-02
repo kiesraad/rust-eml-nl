@@ -6,7 +6,7 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLValueResultExt, NS_EML, NS_KR,
+    EMLError, EMLValueResultExt, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
         ElectionDomain, IssueDate, LocalityName, ManagingAuthority, PostalCode,
@@ -258,7 +258,7 @@ impl EMLElement for PollingStations {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_POLLING_STATIONS_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
