@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use crate::{
-    EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML,
     common::ElectionDomain,
     documents::{
         candidate_lists::{CandidateLists, CandidateListsElectionIdentifier, CandidateListsType},
@@ -77,6 +77,18 @@ impl EML {
             EML::CandidateLists(cl) => cl.lists_type.to_friendly_name(),
             EML::ElectionCount(c) => c.count_type.to_friendly_name(),
             EML::ElectionResult(_) => "Result",
+        }
+    }
+
+    /// Get the version of this EML document.
+    pub fn document_version(&self) -> EMLVersion {
+        match self {
+            EML::ElectionDefinition(d) => d.version,
+            EML::PollingStations(d) => d.version,
+            EML::Nomination(d) => d.version,
+            EML::CandidateLists(d) => d.version,
+            EML::ElectionCount(d) => d.version,
+            EML::ElectionResult(d) => d.version,
         }
     }
 
@@ -193,8 +205,6 @@ impl EMLElement for EML {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         Ok(match document_id.as_ref() {
             EML_ELECTION_DEFINITION_ID => {
@@ -265,22 +275,6 @@ impl From<ElectionCount> for EML {
 impl From<ElectionResult> for EML {
     fn from(result: ElectionResult) -> Self {
         EML::from_result_doc(result)
-    }
-}
-
-fn accepted_root(elem: &EMLElementReader<'_, '_>) -> Result<(), EMLError> {
-    if !elem.has_name(("EML", Some(NS_EML)))? {
-        return Err(EMLErrorKind::InvalidRootElement).with_span(elem.span());
-    }
-
-    let schema_version = elem.attribute_value_req(("SchemaVersion", None))?;
-    if schema_version == OASIS_EML_SCHEMA_VERSION {
-        Ok(())
-    } else {
-        Err(EMLErrorKind::SchemaVersionNotSupported(
-            schema_version.to_string(),
-        ))
-        .with_span(elem.span())
     }
 }
 

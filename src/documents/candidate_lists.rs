@@ -3,14 +3,14 @@
 use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EMLError, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountryNameCode,
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
         LocalityName, ManagingAuthority, PersonNameStructure, TransactionId,
     },
     documents::{
-        ElectionIdentifierBuilder, accepted_root, validate_category_and_subcategory,
+        ElectionIdentifierBuilder, validate_category_and_subcategory,
         validate_election_and_nomination_dates,
     },
     error::EMLErrorKind,
@@ -27,6 +27,9 @@ use crate::{
 /// Representing a `230b` document, containing the candidate lists.
 #[derive(Debug, Clone)]
 pub struct CandidateLists {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// The type of the candidate lists document.
     pub lists_type: CandidateListsType,
 
@@ -86,6 +89,7 @@ impl TryFrom<CandidateLists> for String {
 /// Builder for the [`CandidateLists`] document.
 #[derive(Debug, Clone)]
 pub struct CandidateListsBuilder {
+    version: Option<EMLVersion>,
     lists_type: Option<CandidateListsType>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
@@ -102,6 +106,7 @@ impl CandidateListsBuilder {
     /// Create a new builder for the [`CandidateLists`] document.
     pub fn new() -> Self {
         CandidateListsBuilder {
+            version: None,
             lists_type: None,
             transaction_id: None,
             managing_authority: None,
@@ -113,6 +118,14 @@ impl CandidateListsBuilder {
             list_date: None,
             contests: vec![],
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the list type for the document.
@@ -213,6 +226,7 @@ impl CandidateListsBuilder {
     /// Build the `CandidateLists` document, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateLists, EMLError> {
         Ok(CandidateLists {
+            version: self.version.unwrap_or_default(),
             lists_type: self
                 .lists_type
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("lists_type").without_span())?,
@@ -264,13 +278,12 @@ impl EMLElement for CandidateLists {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         let candidate_lists_type = CandidateListsType::from_eml_id(document_id.as_ref())
             .map_err(|e| e.into_kind().with_span(elem.span()))?;
 
         Ok(collect_struct!(elem, CandidateLists {
+            version: elem.document_version(),
             lists_type: candidate_lists_type,
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
@@ -1567,6 +1580,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        EMLVersion,
         common::PersonName,
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
@@ -1584,9 +1598,13 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(1).unwrap()))
@@ -1610,9 +1628,13 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(2).unwrap()))
@@ -1726,9 +1748,13 @@ mod tests {
             "#,
         );
 
-        let qualifying_address = QualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let qualifying_address = QualifyingAddress::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         match &qualifying_address {
             QualifyingAddress::Country(country) => {
                 assert_eq!(country.country_name_code, None);

@@ -6,13 +6,13 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
         ElectionDomain, IssueDate, LocalityName, ManagingAuthority, PostalCode,
         ReportingUnitIdentifier, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
+    documents::ElectionIdentifierBuilder,
     error::{EMLErrorKind, EMLResultExt},
     io::{
         EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName, QualifiedName,
@@ -29,6 +29,9 @@ pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
 /// Representing a `110b` document, containing polling stations.
 #[derive(Debug, Clone)]
 pub struct PollingStations {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
 
@@ -85,6 +88,7 @@ impl TryFrom<PollingStations> for String {
 /// Builder for the [`PollingStations`] document.
 #[derive(Debug, Clone)]
 pub struct PollingStationsBuilder {
+    version: Option<EMLVersion>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
     issue_date: Option<IssueDate>,
@@ -99,6 +103,7 @@ impl PollingStationsBuilder {
     /// Create a new builder for the [`PollingStations`] document.
     pub fn new() -> Self {
         Self {
+            version: None,
             transaction_id: None,
             managing_authority: None,
             issue_date: None,
@@ -108,6 +113,14 @@ impl PollingStationsBuilder {
             election_identifier: None,
             contests: vec![],
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the transaction id of the document.
@@ -192,6 +205,7 @@ impl PollingStationsBuilder {
     /// Build the [`PollingStations`] document, returning any errors if required fields are missing.
     pub fn build(self) -> Result<PollingStations, EMLError> {
         Ok(PollingStations {
+            version: self.version.unwrap_or_default(),
             transaction_id: self
                 .transaction_id
                 .ok_or(EMLErrorKind::MissingBuildProperty("transaction_id").without_span())?,
@@ -234,8 +248,6 @@ impl EMLElement for PollingStations {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         if document_id != EML_POLLING_STATIONS_ID {
             return Err(EMLErrorKind::InvalidDocumentType(
@@ -246,6 +258,7 @@ impl EMLElement for PollingStations {
         }
 
         Ok(collect_struct!(elem, PollingStations {
+            version: elem.document_version(),
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
             issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,

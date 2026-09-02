@@ -304,9 +304,9 @@ impl EMLElement for Region {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EMLErrorKind;
     use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
     use crate::utils::CommitteeCategory;
+    use crate::{EMLErrorKind, EMLVersion};
 
     #[test]
     fn test_region_parsing() {
@@ -319,7 +319,9 @@ mod tests {
                 </kr:Region>
             "#,
         );
-        let region = Region::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let region =
+            Region::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(region.name.as_ref(), "Region 1");
         assert_eq!(region.committees.len(), 2);
         assert_eq!(region.committees[0].category, CommitteeCategory::HSB);
@@ -352,7 +354,7 @@ mod tests {
                 </kr:Region>
             "#,
         );
-        let error = Region::parse_eml(&xml, EMLParsingMode::Strict)
+        let error = Region::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
             .ok()
             .unwrap_err();
         assert!(matches!(error.kind(), EMLErrorKind::TooManyElements(_, 3)));

@@ -3,13 +3,13 @@
 use std::{ops::Deref, str::FromStr};
 
 use crate::{
-    OASIS_EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, NS_EML, NS_KR,
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
         TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
+    documents::ElectionIdentifierBuilder,
     io::{
         EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement as _,
         QualifiedName, collect_struct,
@@ -25,6 +25,9 @@ pub(crate) const EML_ELECTION_RESULT_ID: &str = "520";
 /// Representing a `110a` document, containing an election definition.
 #[derive(Debug, Clone)]
 pub struct ElectionResult {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
 
@@ -78,6 +81,7 @@ impl TryFrom<ElectionResult> for String {
 /// Builder for [`ElectionResult`].
 #[derive(Debug, Clone)]
 pub struct ElectionResultBuilder {
+    version: Option<EMLVersion>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
     creation_date_time: Option<CreationDateTime>,
@@ -91,6 +95,7 @@ impl ElectionResultBuilder {
     /// Create a new builder for [`ElectionResult`].
     pub fn new() -> Self {
         Self {
+            version: None,
             transaction_id: None,
             managing_authority: None,
             creation_date_time: None,
@@ -99,6 +104,14 @@ impl ElectionResultBuilder {
             election_identifier: None,
             contests: vec![],
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the transaction id of the election result document.
@@ -169,6 +182,7 @@ impl ElectionResultBuilder {
     /// Build the [`ElectionResult`] from the provided data, returning an error if any required fields are missing.
     pub fn build(self) -> Result<ElectionResult, EMLError> {
         Ok(ElectionResult {
+            version: self.version.unwrap_or_default(),
             transaction_id: self.transaction_id.ok_or_else(|| {
                 EMLErrorKind::MissingBuildProperty("transaction_id").without_span()
             })?,
@@ -209,9 +223,6 @@ impl EMLElement for ElectionResult {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO: parse the rest of the document
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         if document_id != EML_ELECTION_RESULT_ID {
             return Err(EMLErrorKind::InvalidDocumentType(
@@ -222,6 +233,7 @@ impl EMLElement for ElectionResult {
         }
 
         Ok(collect_struct!(elem, ElectionResult {
+            version: elem.document_version(),
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
             creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,

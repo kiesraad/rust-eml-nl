@@ -167,7 +167,10 @@ impl EMLElement for MinimalQualifyingAddressCountry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_minimal_qualifying_address_construction() {
@@ -206,7 +209,12 @@ mod tests {
             "#,
         );
 
-        let address = MinimalQualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let address = MinimalQualifyingAddress::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
 
         if let MinimalQualifyingAddress::Country(country) = &address {
             assert_eq!(country.country_name_code.value.as_ref(), "NL");
@@ -231,7 +239,12 @@ mod tests {
             "#,
         );
 
-        let address = MinimalQualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let address = MinimalQualifyingAddress::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
 
         if let MinimalQualifyingAddress::Locality(locality) = &address {
             assert_eq!(locality.locality_name.name.as_ref(), "Amsterdam");

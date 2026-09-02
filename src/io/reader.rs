@@ -8,7 +8,7 @@ use quick_xml::{
 };
 
 use crate::{
-    MultipleEMLErrors,
+    EMLVersion, MultipleEMLErrors, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     error::{EMLError, EMLErrorKind, EMLResultExt},
     io::QualifiedName,
     utils::{StringValue, StringValueData},
@@ -25,6 +25,17 @@ pub trait EMLRead {
     /// to Loose, no parsing will be performed and all values will be stored as
     /// raw strings.
     fn parse_eml(input: &str, parsing_mode: EMLParsingMode) -> EMLReadResult<Self>
+    where
+        Self: Sized;
+
+    /// Parse an EML fragment from the given string slice, using the specified
+    /// parsing mode and document version.
+    #[cfg(test)]
+    fn parse_eml_fragment(
+        input: &str,
+        parsing_mode: EMLParsingMode,
+        document_version: EMLVersion,
+    ) -> EMLReadResult<Self>
     where
         Self: Sized;
 }
@@ -97,19 +108,41 @@ where
     where
         Self: Sized + 'static,
     {
-        let mut reader = EMLReader::init_from_str(input, parsing_mode);
-        let res = reader.with_next_element(|r| T::read_eml_element(r));
-
-        let e = match res {
-            Ok(doc) => return EMLReadResult::Ok(doc, reader.errors),
-            Err(e) => e,
-        };
-
-        if reader.errors.is_empty() {
-            EMLReadResult::Err(e)
-        } else {
-            EMLReadResult::Err(EMLError::from_vec_with_additional(reader.errors, e))
+        match EMLReader::try_init_from_str(input, parsing_mode) {
+            Ok(r) => read_eml_details(r),
+            Err(e) => EMLReadResult::Err(e),
         }
+    }
+
+    #[cfg(test)]
+    fn parse_eml_fragment(
+        input: &str,
+        parsing_mode: EMLParsingMode,
+        document_version: EMLVersion,
+    ) -> EMLReadResult<Self>
+    where
+        Self: Sized + 'static,
+    {
+        read_eml_details(EMLReader::init_from_str_with_version(
+            input,
+            parsing_mode,
+            document_version,
+        ))
+    }
+}
+
+fn read_eml_details<T: EMLReadElement + 'static>(mut reader: EMLReader<'_>) -> EMLReadResult<T> {
+    let res = reader.with_next_element(|r| T::read_eml_element(r));
+
+    let e = match res {
+        Ok(doc) => return EMLReadResult::Ok(doc, reader.errors),
+        Err(e) => e,
+    };
+
+    if reader.errors.is_empty() {
+        EMLReadResult::Err(e)
+    } else {
+        EMLReadResult::Err(EMLError::from_vec_with_additional(reader.errors, e))
     }
 }
 
@@ -180,19 +213,49 @@ impl EMLParsingMode {
 pub(crate) struct EMLReader<'a> {
     inner: NsReader<&'a [u8]>,
     xml_version: XmlVersion,
+    version: EMLVersion,
     parsing_mode: EMLParsingMode,
     errors: Vec<EMLError>,
 }
 
 impl<'a> EMLReader<'a> {
     /// Create this reader from a string slice.
-    pub fn init_from_str(data: &'a str, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
-        Self::from_reader(NsReader::from_str(data), parsing_mode)
+    ///
+    /// This will attempt to extract the EML version from the data. This only
+    /// works if the root element is an EML root element.
+    pub fn try_init_from_str(
+        data: &'a str,
+        parsing_mode: EMLParsingMode,
+    ) -> Result<EMLReader<'a>, EMLError> {
+        let reader = NsReader::from_str(data);
+        let version = extract_eml_nl_version(EMLReader {
+            inner: reader.clone(),
+            xml_version: XmlVersion::default(),
+            version: EMLVersion::V1_2_2,
+            parsing_mode: EMLParsingMode::Loose,
+            errors: Vec::new(),
+        })?;
+        Ok(Self::from_reader(reader, parsing_mode, version))
     }
 
-    pub fn from_reader(reader: NsReader<&'a [u8]>, parsing_mode: EMLParsingMode) -> EMLReader<'a> {
+    /// Create this reader from a string slice with a known version.
+    #[cfg(test)]
+    pub fn init_from_str_with_version(
+        data: &'a str,
+        parsing_mode: EMLParsingMode,
+        version: EMLVersion,
+    ) -> EMLReader<'a> {
+        Self::from_reader(NsReader::from_str(data), parsing_mode, version)
+    }
+
+    fn from_reader(
+        reader: NsReader<&'a [u8]>,
+        parsing_mode: EMLParsingMode,
+        version: EMLVersion,
+    ) -> EMLReader<'a> {
         EMLReader {
             inner: reader,
+            version,
             xml_version: XmlVersion::default(),
             parsing_mode,
             errors: Vec::new(),
@@ -254,6 +317,39 @@ impl<'a> EMLReader<'a> {
         let mut root = self.next_element()?;
         f(&mut root)
     }
+
+    /// Returns the version of the EML document that this reader is parsing.
+    pub fn document_version(&self) -> EMLVersion {
+        self.version
+    }
+}
+
+fn extract_eml_nl_version(mut reader: EMLReader) -> Result<EMLVersion, EMLError> {
+    // Find the root element, and check that this is an EML document
+    let mut root = reader.next_element()?;
+    if !root.has_name(("EML", Some(NS_EML)))? {
+        return Err(EMLErrorKind::InvalidRootElement).with_span(root.span());
+    }
+
+    let schema_version = root.attribute_value_req(("SchemaVersion", None))?;
+    if schema_version != OASIS_EML_SCHEMA_VERSION {
+        return Err(EMLErrorKind::SchemaVersionNotSupported(
+            schema_version.to_string(),
+        ))
+        .with_span(root.span());
+    }
+
+    // Next: find the `kr:Schema` element and extract the version from the `version` attribute
+    while let Some(child) = root.next_child()? {
+        if child.has_name(("Schema", Some(NS_KR)))? {
+            let version = child.attribute_value(("Version", None))?;
+            if let Some(version) = version {
+                return Ok(version.as_ref().parse::<EMLVersion>()?);
+            }
+        }
+    }
+
+    Ok(EMLVersion::V1_2_2)
 }
 
 /// A reader for an XML element in an EML file.
@@ -272,6 +368,11 @@ pub(crate) struct EMLElementReader<'r, 'input> {
 }
 
 impl<'r, 'input> EMLElementReader<'r, 'input> {
+    /// Returns the version of the EML document that this reader is parsing.
+    pub fn document_version(&self) -> EMLVersion {
+        self.reader.document_version()
+    }
+
     /// Given a start event that was just read from the reader, create a element
     /// reader until the matching end tag. If the start event was an empty
     /// element, this must be indicated using the `is_empty` parameter, otherwise
@@ -975,7 +1076,11 @@ mod tests {
     #[test]
     fn test_unknown_namespace() {
         let document = r#"<eml:UnknownElement />"#;
-        let mut reader = EMLReader::init_from_str(document, EMLParsingMode::Strict);
+        let mut reader = EMLReader::init_from_str_with_version(
+            document,
+            EMLParsingMode::Strict,
+            EMLVersion::V1_2_2,
+        );
         let root = reader.next_element().unwrap();
         let error = root.name().unwrap_err();
         assert!(matches!(
@@ -993,7 +1098,11 @@ mod tests {
             "5738 d520 a7f2 89b8 8875 ebfe cfc8 6012 d7b6 f65f 3271 d0e1 180b ccdd 8134 cd5d\n",
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
         ] {
-            let mut reader = EMLReader::init_from_str(document, EMLParsingMode::Strict);
+            let mut reader = EMLReader::init_from_str_with_version(
+                document,
+                EMLParsingMode::Strict,
+                EMLVersion::V1_2_2,
+            );
             let Err(error) = reader.next_element() else {
                 panic!("expected an error for input {document:?}");
             };

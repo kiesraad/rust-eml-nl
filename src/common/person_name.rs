@@ -512,7 +512,10 @@ impl EMLElement for LastName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_person_name_construction() {
@@ -643,7 +646,9 @@ mod tests {
             "#,
         );
 
-        let person_name = PersonName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let person_name =
+            PersonName::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(person_name.last_name.value.as_ref(), "Test");
         assert_eq!(
             person_name

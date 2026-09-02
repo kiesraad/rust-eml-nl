@@ -200,7 +200,10 @@ impl EMLElement for CreatedByAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_managing_authority_construction() {
@@ -228,7 +231,12 @@ mod tests {
             </ManagingAuthority>
             "#,
         );
-        let ma = ManagingAuthority::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let ma = ManagingAuthority::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
         assert_eq!(ma.authority_identifier.id.raw(), "1234");
         assert_eq!(ma.authority_identifier.name.as_deref(), Some("Authority 1"));
         assert_eq!(ma.authority_address, AuthorityAddress {});

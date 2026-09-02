@@ -79,7 +79,10 @@ impl EMLElement for CountryNameCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_country_name_code_construction() {
@@ -96,7 +99,12 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<xal:CountryNameCode xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Scheme="ISO3166" Code="NL">Netherlands</xal:CountryNameCode>"#,
         );
-        let cnc = CountryNameCode::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let cnc = CountryNameCode::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
         assert_eq!(cnc.value.as_ref(), "Netherlands");
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));

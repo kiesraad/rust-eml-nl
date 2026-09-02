@@ -5,13 +5,13 @@ use std::{borrow::Cow, str::FromStr};
 use thiserror::Error;
 
 use crate::{
-    OASIS_EML_SCHEMA_VERSION, EMLError, EMLValueResultExt as _, NS_EML, NS_KR,
+    EMLError, EMLValueResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
     },
     documents::{
-        ElectionIdentifierBuilder, accepted_root, validate_category_and_subcategory,
+        ElectionIdentifierBuilder, validate_category_and_subcategory,
         validate_election_and_nomination_dates,
     },
     error::EMLErrorKind,
@@ -35,6 +35,9 @@ pub(crate) const EML_NOMINATION_ID: &str = "210";
 /// Representing a `210` document, containing a nomination.
 #[derive(Debug, Clone)]
 pub struct Nomination {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
 
@@ -91,6 +94,7 @@ impl TryFrom<Nomination> for String {
 /// Builder for the [`Nomination`] document.
 #[derive(Debug, Clone)]
 pub struct NominationBuilder {
+    version: Option<EMLVersion>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
     issue_date: Option<IssueDate>,
@@ -107,6 +111,7 @@ impl NominationBuilder {
     /// Create a new builder for the [`Nomination`] document.
     pub fn new() -> Self {
         NominationBuilder {
+            version: None,
             transaction_id: None,
             managing_authority: None,
             issue_date: None,
@@ -118,6 +123,14 @@ impl NominationBuilder {
             affiliation: None,
             nominate: None,
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the transaction id for the document.
@@ -209,6 +222,7 @@ impl NominationBuilder {
     /// Build the `Nomination` document, returning an error if any required fields are missing.
     pub fn build(self) -> Result<Nomination, EMLError> {
         Ok(Nomination {
+            version: self.version.unwrap_or_default(),
             transaction_id: self
                 .transaction_id
                 .ok_or(EMLErrorKind::MissingBuildProperty("transaction_id").without_span())?,
@@ -254,8 +268,6 @@ impl EMLElement for Nomination {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         if document_id.as_ref() != EML_NOMINATION_ID {
             return Err(
@@ -265,6 +277,7 @@ impl EMLElement for Nomination {
         }
 
         Ok(collect_struct!(elem, Nomination {
+            version: elem.document_version(),
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
             issue_date: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
