@@ -10,7 +10,7 @@ of EML_NL that the current code supports is always linked as a git submodule
 on this repository as well. This current branch is aiming to support EML_NL
 versions 1.2.1 and 1.2.2.
 
-Here's an overview of the supported documents:
+Here's an overview of the supported EML documents, and how these are used in [e-KS](https://github.com/kiesraad/e-ks) and [Abacus](https://github.com/kiesraad/abacus/):
 
 ![Overview of EML_NL documents](docs/eml-nl-overview.svg)
 
