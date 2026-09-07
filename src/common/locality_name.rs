@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));
 
-        let xml_output = test_write_eml_element(&loc, &[NS_XAL]).unwrap();
+        let xml_output = test_write_eml_element(&loc, &[NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

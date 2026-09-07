@@ -223,7 +223,8 @@ mod tests {
             panic!("Expected a country qualifying address");
         }
 
-        let xml_output = test_write_eml_element(&address, &[NS_EML, NS_XAL]).unwrap();
+        let xml_output =
+            test_write_eml_element(&address, &[NS_EML, NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -252,7 +253,8 @@ mod tests {
             panic!("Expected a locality qualifying address");
         }
 
-        let xml_output = test_write_eml_element(&address, &[NS_EML, NS_XAL]).unwrap();
+        let xml_output =
+            test_write_eml_element(&address, &[NS_EML, NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

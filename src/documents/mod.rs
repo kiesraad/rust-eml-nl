@@ -19,7 +19,7 @@ use crate::{
             EML_POLLING_STATIONS_ID, PollingStations, PollingStationsElectionIdentifier,
         },
     },
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    io::{EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{ElectionCategory, ElectionId, ElectionSubcategory, StringValue, XsDate},
 };
 
@@ -77,18 +77,6 @@ impl EML {
             EML::CandidateLists(cl) => cl.lists_type.to_friendly_name(),
             EML::ElectionCount(c) => c.count_type.to_friendly_name(),
             EML::ElectionResult(_) => "Result",
-        }
-    }
-
-    /// Get the version of this EML document.
-    pub fn document_version(&self) -> EMLVersion {
-        match self {
-            EML::ElectionDefinition(d) => d.version,
-            EML::PollingStations(d) => d.version,
-            EML::Nomination(d) => d.version,
-            EML::CandidateLists(d) => d.version,
-            EML::ElectionCount(d) => d.version,
-            EML::ElectionResult(d) => d.version,
         }
     }
 
@@ -275,6 +263,19 @@ impl From<ElectionCount> for EML {
 impl From<ElectionResult> for EML {
     fn from(result: ElectionResult) -> Self {
         EML::from_result_doc(result)
+    }
+}
+
+impl EMLDocument for EML {
+    fn document_version(&self) -> EMLVersion {
+        match self {
+            EML::ElectionDefinition(d) => d.version,
+            EML::PollingStations(d) => d.version,
+            EML::Nomination(d) => d.version,
+            EML::CandidateLists(d) => d.version,
+            EML::ElectionCount(d) => d.version,
+            EML::ElectionResult(d) => d.version,
+        }
     }
 }
 

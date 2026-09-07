@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(ed.id.as_ref().unwrap().raw(), "1234");
         assert_eq!(ed.name.as_ref(), "Test Domain");
 
-        let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&ed, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -87,7 +87,7 @@ mod tests {
                 .unwrap();
         assert!(ed.id.is_none());
         assert_eq!(ed.name.as_ref(), "Test Domain");
-        let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&ed, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

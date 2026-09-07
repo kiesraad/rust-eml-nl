@@ -10,7 +10,9 @@ use crate::{
     },
     documents::ElectionIdentifierBuilder,
     error::{EMLErrorKind, EMLResultExt},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct,
+    },
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, VotingMethod, XsDate,
         XsDateOrDateTime, XsDateTime,
@@ -48,6 +50,12 @@ impl ElectionDefinition {
     /// Create a new builder for [`ElectionDefinition`].
     pub fn builder() -> ElectionDefinitionBuilder {
         ElectionDefinitionBuilder::new()
+    }
+}
+
+impl EMLDocument for ElectionDefinition {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -390,6 +398,11 @@ impl EMLElement for ElectionDefinition {
         writer
             .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,
@@ -774,6 +787,7 @@ mod tests {
     #[test]
     fn test_election_definition_construction() {
         let election_definition = ElectionDefinition::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
             .issue_date(XsDate::from_date(2024, 6, 10).unwrap())

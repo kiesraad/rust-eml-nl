@@ -6,7 +6,8 @@ use quick_xml::{
 };
 
 use crate::{
-    EMLError, EMLErrorKind, EMLResultExt, NS_EML, NS_KR, NS_XAL, NS_XNL, io::QualifiedName,
+    EMLError, EMLErrorKind, EMLResultExt, EMLVersion, NS_EML, NS_KR, NS_XAL, NS_XNL,
+    io::{EMLDocument, QualifiedName},
 };
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,7 @@ pub(crate) struct NsDefinitions {
 
 pub(crate) struct EMLWriter {
     ns_definitions: NsDefinitions,
+    version: EMLVersion,
     writer: Writer<Vec<u8>>,
 }
 
@@ -120,6 +122,12 @@ impl<'a> EMLElementWriter<'a> {
 
         let start_tag = BytesStart::new(elem_name);
         Ok(EMLElementWriter { start_tag, writer })
+    }
+
+    /// Returns the version of the EML document being written.
+    #[expect(unused, reason = "No version checks during writing yet")]
+    pub fn document_version(self) -> EMLVersion {
+        self.writer.version
     }
 
     pub fn attr<'b, 'c>(
@@ -311,6 +319,7 @@ pub(crate) trait EMLWriteInternal {
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
+        version: EMLVersion,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError>;
@@ -320,6 +329,7 @@ pub(crate) trait EMLWriteInternal {
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
+        version: EMLVersion,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError>;
@@ -334,6 +344,7 @@ where
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
+        version: EMLVersion,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<Vec<u8>, EMLError> {
@@ -371,6 +382,7 @@ where
         }
         let mut eml_writer = EMLWriter {
             ns_definitions: ns_definitions.clone(),
+            version,
             writer,
         };
         let mut element = EMLElementWriter::new(&mut eml_writer, &root)?;
@@ -397,6 +409,7 @@ where
         root_name: Option<impl Into<QualifiedName<'a, 'b>>>,
         default_namespace_uri: Option<Option<&'static str>>,
         namespace_definitions: Option<BTreeMap<&'static str, &'static str>>,
+        version: EMLVersion,
         pretty_print: bool,
         include_declaration: bool,
     ) -> Result<String, EMLError> {
@@ -404,6 +417,7 @@ where
             root_name,
             default_namespace_uri,
             namespace_definitions,
+            version,
             pretty_print,
             include_declaration,
         )?)
@@ -435,7 +449,7 @@ pub trait EMLWrite {
 
 impl<T> EMLWrite for T
 where
-    T: EMLWriteInternal,
+    T: EMLWriteInternal + EMLDocument,
 {
     fn write_eml_root(
         &self,
@@ -446,6 +460,7 @@ where
             None::<QualifiedName<'_, '_>>,
             None,
             None,
+            self.document_version(),
             pretty_print,
             include_declaration,
         )
@@ -461,6 +476,7 @@ where
             None::<QualifiedName<'_, '_>>,
             None,
             None,
+            self.document_version(),
             pretty_print,
             include_declaration,
         )
@@ -481,6 +497,7 @@ pub(crate) fn write_eml_element(
 pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
     element: &T,
     namespaces: &[&str],
+    version: EMLVersion,
 ) -> Result<String, EMLError> {
     let mut namespace_definitions = BTreeMap::new();
     let mut default_namespace_uri = Some(None);
@@ -511,6 +528,7 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
         Some(T::EML_NAME),
         default_namespace_uri,
         Some(namespace_definitions),
+        version,
         true,
         false,
     )

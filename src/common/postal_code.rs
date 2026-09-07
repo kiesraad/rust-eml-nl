@@ -160,7 +160,8 @@ mod tests {
         assert_eq!(postal_code.number.number_type.as_deref(), Some("Primary"));
         assert_eq!(postal_code.number.code.as_deref(), Some("PC123"));
 
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
+        let xml_output =
+            test_write_eml_element(&postal_code, &[NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -182,7 +183,8 @@ mod tests {
         assert_eq!(postal_code.number.number_type, None);
         assert_eq!(postal_code.number.code, None);
 
-        let xml_output = test_write_eml_element(&postal_code, &[NS_XAL]).unwrap();
+        let xml_output =
+            test_write_eml_element(&postal_code, &[NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

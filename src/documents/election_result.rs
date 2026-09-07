@@ -11,8 +11,8 @@ use crate::{
     },
     documents::ElectionIdentifierBuilder,
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement as _,
-        QualifiedName, collect_struct,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, StringValue,
@@ -48,6 +48,12 @@ impl ElectionResult {
     /// Builder for creating a new instance.
     pub fn builder() -> ElectionResultBuilder {
         ElectionResultBuilder::new()
+    }
+}
+
+impl EMLDocument for ElectionResult {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -246,6 +252,11 @@ impl EMLElement for ElectionResult {
         writer
             .attr(("Id", None), EML_ELECTION_RESULT_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
@@ -969,6 +980,7 @@ mod tests {
     fn test_election_result_construction() {
         let election_result = ElectionResult::builder()
             .transaction_id(TransactionId::new(1))
+            .version(EMLVersion::V1_2_2)
             .managing_authority(
                 AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Place"),
             )

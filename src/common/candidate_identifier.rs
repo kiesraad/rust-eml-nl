@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(can_id.short_code, None);
         assert_eq!(can_id.expected_confirmation_reference, None);
 
-        let xml_output = test_write_eml_element(&can_id, &[NS_EML]).unwrap();
+        let xml_output = test_write_eml_element(&can_id, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -169,7 +169,7 @@ mod tests {
             Some("Ref123".into())
         );
 
-        let xml_output = test_write_eml_element(&can_id, &[NS_EML]).unwrap();
+        let xml_output = test_write_eml_element(&can_id, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 

@@ -8,7 +8,7 @@ pub use qualified_name::*;
 pub use reader::*;
 pub use writer::*;
 
-use crate::EMLError;
+use crate::{EMLError, EMLVersion};
 
 pub(crate) trait EMLElement {
     const EML_NAME: QualifiedName<'static, 'static>;
@@ -36,6 +36,12 @@ where
     fn read_eml_element(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         T::read_eml(elem)
     }
+}
+
+/// Represents a full EML document.
+pub trait EMLDocument {
+    /// Get the EML_NL document version for the document.
+    fn document_version(&self) -> EMLVersion;
 }
 
 #[cfg(test)]

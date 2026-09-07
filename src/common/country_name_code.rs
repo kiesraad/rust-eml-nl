@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(cnc.scheme.as_deref(), Some("ISO3166"));
         assert_eq!(cnc.code.as_deref(), Some("NL"));
 
-        let xml_output = test_write_eml_element(&cnc, &[NS_XAL]).unwrap();
+        let xml_output = test_write_eml_element(&cnc, &[NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

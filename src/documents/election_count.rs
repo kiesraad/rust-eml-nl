@@ -12,8 +12,8 @@ use crate::{
     },
     documents::ElectionIdentifierBuilder,
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement,
-        QualifiedName, collect_struct,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        EMLWriteElement, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -50,6 +50,12 @@ impl ElectionCount {
     /// Create a builder for the [`ElectionCount`] document.
     pub fn builder() -> ElectionCountBuilder {
         ElectionCountBuilder::new()
+    }
+}
+
+impl EMLDocument for ElectionCount {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -257,6 +263,11 @@ impl EMLElement for ElectionCount {
         writer
             .attr(("Id", None), self.count_type.to_eml_id())?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
@@ -2141,6 +2152,7 @@ mod tests {
     #[test]
     fn test_election_count_construction() {
         let ec = ElectionCount::builder()
+            .version(EMLVersion::V1_2_2)
             .count_type(CountType::Municipal)
             .transaction_id(TransactionId::new(1))
             .creation_date_time(

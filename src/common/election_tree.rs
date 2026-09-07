@@ -235,7 +235,7 @@ mod tests {
             CommitteeCategory::HSB
         );
 
-        let xml_output = test_write_eml_element(&tree, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&tree, &[NS_KR], EMLVersion::default()).unwrap();
         pretty_assertions::assert_eq!(xml_output, xml);
     }
 

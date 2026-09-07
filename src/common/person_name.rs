@@ -742,7 +742,8 @@ mod tests {
         assert_eq!(person_name.last_name.name_type.as_deref(), Some("LastName"));
         assert_eq!(person_name.last_name.code.as_deref(), Some("TestCode"));
 
-        let xml_output = test_write_eml_element(&person_name, &[NS_XNL]).unwrap();
+        let xml_output =
+            test_write_eml_element(&person_name, &[NS_XNL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

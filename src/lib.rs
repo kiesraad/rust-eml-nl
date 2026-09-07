@@ -77,6 +77,8 @@ pub mod utils;
 
 pub use error::*;
 
+use crate::io::QualifiedName;
+
 /// Supported EML schema version
 pub(crate) const OASIS_EML_SCHEMA_VERSION: &str = "5";
 
@@ -112,6 +114,8 @@ pub enum EMLVersion {
 }
 
 impl EMLVersion {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Schema", Some(NS_KR));
+
     /// Returns the string representation of this EML version, if one is known.
     ///
     /// Returns `None` for [`EMLVersion::V1_2_2`].

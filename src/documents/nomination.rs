@@ -16,8 +16,8 @@ use crate::{
     },
     error::EMLErrorKind,
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, QualifiedName,
-        collect_struct, write_eml_element,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        QualifiedName, collect_struct, write_eml_element,
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -61,6 +61,12 @@ impl Nomination {
     /// Create a new builder for the [`Nomination`] document.
     pub fn builder() -> NominationBuilder {
         NominationBuilder::new()
+    }
+}
+
+impl EMLDocument for Nomination {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -291,6 +297,11 @@ impl EMLElement for Nomination {
         writer
             .attr(("Id", None), EML_NOMINATION_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,
@@ -1070,6 +1081,7 @@ mod tests {
     #[test]
     fn nomination_construction() {
         let nomination = Nomination::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(ManagingAuthority::new(
                 AuthorityIdentifier::new(AuthorityId::new("0000").unwrap()).with_name("Test"),

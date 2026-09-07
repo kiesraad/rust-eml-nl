@@ -82,7 +82,7 @@ mod tests {
             .unwrap();
         assert_eq!(id.raw(), "2024-06-01");
 
-        let xml_output = test_write_eml_element(&id, &[NS_EML]).unwrap();
+        let xml_output = test_write_eml_element(&id, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

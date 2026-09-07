@@ -74,7 +74,9 @@ mod tests {
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
         assert_eq!(reporting_unit_identifier.name.as_ref(), "Test");
 
-        let xml_output = test_write_eml_element(&reporting_unit_identifier, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&reporting_unit_identifier, &[NS_EML], EMLVersion::default())
+                .unwrap();
         assert_eq!(xml_output, xml);
     }
 }

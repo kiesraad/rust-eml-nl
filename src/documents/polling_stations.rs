@@ -15,8 +15,8 @@ use crate::{
     documents::ElectionIdentifierBuilder,
     error::{EMLErrorKind, EMLResultExt},
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName, QualifiedName,
-        collect_struct,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, OwnedQualifiedName,
+        QualifiedName, collect_struct,
     },
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, StringValueData,
@@ -55,6 +55,12 @@ impl PollingStations {
     /// Create a new builder for constructing a [`PollingStations`] document.
     pub fn builder() -> PollingStationsBuilder {
         PollingStationsBuilder::new()
+    }
+}
+
+impl EMLDocument for PollingStations {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -272,6 +278,11 @@ impl EMLElement for PollingStations {
         writer
             .attr(("Id", None), EML_POLLING_STATIONS_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
@@ -1070,6 +1081,7 @@ mod tests {
     #[test]
     fn test_polling_stations_construction() {
         let ps = PollingStations::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(
                 AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Test"),

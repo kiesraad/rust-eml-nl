@@ -155,7 +155,8 @@ mod tests {
         .unwrap();
         assert_eq!(contest_id.id.raw(), "1234");
 
-        let xml_output = test_write_eml_element(&contest_id, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&contest_id, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -178,7 +179,8 @@ mod tests {
         .unwrap();
         assert_eq!(contest_id_geen.id.raw(), "geen");
 
-        let xml_output = test_write_eml_element(&contest_id_geen, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&contest_id_geen, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

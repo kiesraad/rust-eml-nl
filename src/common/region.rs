@@ -337,7 +337,7 @@ mod tests {
             Some(RegionKey::new(RegionCategory::State, Some(0)))
         );
 
-        let xml_output = test_write_eml_element(&region, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&region, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 

@@ -87,7 +87,8 @@ mod tests {
         assert_eq!(committee.category, CommitteeCategory::HSB);
         assert_eq!(committee.accept_central_submissions, Some(false));
 
-        let xml_output = test_write_eml_element(&committee, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&committee, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

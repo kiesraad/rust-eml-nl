@@ -244,7 +244,8 @@ mod tests {
         assert_eq!(cba.id.raw(), "4321");
         assert_eq!(cba.name.as_deref(), Some("Creator Authority"));
 
-        let xml_output = test_write_eml_element(&ma, &[NS_EML, NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&ma, &[NS_EML, NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

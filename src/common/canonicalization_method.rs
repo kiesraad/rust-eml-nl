@@ -65,7 +65,7 @@ mod tests {
         .unwrap();
         assert_eq!(method.algorithm.as_ref(), "test-algorithm");
 
-        let xml_output = test_write_eml_element(&method, &[NS_DS]).unwrap();
+        let xml_output = test_write_eml_element(&method, &[NS_DS], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

@@ -80,7 +80,8 @@ mod tests {
         assert_eq!(transaction_id.raw(), "5678");
         assert_eq!(transaction_id.value().unwrap(), 5678);
 
-        let xml_output = test_write_eml_element(&transaction_id, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&transaction_id, &[NS_EML], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

@@ -320,7 +320,8 @@ mod tests {
             Some("Test Contest 2")
         );
 
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&list_data, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -343,7 +344,8 @@ mod tests {
             PublicationLanguage::Dutch
         );
 
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&list_data, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }
