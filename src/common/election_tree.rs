@@ -148,6 +148,7 @@ impl EMLElement for ElectionTree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EMLVersion;
     use crate::common::region::RegionKey;
     use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
     use crate::utils::{CommitteeCategory, RegionCategory};
@@ -176,7 +177,9 @@ mod tests {
             "#,
         );
 
-        let tree = ElectionTree::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let tree =
+            ElectionTree::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(tree.regions.len(), 4);
 
         assert_eq!(tree.regions[0].name.as_ref(), "Region 1");
@@ -232,7 +235,7 @@ mod tests {
             CommitteeCategory::HSB
         );
 
-        let xml_output = test_write_eml_element(&tree, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&tree, &[NS_KR], EMLVersion::default()).unwrap();
         pretty_assertions::assert_eq!(xml_output, xml);
     }
 
@@ -240,9 +243,10 @@ mod tests {
     fn test_election_tree_rejects_empty() {
         let xml =
             test_xml_fragment(r#"<kr:ElectionTree xmlns:kr="http://www.kiesraad.nl/extensions"/>"#);
-        let error = ElectionTree::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap_err();
+        let error =
+            ElectionTree::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .ok()
+                .unwrap_err();
         assert!(matches!(error.kind(), EMLErrorKind::MissingElement(_)));
     }
 }

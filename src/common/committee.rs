@@ -70,19 +70,25 @@ impl EMLElement for Committee {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_committee_parsing() {
         let xml = test_xml_fragment(
             r#"<kr:Committee xmlns:kr="http://www.kiesraad.nl/extensions" CommitteeCategory="HSB" CommitteeName="Committee 1" AcceptCentralSubmissions="false"/>"#,
         );
-        let committee = Committee::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let committee =
+            Committee::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(committee.name, Some("Committee 1".into()));
         assert_eq!(committee.category, CommitteeCategory::HSB);
         assert_eq!(committee.accept_central_submissions, Some(false));
 
-        let xml_output = test_write_eml_element(&committee, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&committee, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

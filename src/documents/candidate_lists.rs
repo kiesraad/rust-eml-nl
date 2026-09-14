@@ -3,20 +3,20 @@
 use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR, NS_XAL,
+    EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountryNameCode,
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
         LocalityName, ManagingAuthority, PersonNameStructure, TransactionId,
     },
     documents::{
-        ElectionIdentifierBuilder, accepted_root, validate_category_and_subcategory,
+        ElectionIdentifierBuilder, validate_category_and_subcategory,
         validate_election_and_nomination_dates,
     },
     error::EMLErrorKind,
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, QualifiedName,
-        collect_struct, write_eml_element,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        QualifiedName, collect_struct, write_eml_element,
     },
     utils::{
         AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -27,6 +27,9 @@ use crate::{
 /// Representing a `230b` document, containing the candidate lists.
 #[derive(Debug, Clone)]
 pub struct CandidateLists {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// The type of the candidate lists document.
     pub lists_type: CandidateListsType,
 
@@ -53,6 +56,12 @@ impl CandidateLists {
     /// Create a new builder for the [`CandidateLists`] document.
     pub fn builder() -> CandidateListsBuilder {
         CandidateListsBuilder::new()
+    }
+}
+
+impl EMLDocument for CandidateLists {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -86,6 +95,7 @@ impl TryFrom<CandidateLists> for String {
 /// Builder for the [`CandidateLists`] document.
 #[derive(Debug, Clone)]
 pub struct CandidateListsBuilder {
+    version: Option<EMLVersion>,
     lists_type: Option<CandidateListsType>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
@@ -102,6 +112,7 @@ impl CandidateListsBuilder {
     /// Create a new builder for the [`CandidateLists`] document.
     pub fn new() -> Self {
         CandidateListsBuilder {
+            version: None,
             lists_type: None,
             transaction_id: None,
             managing_authority: None,
@@ -113,6 +124,14 @@ impl CandidateListsBuilder {
             list_date: None,
             contests: vec![],
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the list type for the document.
@@ -213,6 +232,7 @@ impl CandidateListsBuilder {
     /// Build the `CandidateLists` document, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateLists, EMLError> {
         Ok(CandidateLists {
+            version: self.version.unwrap_or_default(),
             lists_type: self
                 .lists_type
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("lists_type").without_span())?,
@@ -264,13 +284,12 @@ impl EMLElement for CandidateLists {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         let candidate_lists_type = CandidateListsType::from_eml_id(document_id.as_ref())
             .map_err(|e| e.into_kind().with_span(elem.span()))?;
 
         Ok(collect_struct!(elem, CandidateLists {
+            version: elem.document_version(),
             lists_type: candidate_lists_type,
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
@@ -284,7 +303,12 @@ impl EMLElement for CandidateLists {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), self.lists_type.to_eml_id())?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(IssueDate::EML_NAME, &self.issue_date)?
@@ -1567,6 +1591,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        EMLVersion,
         common::PersonName,
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
@@ -1584,9 +1609,13 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(1).unwrap()))
@@ -1596,7 +1625,9 @@ mod tests {
             Some("Affiliation 1".into())
         );
 
-        let xml_output = test_write_eml_element(&affiliation_identifier, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&affiliation_identifier, &[NS_EML], EMLVersion::default())
+                .unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -1610,16 +1641,22 @@ mod tests {
             "#,
         );
 
-        let affiliation_identifier = AffiliationIdentifier::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let affiliation_identifier = AffiliationIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         assert_eq!(
             affiliation_identifier.id,
             StringValue::Parsed(AffiliationId::new(NonZeroU64::new(2).unwrap()))
         );
         assert_eq!(affiliation_identifier.registered_name, None);
 
-        let xml_output = test_write_eml_element(&affiliation_identifier, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&affiliation_identifier, &[NS_EML], EMLVersion::default())
+                .unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -1709,7 +1746,7 @@ mod tests {
         assert_eq!(c.locality.locality_type.as_ref().unwrap().as_ref(), "City");
         assert_eq!(c.locality.usage_type.as_ref().unwrap().as_ref(), "Example");
 
-        test_write_eml_element(&c, &[NS_XAL]).unwrap();
+        test_write_eml_element(&c, &[NS_XAL], EMLVersion::default()).unwrap();
     }
 
     #[test]
@@ -1726,9 +1763,13 @@ mod tests {
             "#,
         );
 
-        let qualifying_address = QualifyingAddress::parse_eml(&xml, EMLParsingMode::Strict)
-            .ok()
-            .unwrap();
+        let qualifying_address = QualifyingAddress::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .ok()
+        .unwrap();
         match &qualifying_address {
             QualifyingAddress::Country(country) => {
                 assert_eq!(country.country_name_code, None);
@@ -1737,13 +1778,19 @@ mod tests {
             _ => panic!("Expected country qualifying address"),
         }
 
-        let xml_output = test_write_eml_element(&qualifying_address, &[NS_EML, NS_XAL]).unwrap();
+        let xml_output = test_write_eml_element(
+            &qualifying_address,
+            &[NS_EML, NS_XAL],
+            EMLVersion::default(),
+        )
+        .unwrap();
         assert_eq!(xml_output, xml);
     }
 
     #[test]
     fn candidate_lists_construction() {
         let cl = CandidateLists::builder()
+            .version(EMLVersion::V1_2_2)
             .lists_type(CandidateListsType::Single)
             .transaction_id(TransactionId::new(1))
             .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))

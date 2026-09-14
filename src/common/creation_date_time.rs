@@ -56,7 +56,10 @@ mod tests {
     use std::str::FromStr as _;
 
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_creation_date_time_construction() {
@@ -74,10 +77,15 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<kr:CreationDateTime xmlns:kr="http://www.kiesraad.nl/extensions">2024-06-01T12:34:56+00:00</kr:CreationDateTime>"#,
         );
-        let cdt = CreationDateTime::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let cdt = CreationDateTime::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
         assert_eq!(cdt.raw(), "2024-06-01T12:34:56+00:00");
 
-        let xml_output = test_write_eml_element(&cdt, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&cdt, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

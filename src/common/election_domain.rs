@@ -50,7 +50,10 @@ impl EMLElement for ElectionDomain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_election_domain_construction() {
@@ -64,11 +67,13 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<kr:ElectionDomain xmlns:kr="http://www.kiesraad.nl/extensions" Id="1234">Test Domain</kr:ElectionDomain>"#,
         );
-        let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let ed =
+            ElectionDomain::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(ed.id.as_ref().unwrap().raw(), "1234");
         assert_eq!(ed.name.as_ref(), "Test Domain");
 
-        let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&ed, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -77,10 +82,12 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<kr:ElectionDomain xmlns:kr="http://www.kiesraad.nl/extensions">Test Domain</kr:ElectionDomain>"#,
         );
-        let ed = ElectionDomain::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let ed =
+            ElectionDomain::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert!(ed.id.is_none());
         assert_eq!(ed.name.as_ref(), "Test Domain");
-        let xml_output = test_write_eml_element(&ed, &[NS_KR]).unwrap();
+        let xml_output = test_write_eml_element(&ed, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

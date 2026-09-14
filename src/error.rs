@@ -75,7 +75,7 @@ pub enum EMLErrorKind {
     InvalidRootElement,
 
     /// The EML schema version is not supported
-    #[error("Schema version '{0}' is not supported, only version '5' is supported")]
+    #[error("OASIS Schema version '{0}' is not supported, only version '5' is supported")]
     SchemaVersionNotSupported(String),
 
     /// The document type is not recognized
@@ -182,6 +182,10 @@ pub enum EMLErrorKind {
     /// A custom error with something that can be displayed
     #[error("Custom error: {0}")]
     Custom(Box<dyn CustomError>),
+
+    /// The EML_NL version specified in the file is not supported.
+    #[error("Unsupported EML version: {0}")]
+    UnsupportedEMLVersion(String),
 }
 
 /// Custom error type that can be used in EMLErrorKind::Custom

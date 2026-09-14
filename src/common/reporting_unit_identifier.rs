@@ -45,7 +45,7 @@ impl EMLElement for ReportingUnitIdentifier {
 mod tests {
     use super::*;
     use crate::{
-        NS_EML,
+        EMLVersion, NS_EML,
         io::{EMLParsingMode, EMLRead as _, test_write_eml_element, test_xml_fragment},
     };
 
@@ -65,12 +65,18 @@ mod tests {
             <ReportingUnitIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="1234">Test</ReportingUnitIdentifier>
             "#,
         );
-        let reporting_unit_identifier =
-            ReportingUnitIdentifier::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let reporting_unit_identifier = ReportingUnitIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
         assert_eq!(reporting_unit_identifier.id.raw(), "1234");
         assert_eq!(reporting_unit_identifier.name.as_ref(), "Test");
 
-        let xml_output = test_write_eml_element(&reporting_unit_identifier, &[NS_EML]).unwrap();
+        let xml_output =
+            test_write_eml_element(&reporting_unit_identifier, &[NS_EML], EMLVersion::default())
+                .unwrap();
         assert_eq!(xml_output, xml);
     }
 }

@@ -82,7 +82,10 @@ impl EMLElement for LocalityName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLParsingMode, EMLRead, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_locality_name_construction() {
@@ -99,12 +102,14 @@ mod tests {
         let xml = test_xml_fragment(
             r#"<xal:LocalityName xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" Type="City" Code="AMS">Amsterdam</xal:LocalityName>"#,
         );
-        let loc = LocalityName::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let loc =
+            LocalityName::parse_eml_fragment(&xml, EMLParsingMode::Strict, EMLVersion::default())
+                .unwrap();
         assert_eq!(loc.name.as_ref(), "Amsterdam");
         assert_eq!(loc.locality_type.as_deref(), Some("City"));
         assert_eq!(loc.code.as_deref(), Some("AMS"));
 
-        let xml_output = test_write_eml_element(&loc, &[NS_XAL]).unwrap();
+        let xml_output = test_write_eml_element(&loc, &[NS_XAL], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

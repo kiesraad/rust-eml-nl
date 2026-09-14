@@ -3,14 +3,16 @@
 use std::{num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, NS_EML, NS_KR,
+    EMLError, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
         IssueDate, ManagingAuthority, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
+    documents::ElectionIdentifierBuilder,
     error::{EMLErrorKind, EMLResultExt},
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct,
+    },
     utils::{
         ElectionCategory, ElectionId, ElectionSubcategory, StringValue, VotingMethod, XsDate,
         XsDateOrDateTime, XsDateTime,
@@ -22,6 +24,9 @@ pub(crate) const EML_ELECTION_DEFINITION_ID: &str = "110a";
 /// Representing a `110a` document, containing an election definition.
 #[derive(Debug, Clone)]
 pub struct ElectionDefinition {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// Transaction id of the document.
     pub transaction_id: TransactionId,
 
@@ -45,6 +50,12 @@ impl ElectionDefinition {
     /// Create a new builder for [`ElectionDefinition`].
     pub fn builder() -> ElectionDefinitionBuilder {
         ElectionDefinitionBuilder::new()
+    }
+}
+
+impl EMLDocument for ElectionDefinition {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -78,6 +89,7 @@ impl TryFrom<ElectionDefinition> for String {
 /// Builder for [`ElectionDefinition`].
 #[derive(Debug, Clone)]
 pub struct ElectionDefinitionBuilder {
+    version: Option<EMLVersion>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
     issue_date: Option<IssueDate>,
@@ -98,6 +110,7 @@ impl ElectionDefinitionBuilder {
     /// Create a new builder for [`ElectionDefinition`].
     pub fn new() -> Self {
         Self {
+            version: None,
             transaction_id: None,
             managing_authority: None,
             issue_date: None,
@@ -113,6 +126,14 @@ impl ElectionDefinitionBuilder {
             voting_method: None,
             max_votes: None,
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the transaction id for the document.
@@ -224,6 +245,7 @@ impl ElectionDefinitionBuilder {
     /// Build the [`ElectionDefinition`] from the provided values, returning an error if any required fields are missing.
     pub fn build(self) -> Result<ElectionDefinition, EMLError> {
         Ok(ElectionDefinition {
+            version: self.version.unwrap_or_default(),
             transaction_id: self
                 .transaction_id
                 .ok_or(EMLErrorKind::MissingBuildProperty("transaction_id").without_span())?,
@@ -352,8 +374,6 @@ impl EMLElement for ElectionDefinition {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         if document_id != EML_ELECTION_DEFINITION_ID {
             return Err(EMLErrorKind::InvalidDocumentType(
@@ -364,6 +384,7 @@ impl EMLElement for ElectionDefinition {
         }
 
         Ok(collect_struct!(elem, ElectionDefinition {
+            version: elem.document_version(),
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
             issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
@@ -376,7 +397,12 @@ impl EMLElement for ElectionDefinition {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), EML_ELECTION_DEFINITION_ID)?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,
@@ -761,6 +787,7 @@ mod tests {
     #[test]
     fn test_election_definition_construction() {
         let election_definition = ElectionDefinition::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
             .issue_date(XsDate::from_date(2024, 6, 10).unwrap())

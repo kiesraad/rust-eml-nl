@@ -240,7 +240,10 @@ impl StringValueData for ListDataBelongsToCombination {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{EMLRead as _, test_write_eml_element, test_xml_fragment};
+    use crate::{
+        EMLVersion,
+        io::{EMLRead as _, test_write_eml_element, test_xml_fragment},
+    };
 
     #[test]
     fn test_list_data_construction() {
@@ -283,7 +286,12 @@ mod tests {
             "#,
         );
 
-        let list_data = ListData::parse_eml(&xml, crate::io::EMLParsingMode::Strict).unwrap();
+        let list_data = ListData::parse_eml_fragment(
+            &xml,
+            crate::io::EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
 
         assert_eq!(
             list_data.belongs_to_combination,
@@ -312,7 +320,8 @@ mod tests {
             Some("Test Contest 2")
         );
 
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&list_data, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -322,7 +331,12 @@ mod tests {
             r#"<kr:ListData xmlns:kr="http://www.kiesraad.nl/extensions" PublishGender="false"/>"#,
         );
 
-        let list_data = ListData::parse_eml(&xml, crate::io::EMLParsingMode::Strict).unwrap();
+        let list_data = ListData::parse_eml_fragment(
+            &xml,
+            crate::io::EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
 
         assert!(!list_data.publish_gender.value().unwrap().into_owned());
         assert_eq!(
@@ -330,7 +344,8 @@ mod tests {
             PublicationLanguage::Dutch
         );
 
-        let xml_output = test_write_eml_element(&list_data, &[NS_KR]).unwrap();
+        let xml_output =
+            test_write_eml_element(&list_data, &[NS_KR], EMLVersion::default()).unwrap();
         assert_eq!(xml_output, xml);
     }
 }

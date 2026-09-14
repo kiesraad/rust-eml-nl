@@ -3,17 +3,17 @@
 use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EML_SCHEMA_VERSION, EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, NS_EML,
-    NS_KR,
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, NS_EML, NS_KR,
+    OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
         ReportingUnitIdentifier, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, accepted_root},
+    documents::ElectionIdentifierBuilder,
     io::{
-        EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _, EMLWriteElement,
-        QualifiedName, collect_struct,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        EMLWriteElement, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -24,6 +24,9 @@ use crate::{
 /// Representing a `510a`, `510b`, `510c` or `510d` document, containing a count.
 #[derive(Debug, Clone)]
 pub struct ElectionCount {
+    /// EML_NL version of the document
+    pub version: EMLVersion,
+
     /// Type of count document.
     pub count_type: CountType,
 
@@ -47,6 +50,12 @@ impl ElectionCount {
     /// Create a builder for the [`ElectionCount`] document.
     pub fn builder() -> ElectionCountBuilder {
         ElectionCountBuilder::new()
+    }
+}
+
+impl EMLDocument for ElectionCount {
+    fn document_version(&self) -> EMLVersion {
+        self.version
     }
 }
 
@@ -80,6 +89,7 @@ impl TryFrom<ElectionCount> for String {
 /// Builder for [`ElectionCount`].
 #[derive(Debug, Clone)]
 pub struct ElectionCountBuilder {
+    version: Option<EMLVersion>,
     count_type: Option<CountType>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
@@ -94,6 +104,7 @@ impl ElectionCountBuilder {
     /// Create a new ElectionCountBuilder for building [`ElectionCount`] documents.
     pub fn new() -> Self {
         Self {
+            version: None,
             count_type: None,
             transaction_id: None,
             managing_authority: None,
@@ -103,6 +114,14 @@ impl ElectionCountBuilder {
             election_identifier: None,
             contests: vec![],
         }
+    }
+
+    /// Set the version for the document.
+    ///
+    /// If not set, the default version is used.
+    pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
+        self.version = Some(version.into());
+        self
     }
 
     /// Set the count type for the document.
@@ -182,6 +201,7 @@ impl ElectionCountBuilder {
     /// Build the [`ElectionCount`] document, returning an error if any of the required fields are missing.
     pub fn build(self) -> Result<ElectionCount, EMLError> {
         Ok(ElectionCount {
+            version: self.version.unwrap_or_default(),
             count_type: self
                 .count_type
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("count_type").without_span())?,
@@ -224,13 +244,12 @@ impl EMLElement for ElectionCount {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("EML", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        accepted_root(elem)?;
-
         let document_id = elem.attribute_value_req(("Id", None))?;
         let count_type = CountType::from_eml_id(document_id.as_ref())
             .map_err(|e| e.into_kind().with_span(elem.span()))?;
 
         Ok(collect_struct!(elem, ElectionCount {
+            version: elem.document_version(),
             count_type: count_type,
             transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
@@ -243,7 +262,12 @@ impl EMLElement for ElectionCount {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .attr(("Id", None), self.count_type.to_eml_id())?
-            .attr(("SchemaVersion", None), EML_SCHEMA_VERSION)?
+            .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
@@ -2128,6 +2152,7 @@ mod tests {
     #[test]
     fn test_election_count_construction() {
         let ec = ElectionCount::builder()
+            .version(EMLVersion::V1_2_2)
             .count_type(CountType::Municipal)
             .transaction_id(TransactionId::new(1))
             .creation_date_time(

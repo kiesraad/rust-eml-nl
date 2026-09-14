@@ -77,8 +77,10 @@ pub mod utils;
 
 pub use error::*;
 
+use crate::io::QualifiedName;
+
 /// Supported EML schema version
-pub(crate) const EML_SCHEMA_VERSION: &str = "5";
+pub(crate) const OASIS_EML_SCHEMA_VERSION: &str = "5";
 
 /// Namespace URI for the EML standard
 pub(crate) const NS_EML: &str = "urn:oasis:names:tc:evs:schema:eml";
@@ -94,6 +96,68 @@ pub(crate) const NS_XNL: &str = "urn:oasis:names:tc:ciq:xsdschema:xNL:2.0";
 
 /// Namespace URI for XML Digital Signatures
 pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
+
+/// Describes the EML_NL version of the EML standard.
+///
+/// Since EML 1.3, EML_NL adds a `kr:Schema` element within the top level
+/// element to indicate the specific EML_NL schema version in use. If this
+/// element is not present, the legacy unversioned EML_NL schema is assumed,
+/// in practice this means that this document should follow the EML_NL 1.2.2
+/// schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum EMLVersion {
+    /// An EML_NL version 1.3 document
+    #[default]
+    V1_3,
+    /// A legacy unversioned EML_NL document, assumed to follow EML_NL 1.2.2
+    V1_2_2,
+}
+
+impl EMLVersion {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Schema", Some(NS_KR));
+
+    /// Returns the string representation of this EML version, if one is known.
+    ///
+    /// Returns `None` for [`EMLVersion::V1_2_2`].
+    pub fn to_str(&self) -> Option<&'static str> {
+        match self {
+            EMLVersion::V1_2_2 => None,
+            EMLVersion::V1_3 => Some("1.3"),
+        }
+    }
+
+    /// Returns `true` if this is an EML_NL version 1.3 document.
+    pub fn is_v1_3(&self) -> bool {
+        matches!(self, EMLVersion::V1_3)
+    }
+
+    /// Returns `true` if this is a legacy unversioned EML_NL document.
+    pub fn is_v1_2_2(&self) -> bool {
+        matches!(self, EMLVersion::V1_2_2)
+    }
+}
+
+impl std::str::FromStr for EMLVersion {
+    type Err = UnsupportedEMLVersion;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "1.3" => Ok(EMLVersion::V1_3),
+            _ => Err(UnsupportedEMLVersion(s.to_owned())),
+        }
+    }
+}
+
+/// EML_NL version is not known to this version of the library.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Unsupported EML_NL version: {0}")]
+pub struct UnsupportedEMLVersion(String);
+
+impl From<UnsupportedEMLVersion> for EMLError {
+    fn from(value: UnsupportedEMLVersion) -> Self {
+        EMLErrorKind::UnsupportedEMLVersion(value.0).without_span()
+    }
+}
 
 // /// Namespace URI for XML Schema
 // pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
