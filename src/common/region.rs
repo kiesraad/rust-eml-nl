@@ -270,17 +270,17 @@ impl EMLElement for Region {
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        let roman_numerals = self.roman_numerals.to_string();
-        let frysian_export_allowed = self.frysian_export_allowed.to_string();
-
         writer
             .attr_opt(
                 "RegionNumber",
                 self.key.number.map(|number| number.to_string()),
             )?
             .attr("RegionCategory", self.key.category.to_eml_value())?
-            .attr("RomanNumerals", &roman_numerals)?
-            .attr("FrysianExportAllowed", &frysian_export_allowed)?
+            .attr_opt("RomanNumerals", self.roman_numerals.then_some("true"))?
+            .attr_opt(
+                "FrysianExportAllowed",
+                self.frysian_export_allowed.then_some("true"),
+            )?
             .attr_opt(
                 "SuperiorRegionNumber",
                 self.superior_region_key
@@ -312,7 +312,7 @@ mod tests {
     fn test_region_parsing() {
         let xml = test_xml_fragment(
             r#"
-                <kr:Region xmlns:kr="http://www.kiesraad.nl/extensions" RegionNumber="1" RegionCategory="WATERSCHAP" RomanNumerals="false" FrysianExportAllowed="false" SuperiorRegionNumber="0" SuperiorRegionCategory="STAAT">
+                <kr:Region xmlns:kr="http://www.kiesraad.nl/extensions" RegionNumber="1" RegionCategory="WATERSCHAP" SuperiorRegionNumber="0" SuperiorRegionCategory="STAAT">
                     <kr:RegionName>Region 1</kr:RegionName>
                     <kr:Committee CommitteeCategory="HSB"/>
                     <kr:Committee CommitteeCategory="PSB"/>

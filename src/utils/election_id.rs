@@ -7,7 +7,7 @@ use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
 
 /// Regular expression for validating ElectionId values.
 static ELECTION_ID_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(EP|EK|TK|GR|BC|GC|ER|PS|AB|NR|PR|LR|IR)2\d\d\d(\d\d\d\d)?(_[\w_-]*)?$")
+    Regex::new(r"^(EP|EK|TK|GR|BC|GC|ER|PS|AB|NR|PR|LR|IR|KC)2\d\d\d(\d\d\d\d)?(_[\w_-]*)?$")
         .expect("Failed to compile Election ID regex")
 });
 

@@ -15,6 +15,9 @@ pub enum RegionCategory {
     WaterAuthority,
     /// A 'provincie'
     Province,
+    /// A 'kiescollege'
+    /// Note: for EK elections before EML_NL v1.3, these appear as [`Self::Province`] instead.
+    ElectoralCollege,
     /// A 'kieskring'
     ElectoralDistrict,
     /// 'waterschap kieskring'
@@ -35,6 +38,10 @@ pub enum RegionCategory {
     WaterAuthorityMunicipality,
     /// A 'gemeente', the lowest level of government region in mainland Netherlands.
     Municipality,
+    /// An 'eilandsgemeente' (more commonly known as  an "openbaar lichaam")
+    /// Note: these should not appear in regular EML_NL documents, and should be
+    /// replaced with [`Self::Municipality`] instead.
+    IslandMunicipality,
     /// A 'deelgemeente'. Note that these no longer exist since 2014.
     SubMunicipality,
     /// A 'stembureau'
@@ -63,12 +70,14 @@ impl RegionCategory {
             "STAAT" => Ok(Self::State),
             "WATERSCHAP" => Ok(Self::WaterAuthority),
             "PROVINCIE" => Ok(Self::Province),
+            "KIESCOLLEGE" => Ok(Self::ElectoralCollege),
             "KIESKRING" => Ok(Self::ElectoralDistrict),
             "WATERSCHAP_KIESKRING" => Ok(Self::WaterAuthorityElectoralDistrict),
             "PROVINCIAAL_KIESKRING" => Ok(Self::ProvinceElectoralDistrict),
             "PROVINCIAAL_STEMBUREAU" => Ok(Self::ProvincePollingStation),
             "WATERSCHAP_GEMEENTE" => Ok(Self::WaterAuthorityMunicipality),
             "GEMEENTE" => Ok(Self::Municipality),
+            "EILANDSGEMEENTE" => Ok(Self::IslandMunicipality),
             "DEELGEMEENTE" => Ok(Self::SubMunicipality),
             "STEMBUREAU" => Ok(Self::PollingStation),
             _ => Err(UnknownRegionCategoryError(data.to_string())),
@@ -81,12 +90,14 @@ impl RegionCategory {
             RegionCategory::State => "STAAT",
             RegionCategory::WaterAuthority => "WATERSCHAP",
             RegionCategory::Province => "PROVINCIE",
+            RegionCategory::ElectoralCollege => "KIESCOLLEGE",
             RegionCategory::ElectoralDistrict => "KIESKRING",
             RegionCategory::WaterAuthorityElectoralDistrict => "WATERSCHAP_KIESKRING",
             RegionCategory::ProvinceElectoralDistrict => "PROVINCIAAL_KIESKRING",
             RegionCategory::ProvincePollingStation => "PROVINCIAAL_STEMBUREAU",
             RegionCategory::WaterAuthorityMunicipality => "WATERSCHAP_GEMEENTE",
             RegionCategory::Municipality => "GEMEENTE",
+            RegionCategory::IslandMunicipality => "EILANDSGEMEENTE",
             RegionCategory::SubMunicipality => "DEELGEMEENTE",
             RegionCategory::PollingStation => "STEMBUREAU",
         }
