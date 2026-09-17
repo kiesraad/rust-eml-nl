@@ -7,7 +7,7 @@ use quick_xml::{
 
 use crate::{
     EMLError, EMLErrorKind, EMLResultExt, EMLVersion, NS_EML, NS_KR, NS_XAL, NS_XNL,
-    io::{EMLDocument, QualifiedName},
+    io::{EMLDocument, EMLElement, QualifiedName},
 };
 
 #[derive(Debug, Clone)]
@@ -125,8 +125,7 @@ impl<'a> EMLElementWriter<'a> {
     }
 
     /// Returns the version of the EML document being written.
-    #[expect(unused, reason = "No version checks during writing yet")]
-    pub fn document_version(self) -> EMLVersion {
+    pub fn document_version(&self) -> EMLVersion {
         self.writer.version
     }
 
@@ -189,7 +188,7 @@ impl<'a> EMLElementWriter<'a> {
     pub fn child_elem<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        value: &impl EMLWriteElement,
+        value: &impl EMLElement,
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         self.content()?.child_elem(name, value)
     }
@@ -197,7 +196,7 @@ impl<'a> EMLElementWriter<'a> {
     pub fn child_elem_option<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        value: Option<&impl EMLWriteElement>,
+        value: Option<&impl EMLElement>,
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         self.content()?.child_elem_option(name, value)
     }
@@ -205,7 +204,7 @@ impl<'a> EMLElementWriter<'a> {
     pub fn child_elems<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        children: &[impl EMLWriteElement],
+        children: &[impl EMLElement],
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         self.content()?.child_elems(name, children)
     }
@@ -256,7 +255,7 @@ impl<'a> EMLElementContentWriter<'a> {
     pub fn child_elem<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        value: &impl EMLWriteElement,
+        value: &impl EMLElement,
     ) -> Result<Self, EMLError> {
         self.child(name, write_eml_element(value))
     }
@@ -264,7 +263,7 @@ impl<'a> EMLElementContentWriter<'a> {
     pub fn child_elem_option<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        value: Option<&impl EMLWriteElement>,
+        value: Option<&impl EMLElement>,
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         self.child_option(name, value, |writer, value| {
             write_eml_element(value)(writer)
@@ -274,7 +273,7 @@ impl<'a> EMLElementContentWriter<'a> {
     pub fn child_elems<'b, 'c>(
         mut self,
         name: impl Into<QualifiedName<'b, 'c>>,
-        children: &[impl EMLWriteElement],
+        children: &[impl EMLElement],
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         let name = name.into();
         for child in children {
@@ -487,10 +486,19 @@ pub(crate) trait EMLWriteElement {
     fn write_eml_element(&self, writer: EMLElementWriter) -> Result<(), EMLError>;
 }
 
-pub(crate) fn write_eml_element(
-    element: &impl EMLWriteElement,
+pub(crate) fn write_eml_element<T: EMLElement>(
+    element: &T,
 ) -> impl FnOnce(EMLElementWriter) -> Result<(), EMLError> {
-    |writer| element.write_eml_element(writer)
+    |writer| {
+        if !T::EML_VERSIONS.contains(writer.document_version()) {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                T::EML_NAME.as_owned(),
+                writer.document_version(),
+            )
+            .without_span());
+        }
+        element.write_eml_element(writer)
+    }
 }
 
 #[cfg(test)]

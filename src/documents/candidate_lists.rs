@@ -16,7 +16,7 @@ use crate::{
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
-        QualifiedName, collect_struct, write_eml_element,
+        EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -1065,10 +1065,9 @@ impl EMLElement for CandidateListsCandidate {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(
-                ("CandidateFullName", NS_EML),
-                write_eml_element(&self.full_name),
-            )?
+            .child(("CandidateFullName", NS_EML), |writer| {
+                self.full_name.write_eml_element(writer)
+            })?
             .child_option(
                 ("DateOfBirth", NS_EML),
                 self.date_of_birth.as_ref(),

@@ -17,7 +17,7 @@ use crate::{
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
-        QualifiedName, collect_struct, write_eml_element,
+        EMLWriteElement, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -650,10 +650,9 @@ impl EMLElement for NominationCandidate {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(
-                ("CandidateFullName", NS_EML),
-                write_eml_element(&self.full_name),
-            )?
+            .child(("CandidateFullName", NS_EML), |writer| {
+                self.full_name.write_eml_element(writer)
+            })?
             .child_option(
                 ("DateOfBirth", NS_EML),
                 self.date_of_birth.as_ref(),
@@ -691,7 +690,7 @@ impl EMLElement for NominationContact {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationContact {
-            mailing_address: MailingAddress::EML_NAME => |elem| MailingAddress::read_eml(elem)?,
+            mailing_address: MailingAddress::EML_NAME => |elem| elem.read_element::<MailingAddress>()?,
         }))
     }
 
@@ -912,7 +911,9 @@ impl EMLElement for AgentIdentifier {
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child(("AgentName", NS_EML), write_eml_element(&self.agent_name))?
+            .child(("AgentName", NS_EML), |writer| {
+                self.agent_name.write_eml_element(writer)
+            })?
             .finish()
     }
 }
@@ -1048,7 +1049,9 @@ impl EMLElement for NominationProposer {
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child(("Name", NS_EML), write_eml_element(&self.name))?
+            .child(("Name", NS_EML), |writer| {
+                self.name.write_eml_element(writer)
+            })?
             .child_elem(NominationContact::EML_NAME, &self.contact)?
             .child(("JobTitle", NS_EML), |elem| {
                 elem.text(self.job_title.raw().as_ref())?.finish()
