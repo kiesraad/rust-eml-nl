@@ -217,7 +217,7 @@ impl EMLErrorKind {
 /// An error encountered during EML_NL processing.
 ///
 /// The error includes the kind of error as well as an optional span indicating
-/// where in the source XML the error approximately occured.
+/// where in the source XML the error approximately occurred.
 #[derive(thiserror::Error, Debug)]
 pub enum EMLError {
     /// An error with position information in a document

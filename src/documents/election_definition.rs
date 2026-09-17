@@ -8,7 +8,7 @@ use crate::{
         CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
         IssueDate, ManagingAuthority, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, validate_election_category_version},
+    documents::ElectionIdentifierBuilder,
     error::{EMLErrorKind, EMLResultExt},
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct,
@@ -595,7 +595,7 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
             ElectionDefinitionElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
                 name: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
+                category: ("ElectionCategory", NS_EML) => |elem| ElectionCategory::read_and_validate(elem)?,
                 subcategory: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
@@ -603,21 +603,16 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
             }
         );
 
-        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
-        {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
+        elem.report_validation(
+            data.category.validate_subcategory(Some(&data.subcategory)),
+            elem.full_span(),
+        )?;
 
         Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        validate_election_category_version(&self.category, writer.document_version())?;
+        self.category.validate_version(writer.document_version())?;
 
         writer
             .attr("Id", self.id.raw().as_ref())?
@@ -1174,7 +1169,7 @@ mod tests {
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
         let err = result.expect_err("expected parsing to fail");
         assert!(err.to_string().contains("KC"));
-        assert!(err.to_string().contains("legacy"));
+        assert!(err.to_string().contains("1.2.2"));
     }
 
     #[test]
