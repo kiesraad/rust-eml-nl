@@ -53,9 +53,9 @@ impl EMLElement for ManagingAuthority {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ManagingAuthority {
-            authority_identifier: AuthorityIdentifier::EML_NAME => |elem| AuthorityIdentifier::read_eml(elem)?,
-            authority_address: AuthorityAddress::EML_NAME => |elem| AuthorityAddress::read_eml(elem)?,
-            created_by_authority as Option: CreatedByAuthority::EML_NAME => |elem| CreatedByAuthority::read_eml(elem)?,
+            authority_identifier: AuthorityIdentifier::EML_NAME => |elem| elem.read_element::<AuthorityIdentifier>()?,
+            authority_address: AuthorityAddress::EML_NAME => |elem| elem.read_element::<AuthorityAddress>()?,
+            created_by_authority as Option: CreatedByAuthority::EML_NAME => |elem| elem.read_element::<CreatedByAuthority>()?,
         }))
     }
 

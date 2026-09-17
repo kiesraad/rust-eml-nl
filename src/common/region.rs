@@ -253,7 +253,7 @@ impl EMLElement for Region {
         frysian_export_allowed: frysian_export_allowed,
         superior_region_key: superior_region_key,
         name: ("RegionName", NS_KR) => |elem| elem.text_without_children()?,
-        committees as Vec: Committee::EML_NAME => |elem| Committee::read_eml(elem)?,
+        committees as Vec: Committee::EML_NAME => |elem| elem.read_element::<Committee>()?,
             });
 
         if region.committees.len() > MAX_COMMITTEES {

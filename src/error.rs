@@ -1,4 +1,5 @@
 use crate::{
+    EMLVersion,
     io::{OwnedQualifiedName, Span},
     utils::{AffiliationId, CandidateId, ElectionTreeHierarchyError},
 };
@@ -186,6 +187,10 @@ pub enum EMLErrorKind {
     /// The EML_NL version specified in the file is not supported.
     #[error("Unsupported EML version: {0}")]
     UnsupportedEMLVersion(String),
+
+    /// Element not supported in the given EML_NL version
+    #[error("Element {0} is not supported in EML version {1}")]
+    ElementNotSupportedInVersion(OwnedQualifiedName, EMLVersion),
 }
 
 /// Custom error type that can be used in EMLErrorKind::Custom
