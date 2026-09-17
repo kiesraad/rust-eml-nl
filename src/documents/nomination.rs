@@ -10,10 +10,7 @@ use crate::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
     },
-    documents::{
-        ElectionIdentifierBuilder, validate_category_and_subcategory,
-        validate_election_and_nomination_dates, validate_election_category_version,
-    },
+    documents::{ElectionIdentifierBuilder, validate_election_and_nomination_dates},
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
@@ -405,7 +402,7 @@ impl EMLElement for NominationElectionIdentifier {
             NominationElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
+                category: ("ElectionCategory", NS_EML) => |elem| ElectionCategory::read_and_validate(elem)?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
@@ -413,43 +410,25 @@ impl EMLElement for NominationElectionIdentifier {
             }
         );
 
-        if let Err(e) = validate_election_and_nomination_dates(
-            Some(&data.election_date),
-            Some(&data.nomination_date),
-        ) {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
+        elem.report_validation(
+            validate_election_and_nomination_dates(
+                Some(&data.election_date),
+                Some(&data.nomination_date),
+            ),
+            elem.full_span(),
+        )?;
 
-        if let Err(e) = validate_category_and_subcategory(&data.category, data.subcategory.as_ref())
-        {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
-
-        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
-        {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
+        elem.report_validation(
+            data.category
+                .validate_subcategory(data.subcategory.as_ref()),
+            elem.full_span(),
+        )?;
 
         Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        validate_election_category_version(&self.category, writer.document_version())?;
+        self.category.validate_version(writer.document_version())?;
 
         writer
             .attr("Id", self.id.raw().as_ref())?

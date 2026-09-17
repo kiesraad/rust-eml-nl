@@ -9,7 +9,7 @@ use crate::{
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
         TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, validate_election_category_version},
+    documents::ElectionIdentifierBuilder,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
         EMLWriteElement as _, QualifiedName, collect_struct,
@@ -382,28 +382,24 @@ impl EMLElement for ElectionResultElectionIdentifier {
             ElectionResultElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
+                category: ("ElectionCategory", NS_EML) => |elem| ElectionCategory::read_and_validate(elem)?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
             }
         );
 
-        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
-        {
-            let e = e.into_kind().with_span(elem.full_span());
-            if elem.parsing_mode().is_strict() {
-                return Err(e);
-            } else {
-                elem.push_err(e);
-            }
-        }
+        elem.report_validation(
+            data.category
+                .validate_subcategory(data.subcategory.as_ref()),
+            elem.full_span(),
+        )?;
 
         Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        validate_election_category_version(&self.category, writer.document_version())?;
+        self.category.validate_version(writer.document_version())?;
 
         writer
             .attr("Id", self.id.raw().as_ref())?
