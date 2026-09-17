@@ -3,19 +3,12 @@
 use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, NS_EML, NS_KR,
-    OASIS_EML_SCHEMA_VERSION,
-    common::{
-        CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountingMethod,
-        CreationDateTime, ElectionDomain, ManagingAuthority, MinimalQualifyingAddress,
-        PersonNameStructure, ReportingUnitIdentifier, TransactionId,
-    },
-    documents::ElectionIdentifierBuilder,
-    io::{
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION, common::{
+        CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountingMethod, CreationDateTime, ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure, Phase, ReportingUnitIdentifier, TransactionId,
+    }, documents::ElectionIdentifierBuilder, io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
         EMLWriteElement, QualifiedName, collect_struct,
-    },
-    utils::{
+    }, utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
         StringValue, XsDate, XsDateTime,
     },
@@ -372,6 +365,8 @@ impl CountType {
 /// The actual count data.
 #[derive(Debug, Clone)]
 pub struct ElectionCountCount {
+    /// The phase of this count.
+    pub phase: Option<Phase>,
     /// The election for this count.
     pub election: ElectionCountElection,
 
@@ -383,6 +378,7 @@ impl ElectionCountCount {
     /// Create a new count for the election count document.
     pub fn new(election: impl Into<ElectionCountElection>) -> Self {
         ElectionCountCount {
+            phase: None,
             election: election.into(),
             counting_method: None,
         }
@@ -401,6 +397,7 @@ impl EMLElement for ElectionCountCount {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionCountCount {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
+            phase as Option: Phase::EML_NAME => |elem| elem.read_element::<Phase>()?,
             election: ElectionCountElection::EML_NAME => |elem| elem.read_element::<ElectionCountElection>()?,
             counting_method as Option: CountingMethod::EML_NAME => |elem| elem.read_element::<CountingMethod>()?,
         }))
