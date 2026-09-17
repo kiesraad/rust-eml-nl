@@ -291,12 +291,12 @@ impl EMLElement for CandidateLists {
         Ok(collect_struct!(elem, CandidateLists {
             version: elem.document_version(),
             lists_type: candidate_lists_type,
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            candidate_list: CandidateListsCandidateList::EML_NAME => |elem| CandidateListsCandidateList::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            issue_date: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            candidate_list: CandidateListsCandidateList::EML_NAME => |elem| elem.read_element::<CandidateListsCandidateList>()?,
         }))
     }
 
@@ -414,8 +414,8 @@ impl EMLElement for CandidateListsCandidateList {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, CandidateListsCandidateList {
-            list_date as Option: CandidateListsListDate::EML_NAME => |elem| CandidateListsListDate::read_eml(elem)?,
-            election: CandidateListsElection::EML_NAME => |elem| CandidateListsElection::read_eml(elem)?,
+            list_date as Option: CandidateListsListDate::EML_NAME => |elem| elem.read_element::<CandidateListsListDate>()?,
+            election: CandidateListsElection::EML_NAME => |elem| elem.read_element::<CandidateListsElection>()?,
         }))
     }
 
@@ -488,8 +488,8 @@ impl EMLElement for CandidateListsElection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, CandidateListsElection {
-            identifier: CandidateListsElectionIdentifier::EML_NAME => |elem| CandidateListsElectionIdentifier::read_eml(elem)?,
-            contests as Vec: CandidateListsContest::EML_NAME => |elem| CandidateListsContest::read_eml(elem)?,
+            identifier: CandidateListsElectionIdentifier::EML_NAME => |elem| elem.read_element::<CandidateListsElectionIdentifier>()?,
+            contests as Vec: CandidateListsContest::EML_NAME => |elem| elem.read_element::<CandidateListsContest>()?,
         });
 
         if data.contests.is_empty() {
@@ -557,7 +557,7 @@ impl EMLElement for CandidateListsElectionIdentifier {
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
@@ -692,8 +692,8 @@ impl EMLElement for CandidateListsContest {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, CandidateListsContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            affiliations as Vec: CandidateListsAffiliation::EML_NAME => |elem| CandidateListsAffiliation::read_eml(elem)?,
+            identifier: ContestIdentifier::EML_NAME => |elem| elem.read_element::<ContestIdentifier>()?,
+            affiliations as Vec: CandidateListsAffiliation::EML_NAME => |elem| elem.read_element::<CandidateListsAffiliation>()?,
         });
 
         if data.affiliations.is_empty() {
@@ -867,10 +867,10 @@ impl EMLElement for CandidateListsAffiliation {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, CandidateListsAffiliation {
-            identifier: AffiliationIdentifier::EML_NAME => |elem| AffiliationIdentifier::read_eml(elem)?,
+            identifier: AffiliationIdentifier::EML_NAME => |elem| elem.read_element::<AffiliationIdentifier>()?,
             affiliation_type: ("Type", NS_EML) => |elem| elem.string_value()?,
-            list_data: ListData::EML_NAME => |elem| ListData::read_eml(elem)?,
-            candidates as Vec: CandidateListsCandidate::EML_NAME => |elem| CandidateListsCandidate::read_eml(elem)?,
+            list_data: ListData::EML_NAME => |elem| elem.read_element::<ListData>()?,
+            candidates as Vec: CandidateListsCandidate::EML_NAME => |elem| elem.read_element::<CandidateListsCandidate>()?,
         });
 
         if data.candidates.is_empty() {
@@ -1054,11 +1054,11 @@ impl EMLElement for CandidateListsCandidate {
         // TODO: parse Contact, Agent, kr:DateOfBirthAnnex and kr:NationalIdentificationNumber when present
 
         Ok(collect_struct!(elem, CandidateListsCandidate {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
+            identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
             gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| QualifyingAddress::read_eml(elem)?,
+            qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
         }))
     }
 
@@ -1319,9 +1319,9 @@ impl EMLElement for QualifyingAddressLocality {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, QualifyingAddressLocality {
-            address_line as Option: AddressLine::EML_NAME => |elem| AddressLine::read_eml(elem)?,
-            locality_name: LocalityName::EML_NAME => |elem| LocalityName::read_eml(elem)?,
-            postal_code as Option: PostalCode::EML_NAME => |elem| PostalCode::read_eml(elem)?,
+            address_line as Option: AddressLine::EML_NAME => |elem| elem.read_element::<AddressLine>()?,
+            locality_name: LocalityName::EML_NAME => |elem| elem.read_element::<LocalityName>()?,
+            postal_code as Option: PostalCode::EML_NAME => |elem| elem.read_element::<PostalCode>()?,
             locality_type: elem.attribute_value("Type")?.map(Into::into),
             usage_type: elem.attribute_value("UsageType")?.map(Into::into),
             indicator: elem.attribute_value("Indicator")?.map(Into::into),
@@ -1459,7 +1459,7 @@ impl EMLElement for PostalCode {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PostalCode {
-            postal_code_number: PostalCodeNumber::EML_NAME => |elem| PostalCodeNumber::read_eml(elem)?,
+            postal_code_number: PostalCodeNumber::EML_NAME => |elem| elem.read_element::<PostalCodeNumber>()?,
         }))
     }
 
@@ -1572,8 +1572,8 @@ impl EMLElement for QualifyingAddressCountry {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, QualifyingAddressCountry {
-            country_name_code as Option: CountryNameCode::EML_NAME => |elem| CountryNameCode::read_eml(elem)?,
-            locality: QualifyingAddressLocality::EML_NAME => |elem| QualifyingAddressLocality::read_eml(elem)?,
+            country_name_code as Option: CountryNameCode::EML_NAME => |elem| elem.read_element::<CountryNameCode>()?,
+            locality: QualifyingAddressLocality::EML_NAME => |elem| elem.read_element::<QualifyingAddressLocality>()?,
         }))
     }
 

@@ -251,11 +251,11 @@ impl EMLElement for ElectionCount {
         Ok(collect_struct!(elem, ElectionCount {
             version: elem.document_version(),
             count_type: count_type,
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            count: ElectionCountCount::EML_NAME => |elem| ElectionCountCount::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            count: ElectionCountCount::EML_NAME => |elem| elem.read_element::<ElectionCountCount>()?,
         }))
     }
 
@@ -382,7 +382,7 @@ impl EMLElement for ElectionCountCount {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionCountCount {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
-            election: ElectionCountElection::EML_NAME => |elem| ElectionCountElection::read_eml(elem)?,
+            election: ElectionCountElection::EML_NAME => |elem| elem.read_element::<ElectionCountElection>()?,
         }))
     }
 
@@ -422,14 +422,14 @@ impl EMLElement for ElectionCountElection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, ElectionCountElection {
-            identifier: ElectionCountElectionIdentifier::EML_NAME => |elem| ElectionCountElectionIdentifier::read_eml(elem)?,
+            identifier: ElectionCountElectionIdentifier::EML_NAME => |elem| elem.read_element::<ElectionCountElectionIdentifier>()?,
             contests: ("Contests", NS_EML) => |elem| {
                 struct VecCollector {
                     contests: Vec<ElectionCountContest>,
                 }
 
                 let data = collect_struct!(elem, VecCollector {
-                    contests as Vec: ElectionCountContest::EML_NAME => |elem| ElectionCountContest::read_eml(elem)?,
+                    contests as Vec: ElectionCountContest::EML_NAME => |elem| elem.read_element::<ElectionCountContest>()?,
                 });
 
                 data.contests
@@ -500,7 +500,7 @@ impl EMLElement for ElectionCountElectionIdentifier {
             name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
             category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
             subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-            domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+            domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
             election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
         }))
     }
@@ -736,9 +736,9 @@ impl EMLElement for ElectionCountContest {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionCountContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            total_votes as Option: TotalVotes::EML_NAME => |elem| TotalVotes::read_eml(elem)?,
-            reporting_unit_votes as Vec: ReportingUnitVotes::EML_NAME => |elem| ReportingUnitVotes::read_eml(elem)?,
+            identifier: ContestIdentifier::EML_NAME => |elem| elem.read_element::<ContestIdentifier>()?,
+            total_votes as Option: TotalVotes::EML_NAME => |elem| elem.read_element::<TotalVotes>()?,
+            reporting_unit_votes as Vec: ReportingUnitVotes::EML_NAME => |elem| elem.read_element::<ReportingUnitVotes>()?,
         }))
     }
 
@@ -836,7 +836,7 @@ impl EMLElement for TotalVotes {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, TotalVotes {
-            selections as Vec: ElectionCountSelection::EML_NAME => |elem| ElectionCountSelection::read_eml(elem)?,
+            selections as Vec: ElectionCountSelection::EML_NAME => |elem| elem.read_element::<ElectionCountSelection>()?,
             eligible_voter_count: ("Cast", NS_EML) => |elem| elem.string_value()?,
             candidate_votes_count: ("TotalCounted", NS_EML) => |elem| elem.string_value()?,
             rejected_votes as BTreeMap: REJECTED_VOTES_EML_NAME => |elem| {
@@ -1272,8 +1272,8 @@ impl EMLElement for ReportingUnitVotes {
         }
 
         let data = collect_struct!(elem, ReportingUnitVotesInternal {
-            identifier: ReportingUnitIdentifier::EML_NAME => |elem| ReportingUnitIdentifier::read_eml(elem)?,
-            selections as Vec: ElectionCountSelection::EML_NAME => |elem| ElectionCountSelection::read_eml(elem)?,
+            identifier: ReportingUnitIdentifier::EML_NAME => |elem| elem.read_element::<ReportingUnitIdentifier>()?,
+            selections as Vec: ElectionCountSelection::EML_NAME => |elem| elem.read_element::<ElectionCountSelection>()?,
             eligible_voter_count: ("Cast", NS_EML) => |elem| elem.string_value()?,
             candidate_votes_count: ("TotalCounted", NS_EML) => |elem| elem.string_value()?,
             rejected_votes as BTreeMap: REJECTED_VOTES_EML_NAME => |elem| {
@@ -1981,10 +1981,10 @@ impl EMLElement for CandidateSelection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, CandidateSelection {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
+            identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             name as Option: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address as Option: MinimalQualifyingAddress::EML_NAME => |elem| MinimalQualifyingAddress::read_eml(elem)?,
+            qualifying_address as Option: MinimalQualifyingAddress::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddress>()?,
         }))
     }
 

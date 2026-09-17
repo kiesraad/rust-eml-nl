@@ -385,12 +385,12 @@ impl EMLElement for ElectionDefinition {
 
         Ok(collect_struct!(elem, ElectionDefinition {
             version: elem.document_version(),
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            election_event: ElectionDefinitionElectionEvent::EML_NAME => |elem| ElectionDefinitionElectionEvent::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            issue_date as Option: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            election_event: ElectionDefinitionElectionEvent::EML_NAME => |elem| elem.read_element::<ElectionDefinitionElectionEvent>()?,
         }))
     }
 
@@ -452,7 +452,7 @@ impl EMLElement for ElectionDefinitionElectionEvent {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionDefinitionElectionEvent {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
-            election: ElectionDefinitionElection::EML_NAME => |elem| ElectionDefinitionElection::read_eml(elem)?,
+            election: ElectionDefinitionElection::EML_NAME => |elem| elem.read_element::<ElectionDefinitionElection>()?,
         }))
     }
 
@@ -499,11 +499,11 @@ impl EMLElement for ElectionDefinitionElection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, ElectionDefinitionElection {
-            identifier: ElectionDefinitionElectionIdentifier::EML_NAME => |elem| ElectionDefinitionElectionIdentifier::read_eml(elem)?,
-            contest: ElectionDefinitionContest::EML_NAME => |elem| ElectionDefinitionContest::read_eml(elem)?,
+            identifier: ElectionDefinitionElectionIdentifier::EML_NAME => |elem| elem.read_element::<ElectionDefinitionElectionIdentifier>()?,
+            contest: ElectionDefinitionContest::EML_NAME => |elem| elem.read_element::<ElectionDefinitionContest>()?,
             number_of_seats: EML_NAME_NUMBER_OF_SEATS => |elem| elem.string_value()?,
             preference_threshold: EML_NAME_PREFERENCE_THRESHOLD => |elem| elem.string_value()?,
-            election_tree: ElectionTree::EML_NAME => |elem| ElectionTree::read_eml(elem)?,
+            election_tree: ElectionTree::EML_NAME => |elem| elem.read_element::<ElectionTree>()?,
             registered_parties: ("RegisteredParties", NS_KR) => |elem| ElectionDefinitionRegisteredParty::read_list(elem)?,
         });
 
@@ -585,7 +585,7 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
                 name: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
@@ -649,7 +649,7 @@ impl EMLElement for ElectionDefinitionContest {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionDefinitionContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
+            identifier: ContestIdentifier::EML_NAME => |elem| elem.read_element::<ContestIdentifier>()?,
             voting_method: ("VotingMethod", NS_EML) => |elem| elem.string_value()?,
             max_votes: ("MaxVotes", NS_EML) => |elem| {
                 // Default value of MaxVotes in EML is 1

@@ -44,6 +44,12 @@ impl EMLVersion {
     }
 }
 
+impl std::fmt::Display for EMLVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str().unwrap_or("1.2.2"))
+    }
+}
+
 impl std::str::FromStr for EMLVersion {
     type Err = UnsupportedEMLVersion;
 

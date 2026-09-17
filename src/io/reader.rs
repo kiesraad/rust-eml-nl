@@ -10,7 +10,7 @@ use quick_xml::{
 use crate::{
     EMLVersion, MultipleEMLErrors, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     error::{EMLError, EMLErrorKind, EMLResultExt},
-    io::QualifiedName,
+    io::{EMLElement, QualifiedName},
     utils::{StringValue, StringValueData},
 };
 
@@ -587,6 +587,19 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         } else {
             self.reader.errors.push(err);
         }
+    }
+
+    /// Reads an element of type `T` from the reader.
+    pub fn read_element<T: EMLElement>(&mut self) -> Result<T, EMLError> {
+        if !T::EML_VERSIONS.contains(self.document_version()) {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                T::EML_NAME.as_owned(),
+                self.document_version(),
+            )
+            .with_span(self.span()));
+        }
+
+        T::read_eml(self)
     }
 
     /// Maps a parsing error to an EMLError with context about this element.

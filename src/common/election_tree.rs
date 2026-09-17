@@ -119,7 +119,7 @@ impl EMLElement for ElectionTree {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let tree = collect_struct!(elem, ElectionTree {
-            regions as Vec: Region::EML_NAME => |elem| Region::read_eml(elem)?,
+            regions as Vec: Region::EML_NAME => |elem| elem.read_element::<Region>()?,
         });
 
         // The XSD declares `Region` with an implicit `minOccurs="1"`

@@ -196,20 +196,20 @@ impl EMLElement for EML {
         let document_id = elem.attribute_value_req(("Id", None))?;
         Ok(match document_id.as_ref() {
             EML_ELECTION_DEFINITION_ID => {
-                EML::ElectionDefinition(Box::new(ElectionDefinition::read_eml(elem)?))
+                EML::ElectionDefinition(Box::new(elem.read_element::<ElectionDefinition>()?))
             }
             EML_POLLING_STATIONS_ID => {
-                EML::PollingStations(Box::new(PollingStations::read_eml(elem)?))
+                EML::PollingStations(Box::new(elem.read_element::<PollingStations>()?))
             }
             EML_ELECTION_RESULT_ID => {
-                EML::ElectionResult(Box::new(ElectionResult::read_eml(elem)?))
+                EML::ElectionResult(Box::new(elem.read_element::<ElectionResult>()?))
             }
-            EML_NOMINATION_ID => EML::Nomination(Box::new(Nomination::read_eml(elem)?)),
+            EML_NOMINATION_ID => EML::Nomination(Box::new(elem.read_element::<Nomination>()?)),
             id if CandidateListsType::is_valid_eml_id(id) => {
-                EML::CandidateLists(Box::new(CandidateLists::read_eml(elem)?))
+                EML::CandidateLists(Box::new(elem.read_element::<CandidateLists>()?))
             }
             id if CountType::is_valid_eml_id(id) => {
-                EML::ElectionCount(Box::new(ElectionCount::read_eml(elem)?))
+                EML::ElectionCount(Box::new(elem.read_element::<ElectionCount>()?))
             }
             _ => {
                 return Err(EMLErrorKind::UnknownDocumentType(document_id.to_string()))
