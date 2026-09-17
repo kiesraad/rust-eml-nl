@@ -8,10 +8,11 @@ pub use qualified_name::*;
 pub use reader::*;
 pub use writer::*;
 
-use crate::{EMLError, EMLVersion};
+use crate::{EMLError, EMLVersion, EMLVersionRange};
 
 pub(crate) trait EMLElement {
     const EML_NAME: QualifiedName<'static, 'static>;
+    const EML_VERSIONS: EMLVersionRange = EMLVersionRange::ALL;
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
     where
