@@ -10,7 +10,7 @@ use crate::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
     },
-    documents::{ElectionIdentifierBuilder, validate_election_and_nomination_dates},
+    documents::ElectionIdentifierBuilder,
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
@@ -411,9 +411,9 @@ impl EMLElement for NominationElectionIdentifier {
         );
 
         elem.report_validation(
-            validate_election_and_nomination_dates(
-                Some(&data.election_date),
-                Some(&data.nomination_date),
+            data.election_date.validate_is_after(
+                &data.nomination_date,
+                EMLErrorKind::NominationDateNotBeforeElectionDate,
             ),
             elem.full_span(),
         )?;

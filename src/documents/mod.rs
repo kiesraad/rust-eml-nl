@@ -391,7 +391,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(NominationElectionIdentifier {
             id: self
@@ -423,7 +426,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(CandidateListsElectionIdentifier {
             id: self
@@ -507,7 +513,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(ElectionDefinitionElectionIdentifier {
             id: self
@@ -556,19 +565,22 @@ impl Default for ElectionIdentifierBuilder {
     }
 }
 
-pub(crate) fn validate_election_and_nomination_dates(
-    election_date: Option<&StringValue<XsDate>>,
-    nomination_date: Option<&StringValue<XsDate>>,
-) -> Result<(), EMLError> {
-    let election_date = election_date.and_then(|ed| ed.copied_value().ok());
-    let nomination_date = nomination_date.and_then(|nd| nd.copied_value().ok());
+impl StringValue<XsDate> {
+    pub(crate) fn validate_is_after(
+        &self,
+        other: &StringValue<XsDate>,
+        error_kind: EMLErrorKind,
+    ) -> Result<(), EMLError> {
+        let value = self.copied_value().ok();
+        let other = other.copied_value().ok();
 
-    if let (Some(ed), Some(nd)) = (election_date, nomination_date)
-        && nd.date >= ed.date
-    {
-        return Err(EMLErrorKind::NominationDateNotBeforeElectionDate).without_span();
+        if let (Some(value), Some(other)) = (value, other)
+            && other.date >= value.date
+        {
+            return Err(error_kind).without_span();
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 impl StringValue<ElectionCategory> {

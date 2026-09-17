@@ -592,6 +592,14 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
         );
 
         elem.report_validation(
+            data.election_date.validate_is_after(
+                &data.nomination_date,
+                EMLErrorKind::NominationDateNotBeforeElectionDate,
+            ),
+            elem.full_span(),
+        )?;
+
+        elem.report_validation(
             data.category.validate_subcategory(Some(&data.subcategory)),
             elem.full_span(),
         )?;
