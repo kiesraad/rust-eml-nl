@@ -589,6 +589,26 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         }
     }
 
+    /// Handle the result of a non-fatal validation
+    ///
+    /// In [`EMLParsingMode::Strict`] mode, an error is returned immediately.
+    /// In non-strict modes, the error is stored and parsing continues.
+    pub fn report_validation(
+        &mut self,
+        result: Result<(), EMLError>,
+        span: Span,
+    ) -> Result<(), EMLError> {
+        if let Err(e) = result {
+            let e = e.into_kind().with_span(span);
+            if self.parsing_mode().is_strict() {
+                return Err(e);
+            } else {
+                self.push_err(e);
+            }
+        }
+        Ok(())
+    }
+
     /// Maps a parsing error to an EMLError with context about this element.
     fn map_value_error<'a, 'b, T: StringValueData>(
         &self,

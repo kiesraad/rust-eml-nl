@@ -449,17 +449,15 @@ impl EMLElement for PollingStationsElectionIdentifier {
             PollingStationsElectionIdentifierInternal {
                 id: elem.string_value_attr("Id", None)?,
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
+                category: ("ElectionCategory", NS_EML) => |elem| ElectionCategory::read_and_validate(elem)?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
                 election_date as Option: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 election_date_eml as Option: ("ElectionDate", NS_EML) => |elem| {
-                    if elem.parsing_mode().is_strict() {
-                        let err = EMLErrorKind::InvalidElectionDateNamespace.with_span(elem.span());
-                        return Err(err);
-                    } else {
-                        elem.push_err(EMLErrorKind::InvalidElectionDateNamespace.with_span(elem.span()));
-                    }
+                    elem.report_validation(
+                        Err(EMLErrorKind::InvalidElectionDateNamespace.without_span()),
+                        elem.span(),
+                    )?;
                     elem.string_value()?
                 },
             }
@@ -479,6 +477,12 @@ impl EMLElement for PollingStationsElectionIdentifier {
             }
         };
 
+        elem.report_validation(
+            data.category
+                .validate_subcategory(data.subcategory.as_ref()),
+            elem.full_span(),
+        )?;
+
         Ok(PollingStationsElectionIdentifier {
             id: data.id,
             name: data.name,
@@ -490,6 +494,8 @@ impl EMLElement for PollingStationsElectionIdentifier {
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        self.category.validate_version(writer.document_version())?;
+
         writer
             .attr("Id", self.id.raw().as_ref())?
             .child_option(

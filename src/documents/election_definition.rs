@@ -194,6 +194,9 @@ impl ElectionDefinitionBuilder {
     }
 
     /// Set the preference threshold for the election.
+    ///
+    /// This is optional: if not set, [`Self::build`] will fill in the correct value as
+    /// required by Dutch election law for the election's subcategory.
     pub fn preference_threshold(mut self, preference_threshold: impl Into<u64>) -> Self {
         self.preference_threshold = Some(StringValue::from_value(preference_threshold.into()));
         self
@@ -260,6 +263,7 @@ impl ElectionDefinitionBuilder {
                     let election_identifier = self.election_identifier.ok_or(
                         EMLErrorKind::MissingBuildProperty("election_identifier").without_span(),
                     )?;
+                    let subcategory = election_identifier.subcategory.copied_value().ok();
 
                     let election_details = ElectionDefinitionElection {
                         identifier: election_identifier,
@@ -278,10 +282,9 @@ impl ElectionDefinitionBuilder {
                         number_of_seats: self.number_of_seats.ok_or(
                             EMLErrorKind::MissingBuildProperty("number_of_seats").without_span(),
                         )?,
-                        preference_threshold: self.preference_threshold.ok_or(
-                            EMLErrorKind::MissingBuildProperty("preference_threshold")
-                                .without_span(),
-                        )?,
+                        preference_threshold: self.preference_threshold.unwrap_or_else(|| {
+                            StringValue::from_value(expected_preference_threshold(subcategory))
+                        }),
                         election_tree: self.election_tree.ok_or(
                             EMLErrorKind::MissingBuildProperty("election_tree").without_span(),
                         )?,
@@ -298,6 +301,16 @@ impl ElectionDefinitionBuilder {
     }
 }
 
+fn expected_preference_threshold(subcategory: Option<ElectionSubcategory>) -> u64 {
+    match subcategory {
+        Some(ElectionSubcategory::GR1) => 50, // Kieswet P 15, Lid 2
+        Some(ElectionSubcategory::KCCN | ElectionSubcategory::KCNI) => 50, // Kieswet Ya 29a
+        Some(ElectionSubcategory::EK) => 100, // Kieswet U 15, Lid 1
+        Some(ElectionSubcategory::EP) => 10,  // Kieswet Y 23a
+        _ => 25,                              // Kieswet P 15, Lid 1 (default value)
+    }
+}
+
 fn validate_election_details(election: &ElectionDefinitionElection) -> Result<(), EMLError> {
     let subcategory = election.identifier.subcategory.copied_value().ok();
     let preference_threshold = election.preference_threshold.copied_value().ok();
@@ -311,46 +324,33 @@ fn validate_election_details(election: &ElectionDefinitionElection) -> Result<()
         errors.push(EMLErrorKind::UnsupportedVotingMethod.without_span());
     }
 
-    match (subcategory, preference_threshold, number_of_seats) {
-        (Some(ElectionSubcategory::GR1), pt, seats) => {
-            if let Some(pt_num) = pt
-                && pt_num != 50
-            {
-                // For GR1 elections: preference threshold should be 50
+    if let Some(pt) = preference_threshold
+        && pt != expected_preference_threshold(subcategory)
+    {
+        // All elections should use the expected preference threshold for their subcategory
+        errors.push(EMLErrorKind::InvalidPreferenceThreshold.without_span());
+    }
 
-                errors.push(EMLErrorKind::InvalidPreferenceThreshold.without_span());
-            }
+    match (subcategory, number_of_seats) {
+        (Some(ElectionSubcategory::GR1), Some(seat_count)) if seat_count >= 19 => {
+            // For GR1 elections: number of seats should be less than 19
 
-            if let Some(seat_count) = seats
-                && seat_count >= 19
-            {
-                // For GR1 elections: number of seats should be less than 19
-
-                errors.push(EMLErrorKind::InvalidNumberOfSeats.without_span());
-            }
-
-            // Valid for GR1
+            errors.push(EMLErrorKind::InvalidNumberOfSeats.without_span());
         }
-        (Some(ElectionSubcategory::GR2), _, Some(seats)) if seats < 19 => {
+        (Some(ElectionSubcategory::GR2), Some(seats)) if seats < 19 => {
             // For GR2 elections: number of seats should be 19 or more
 
             errors.push(EMLErrorKind::InvalidNumberOfSeats.without_span());
         }
-        (Some(ElectionSubcategory::AB1), _, Some(seats)) if seats >= 19 => {
+        (Some(ElectionSubcategory::AB1), Some(seats)) if seats >= 19 => {
             // For AB1 elections: number of seats should be less than 19
 
             errors.push(EMLErrorKind::InvalidNumberOfSeats.without_span());
         }
-        (Some(ElectionSubcategory::AB2), _, Some(seats)) if seats < 19 => {
+        (Some(ElectionSubcategory::AB2), Some(seats)) if seats < 19 => {
             // For AB2 elections: number of seats should be 19 or more
 
             errors.push(EMLErrorKind::InvalidNumberOfSeats.without_span());
-        }
-        (_, Some(pt), _) if pt != 25 => {
-            // For all elections: if preference threshold is provided,
-            // it should be 25 (except for GR1 where it should be 50)
-
-            errors.push(EMLErrorKind::InvalidPreferenceThreshold.without_span());
         }
         _ => {
             // Anything else is valid
@@ -578,21 +578,38 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
         QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
+        let data = collect_struct!(
             elem,
             ElectionDefinitionElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
                 name: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
-                category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
+                category: ("ElectionCategory", NS_EML) => |elem| ElectionCategory::read_and_validate(elem)?,
                 subcategory: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
-        ))
+        );
+
+        elem.report_validation(
+            data.election_date.validate_is_after(
+                &data.nomination_date,
+                EMLErrorKind::NominationDateNotBeforeElectionDate,
+            ),
+            elem.full_span(),
+        )?;
+
+        elem.report_validation(
+            data.category.validate_subcategory(Some(&data.subcategory)),
+            elem.full_span(),
+        )?;
+
+        Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        self.category.validate_version(writer.document_version())?;
+
         writer
             .attr("Id", self.id.raw().as_ref())?
             .child(("ElectionName", NS_EML), |elem| {
@@ -811,7 +828,6 @@ mod tests {
             .voting_method(VotingMethod::SPV)
             .max_votes(NonZeroU64::new(100).unwrap())
             .number_of_seats(10u32)
-            .preference_threshold(50u32)
             .election_tree(ElectionTree::new(vec![Region::new(
                 "Region 1",
                 RegionCategory::Municipality,
@@ -928,6 +944,137 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Helper to build an [`ElectionDefinition`] with the given category, subcategory and
+    /// preference threshold, for testing [`validate_election_details`].
+    fn build_with_preference_threshold(
+        category: ElectionCategory,
+        subcategory: ElectionSubcategory,
+        preference_threshold: u32,
+    ) -> Result<ElectionDefinition, EMLError> {
+        ElectionDefinition::builder()
+            .transaction_id(TransactionId::new(1))
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                ElectionDefinitionElectionIdentifier::builder()
+                    .id(ElectionId::new("EK2023_Test").unwrap())
+                    .name("Test election")
+                    .category(category)
+                    .subcategory(subcategory)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_definition()
+                    .unwrap(),
+            )
+            .contest_identifier(ContestIdentifier::geen())
+            .voting_method(VotingMethod::SPV)
+            .max_votes(NonZeroU64::new(100).unwrap())
+            .number_of_seats(75u32)
+            .preference_threshold(preference_threshold)
+            .election_tree(ElectionTree::new(vec![Region::new(
+                "Region 1",
+                RegionCategory::Municipality,
+            )]))
+            .build()
+    }
+
+    #[test]
+    fn test_preference_threshold_ek() {
+        // Kieswet U 15, Lid 1: for EK elections, the preference threshold should be 100%
+        assert!(
+            build_with_preference_threshold(ElectionCategory::EK, ElectionSubcategory::EK, 100)
+                .is_ok()
+        );
+        assert!(
+            build_with_preference_threshold(ElectionCategory::EK, ElectionSubcategory::EK, 25)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_preference_threshold_ep() {
+        // Kieswet Y 23a: for EP elections, the preference threshold should be 10$
+        assert!(
+            build_with_preference_threshold(ElectionCategory::EP, ElectionSubcategory::EP, 10)
+                .is_ok()
+        );
+        assert!(
+            build_with_preference_threshold(ElectionCategory::EP, ElectionSubcategory::EP, 25)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_preference_threshold_kiescollege() {
+        // Kieswet Ya 29a: for kiescollege elections, the preference threshold should be 50%
+        assert!(
+            build_with_preference_threshold(ElectionCategory::KC, ElectionSubcategory::KCCN, 50)
+                .is_ok()
+        );
+        assert!(
+            build_with_preference_threshold(ElectionCategory::KC, ElectionSubcategory::KCCN, 25)
+                .is_err()
+        );
+        assert!(
+            build_with_preference_threshold(ElectionCategory::KC, ElectionSubcategory::KCNI, 50)
+                .is_ok()
+        );
+        assert!(
+            build_with_preference_threshold(ElectionCategory::KC, ElectionSubcategory::KCNI, 25)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_write_rejects_kc_category_before_v1_3() {
+        let build = |version: EMLVersion| {
+            ElectionDefinition::builder()
+                .version(version)
+                .transaction_id(TransactionId::new(1))
+                .creation_date_time(
+                    chrono::Utc
+                        .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                        .unwrap(),
+                )
+                .election_identifier(
+                    ElectionDefinitionElectionIdentifier::builder()
+                        .id(ElectionId::new("KC2023_Test").unwrap())
+                        .name("Test election")
+                        .category(ElectionCategory::KC)
+                        .subcategory(ElectionSubcategory::KCCN)
+                        .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                        .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                        .build_for_definition()
+                        .unwrap(),
+                )
+                .contest_identifier(ContestIdentifier::geen())
+                .voting_method(VotingMethod::SPV)
+                .max_votes(NonZeroU64::new(100).unwrap())
+                .number_of_seats(75u32)
+                .preference_threshold(50u32)
+                .election_tree(ElectionTree::new(vec![Region::new(
+                    "Region 1",
+                    RegionCategory::Municipality,
+                )]))
+                .build()
+                .unwrap()
+        };
+
+        assert!(
+            build(EMLVersion::V1_2_2)
+                .write_eml_root_str(true, true)
+                .is_err()
+        );
+        assert!(
+            build(EMLVersion::V1_3)
+                .write_eml_root_str(true, true)
+                .is_ok()
+        );
+    }
+
     #[test]
     fn test_election_missing_election_domain() {
         let xml = include_str!(
@@ -1006,6 +1153,30 @@ mod tests {
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_election_category_version() {
+        // KC is invalid for legacy EML_NL version without a specified version number
+        let xml = include_str!(
+            "../../test-files/election_definition/eml110a_invalid_election_category_version.eml.xml"
+        );
+
+        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let err = result.expect_err("expected parsing to fail");
+        assert!(err.to_string().contains("KC"));
+        assert!(err.to_string().contains("legacy"));
+    }
+
+    #[test]
+    fn test_valid_election_category_version() {
+        // The same document as the previous test but with for version 1.3, for which KC is valid
+        let xml = include_str!(
+            "../../test-files/election_definition/eml110a_valid_election_category_version.eml.xml"
+        );
+
+        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        assert!(result.is_ok());
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::{
+    EMLVersion,
     io::{OwnedQualifiedName, Span},
     utils::{AffiliationId, CandidateId, ElectionTreeHierarchyError},
 };
@@ -138,6 +139,10 @@ pub enum EMLErrorKind {
     /// The ElectionSubcategory is not valid for the ElectionCategory.
     #[error("The ElectionSubcategory is not valid for the ElectionCategory")]
     InvalidElectionSubcategory,
+
+    /// The ElectionCategory is not supported in the EML_NL version of the document
+    #[error("The election category '{0}' is not supported in EML_NL version {1}")]
+    UnsupportedElectionCategoryForVersion(&'static str, EMLVersion),
 
     /// The voting method specified in the document is not supported.
     #[error("The voting method specified in the document is not supported, only SPV is supported")]

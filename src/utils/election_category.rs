@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
+use crate::{EMLError, EMLValueResultExt as _, EMLVersion, utils::StringValueData};
 
 /// Election category used in the election.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -23,6 +23,8 @@ pub enum ElectionCategory {
     GC,
     /// Eilandsraad
     ER,
+    /// Kiescollege
+    KC,
     /// Todo: Unknown meaning
     NR,
     /// Todo: Unknown meaning
@@ -52,6 +54,7 @@ impl ElectionCategory {
             "BC" => Ok(ElectionCategory::BC),
             "GC" => Ok(ElectionCategory::GC),
             "ER" => Ok(ElectionCategory::ER),
+            "KC" => Ok(ElectionCategory::KC),
             "NR" => Ok(ElectionCategory::NR),
             "PR" => Ok(ElectionCategory::PR),
             "LR" => Ok(ElectionCategory::LR),
@@ -72,10 +75,19 @@ impl ElectionCategory {
             ElectionCategory::BC => "BC",
             ElectionCategory::GC => "GC",
             ElectionCategory::ER => "ER",
+            ElectionCategory::KC => "KC",
             ElectionCategory::NR => "NR",
             ElectionCategory::PR => "PR",
             ElectionCategory::LR => "LR",
             ElectionCategory::IR => "IR",
+        }
+    }
+
+    /// Check if election category is valid for an EML_NL version
+    pub fn is_valid_for(self, version: EMLVersion) -> bool {
+        match self {
+            ElectionCategory::KC => version >= EMLVersion::V1_3,
+            _ => true,
         }
     }
 }
@@ -127,6 +139,10 @@ pub enum ElectionSubcategory {
     GC,
     /// Eilandsraad (less than 19 seats, all eilandraden have this)
     ER1,
+    /// Kiescolleges Caribisch Nederland
+    KCCN,
+    /// Kiescollege Niet-Ingezetenen
+    KCNI,
     /// Tweede kamer
     TK,
     /// Eerste kamer
@@ -162,6 +178,8 @@ impl ElectionSubcategory {
             "BC" => Ok(ElectionSubcategory::BC),
             "GC" => Ok(ElectionSubcategory::GC),
             "ER1" => Ok(ElectionSubcategory::ER1),
+            "KCCN" => Ok(ElectionSubcategory::KCCN),
+            "KCNI" => Ok(ElectionSubcategory::KCNI),
             "TK" => Ok(ElectionSubcategory::TK),
             "EK" => Ok(ElectionSubcategory::EK),
             "EP" => Ok(ElectionSubcategory::EP),
@@ -185,6 +203,8 @@ impl ElectionSubcategory {
             ElectionSubcategory::BC => "BC",
             ElectionSubcategory::GC => "GC",
             ElectionSubcategory::ER1 => "ER1",
+            ElectionSubcategory::KCCN => "KCCN",
+            ElectionSubcategory::KCNI => "KCNI",
             ElectionSubcategory::TK => "TK",
             ElectionSubcategory::EK => "EK",
             ElectionSubcategory::EP => "EP",
@@ -204,6 +224,9 @@ impl ElectionSubcategory {
             ElectionSubcategory::BC => category == ElectionCategory::BC,
             ElectionSubcategory::GC => category == ElectionCategory::GC,
             ElectionSubcategory::ER1 => category == ElectionCategory::ER,
+            ElectionSubcategory::KCCN | ElectionSubcategory::KCNI => {
+                category == ElectionCategory::KC
+            }
             ElectionSubcategory::TK => category == ElectionCategory::TK,
             ElectionSubcategory::EK => category == ElectionCategory::EK,
             ElectionSubcategory::EP => category == ElectionCategory::EP,
@@ -259,5 +282,44 @@ mod tests {
     fn test_election_category_to_str() {
         assert_eq!(ElectionCategory::EK.to_eml_value(), "EK");
         assert_eq!(ElectionCategory::TK.to_eml_value(), "TK");
+    }
+
+    #[test]
+    fn test_election_subcategory_from_str() {
+        assert_eq!(
+            ElectionSubcategory::from_eml_value("ER1"),
+            Ok(ElectionSubcategory::ER1)
+        );
+        assert_eq!(
+            ElectionSubcategory::from_eml_value("KCCN"),
+            Ok(ElectionSubcategory::KCCN)
+        );
+        assert_eq!(
+            ElectionSubcategory::from_eml_value("KCNI"),
+            Ok(ElectionSubcategory::KCNI)
+        );
+    }
+
+    #[test]
+    fn test_election_subcategory_to_str() {
+        assert_eq!(ElectionSubcategory::ER1.to_eml_value(), "ER1");
+        assert_eq!(ElectionSubcategory::KCCN.to_eml_value(), "KCCN");
+        assert_eq!(ElectionSubcategory::KCNI.to_eml_value(), "KCNI");
+    }
+
+    #[test]
+    fn test_is_subcategory_of() {
+        assert!(ElectionSubcategory::ER1.is_subcategory_of(ElectionCategory::ER));
+        assert!(ElectionSubcategory::KCCN.is_subcategory_of(ElectionCategory::KC));
+        assert!(ElectionSubcategory::KCNI.is_subcategory_of(ElectionCategory::KC));
+        assert!(!ElectionSubcategory::KCCN.is_subcategory_of(ElectionCategory::EK));
+    }
+
+    #[test]
+    fn test_minimum_eml_version() {
+        assert!(ElectionCategory::EK.is_valid_for(EMLVersion::V1_2_2));
+        assert!(ElectionCategory::EK.is_valid_for(EMLVersion::V1_3));
+        assert!(!ElectionCategory::KC.is_valid_for(EMLVersion::V1_2_2));
+        assert!(ElectionCategory::KC.is_valid_for(EMLVersion::V1_3));
     }
 }

@@ -383,7 +383,7 @@ impl ElectionIdentifierBuilder {
         let category = self
             .category
             .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
-        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+        category.validate_subcategory(self.subcategory.as_ref())?;
 
         let election_date = self
             .election_date
@@ -391,7 +391,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(NominationElectionIdentifier {
             id: self
@@ -415,7 +418,7 @@ impl ElectionIdentifierBuilder {
         let category = self
             .category
             .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
-        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+        category.validate_subcategory(self.subcategory.as_ref())?;
 
         let election_date = self
             .election_date
@@ -423,7 +426,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(CandidateListsElectionIdentifier {
             id: self
@@ -447,7 +453,7 @@ impl ElectionIdentifierBuilder {
         let category = self
             .category
             .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
-        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+        category.validate_subcategory(self.subcategory.as_ref())?;
 
         Ok(ElectionCountElectionIdentifier {
             id: self
@@ -471,7 +477,7 @@ impl ElectionIdentifierBuilder {
         let category = self
             .category
             .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
-        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+        category.validate_subcategory(self.subcategory.as_ref())?;
 
         Ok(ElectionResultElectionIdentifier {
             id: self
@@ -499,7 +505,7 @@ impl ElectionIdentifierBuilder {
         let subcategory = self
             .subcategory
             .ok_or(EMLErrorKind::MissingBuildProperty("subcategory").without_span())?;
-        validate_category_and_subcategory(&category, Some(&subcategory))?;
+        category.validate_subcategory(Some(&subcategory))?;
 
         let election_date = self
             .election_date
@@ -507,7 +513,10 @@ impl ElectionIdentifierBuilder {
         let nomination_date = self
             .nomination_date
             .ok_or(EMLErrorKind::MissingBuildProperty("nomination_date").without_span())?;
-        validate_election_and_nomination_dates(Some(&election_date), Some(&nomination_date))?;
+        election_date.validate_is_after(
+            &nomination_date,
+            EMLErrorKind::NominationDateNotBeforeElectionDate,
+        )?;
 
         Ok(ElectionDefinitionElectionIdentifier {
             id: self
@@ -533,7 +542,7 @@ impl ElectionIdentifierBuilder {
         let category = self
             .category
             .ok_or(EMLErrorKind::MissingBuildProperty("category").without_span())?;
-        validate_category_and_subcategory(&category, self.subcategory.as_ref())?;
+        category.validate_subcategory(self.subcategory.as_ref())?;
 
         Ok(PollingStationsElectionIdentifier {
             id: self
@@ -556,34 +565,67 @@ impl Default for ElectionIdentifierBuilder {
     }
 }
 
-pub(crate) fn validate_election_and_nomination_dates(
-    election_date: Option<&StringValue<XsDate>>,
-    nomination_date: Option<&StringValue<XsDate>>,
-) -> Result<(), EMLError> {
-    let election_date = election_date.and_then(|ed| ed.copied_value().ok());
-    let nomination_date = nomination_date.and_then(|nd| nd.copied_value().ok());
+impl StringValue<XsDate> {
+    pub(crate) fn validate_is_after(
+        &self,
+        other: &StringValue<XsDate>,
+        error_kind: EMLErrorKind,
+    ) -> Result<(), EMLError> {
+        let value = self.copied_value().ok();
+        let other = other.copied_value().ok();
 
-    if let (Some(ed), Some(nd)) = (election_date, nomination_date)
-        && nd.date >= ed.date
-    {
-        return Err(EMLErrorKind::NominationDateNotBeforeElectionDate).without_span();
+        if let (Some(value), Some(other)) = (value, other)
+            && other.date >= value.date
+        {
+            return Err(error_kind).without_span();
+        }
+        Ok(())
     }
-    Ok(())
 }
 
-pub(crate) fn validate_category_and_subcategory(
-    category: &StringValue<ElectionCategory>,
-    subcategory: Option<&StringValue<ElectionSubcategory>>,
-) -> Result<(), EMLError> {
-    let category = category.copied_value().ok();
-    let subcategory = subcategory.and_then(|sc| sc.copied_value().ok());
+impl StringValue<ElectionCategory> {
+    /// Validate that the subcategory matches the main category
+    pub(crate) fn validate_subcategory(
+        &self,
+        subcategory: Option<&StringValue<ElectionSubcategory>>,
+    ) -> Result<(), EMLError> {
+        let category = self.copied_value().ok();
+        let subcategory = subcategory.and_then(|sc| sc.copied_value().ok());
 
-    if let (Some(c), Some(sc)) = (category, subcategory)
-        && !sc.is_subcategory_of(c)
-    {
-        return Err(EMLErrorKind::InvalidElectionSubcategory).without_span();
+        if let (Some(c), Some(sc)) = (category, subcategory)
+            && !sc.is_subcategory_of(c)
+        {
+            return Err(EMLErrorKind::InvalidElectionSubcategory).without_span();
+        }
+        Ok(())
     }
-    Ok(())
+
+    /// Validate that the election category is supported in the given EML_NL version
+    pub(crate) fn validate_version(&self, version: EMLVersion) -> Result<(), EMLError> {
+        if let Some(c) = self.copied_value().ok()
+            && !c.is_valid_for(version)
+        {
+            return Err(EMLErrorKind::UnsupportedElectionCategoryForVersion(
+                c.to_eml_value(),
+                version,
+            ))
+            .without_span();
+        }
+        Ok(())
+    }
+}
+
+impl ElectionCategory {
+    pub(crate) fn read_and_validate(
+        elem: &mut EMLElementReader<'_, '_>,
+    ) -> Result<StringValue<ElectionCategory>, EMLError> {
+        let category: StringValue<ElectionCategory> = elem.string_value()?;
+        elem.report_validation(
+            category.validate_version(elem.document_version()),
+            elem.span(),
+        )?;
+        Ok(category)
+    }
 }
 
 #[cfg(test)]
@@ -718,5 +760,12 @@ mod tests {
         assert!(eml.as_result_doc().is_some());
         assert!(eml.as_count_doc().is_none());
         assert!(eml.write_eml_root_str(true, true).is_ok());
+    }
+
+    #[test]
+    fn test_kc_election_category_rejected_before_v1_3() {
+        let category = StringValue::from_value(ElectionCategory::KC);
+        assert!(category.validate_version(EMLVersion::V1_2_2).is_err());
+        assert!(category.validate_version(EMLVersion::V1_3).is_ok());
     }
 }
