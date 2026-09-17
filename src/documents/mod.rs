@@ -27,6 +27,7 @@ pub mod candidate_lists;
 pub mod election_count;
 pub mod election_definition;
 pub mod election_result;
+pub mod master_election_tree;
 pub mod nomination;
 pub mod polling_stations;
 
