@@ -9,7 +9,7 @@ use crate::{
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
         TransactionId,
     },
-    documents::ElectionIdentifierBuilder,
+    documents::{ElectionIdentifierBuilder, validate_election_category_version},
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
         EMLWriteElement as _, QualifiedName, collect_struct,
@@ -377,7 +377,7 @@ impl EMLElement for ElectionResultElectionIdentifier {
         QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
+        let data = collect_struct!(
             elem,
             ElectionResultElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
@@ -387,10 +387,24 @@ impl EMLElement for ElectionResultElectionIdentifier {
                 domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
             }
-        ))
+        );
+
+        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
+        {
+            let e = e.into_kind().with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(e);
+            } else {
+                elem.push_err(e);
+            }
+        }
+
+        Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        validate_election_category_version(&self.category, writer.document_version())?;
+
         writer
             .attr("Id", self.id.raw().as_ref())?
             .child_option(

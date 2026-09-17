@@ -8,7 +8,7 @@ use crate::{
         CanonicalizationMethod, ContestIdentifier, CreationDateTime, ElectionDomain, ElectionTree,
         IssueDate, ManagingAuthority, TransactionId,
     },
-    documents::ElectionIdentifierBuilder,
+    documents::{ElectionIdentifierBuilder, validate_election_category_version},
     error::{EMLErrorKind, EMLResultExt},
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct,
@@ -578,7 +578,7 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
         QualifiedName::from_static("ElectionIdentifier", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(
+        let data = collect_struct!(
             elem,
             ElectionDefinitionElectionIdentifier {
                 id: elem.string_value_attr("Id", None)?,
@@ -589,10 +589,24 @@ impl EMLElement for ElectionDefinitionElectionIdentifier {
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
-        ))
+        );
+
+        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
+        {
+            let e = e.into_kind().with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(e);
+            } else {
+                elem.push_err(e);
+            }
+        }
+
+        Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        validate_election_category_version(&self.category, writer.document_version())?;
+
         writer
             .attr("Id", self.id.raw().as_ref())?
             .child(("ElectionName", NS_EML), |elem| {
@@ -1012,6 +1026,53 @@ mod tests {
     }
 
     #[test]
+    fn test_write_rejects_kc_category_before_v1_3() {
+        let build = |version: EMLVersion| {
+            ElectionDefinition::builder()
+                .version(version)
+                .transaction_id(TransactionId::new(1))
+                .creation_date_time(
+                    chrono::Utc
+                        .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                        .unwrap(),
+                )
+                .election_identifier(
+                    ElectionDefinitionElectionIdentifier::builder()
+                        .id(ElectionId::new("KC2023_Test").unwrap())
+                        .name("Test election")
+                        .category(ElectionCategory::KC)
+                        .subcategory(ElectionSubcategory::KCCN)
+                        .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                        .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                        .build_for_definition()
+                        .unwrap(),
+                )
+                .contest_identifier(ContestIdentifier::geen())
+                .voting_method(VotingMethod::SPV)
+                .max_votes(NonZeroU64::new(100).unwrap())
+                .number_of_seats(75u32)
+                .preference_threshold(50u32)
+                .election_tree(ElectionTree::new(vec![Region::new(
+                    "Region 1",
+                    RegionCategory::Municipality,
+                )]))
+                .build()
+                .unwrap()
+        };
+
+        assert!(
+            build(EMLVersion::V1_2_2)
+                .write_eml_root_str(true, true)
+                .is_err()
+        );
+        assert!(
+            build(EMLVersion::V1_3)
+                .write_eml_root_str(true, true)
+                .is_ok()
+        );
+    }
+
+    #[test]
     fn test_election_missing_election_domain() {
         let xml = include_str!(
             "../../test-files/election_definition/eml110a_election_missing_election_domain.eml.xml"
@@ -1089,6 +1150,30 @@ mod tests {
 
         let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_election_category_version() {
+        // KC is invalid for legacy EML_NL version without a specified version number
+        let xml = include_str!(
+            "../../test-files/election_definition/eml110a_invalid_election_category_version.eml.xml"
+        );
+
+        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        let err = result.expect_err("expected parsing to fail");
+        assert!(err.to_string().contains("KC"));
+        assert!(err.to_string().contains("legacy"));
+    }
+
+    #[test]
+    fn test_valid_election_category_version() {
+        // The same document as the previous test but with for version 1.3, for which KC is valid
+        let xml = include_str!(
+            "../../test-files/election_definition/eml110a_valid_election_category_version.eml.xml"
+        );
+
+        let result = ElectionDefinition::parse_eml(xml, EMLParsingMode::Strict).ok_with_errors();
+        assert!(result.is_ok());
     }
 
     #[test]

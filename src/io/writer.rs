@@ -125,8 +125,7 @@ impl<'a> EMLElementWriter<'a> {
     }
 
     /// Returns the version of the EML document being written.
-    #[expect(unused, reason = "No version checks during writing yet")]
-    pub fn document_version(self) -> EMLVersion {
+    pub fn document_version(&self) -> EMLVersion {
         self.writer.version
     }
 

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
+use crate::{EMLError, EMLValueResultExt as _, EMLVersion, utils::StringValueData};
 
 /// Election category used in the election.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,6 +80,14 @@ impl ElectionCategory {
             ElectionCategory::PR => "PR",
             ElectionCategory::LR => "LR",
             ElectionCategory::IR => "IR",
+        }
+    }
+
+    /// Check if election category is valid for an EML_NL version
+    pub fn is_valid_for(self, version: EMLVersion) -> bool {
+        match self {
+            ElectionCategory::KC => version >= EMLVersion::V1_3,
+            _ => true,
         }
     }
 }
@@ -305,5 +313,13 @@ mod tests {
         assert!(ElectionSubcategory::KCCN.is_subcategory_of(ElectionCategory::KC));
         assert!(ElectionSubcategory::KCNI.is_subcategory_of(ElectionCategory::KC));
         assert!(!ElectionSubcategory::KCCN.is_subcategory_of(ElectionCategory::EK));
+    }
+
+    #[test]
+    fn test_minimum_eml_version() {
+        assert!(ElectionCategory::EK.is_valid_for(EMLVersion::V1_2_2));
+        assert!(ElectionCategory::EK.is_valid_for(EMLVersion::V1_3));
+        assert!(!ElectionCategory::KC.is_valid_for(EMLVersion::V1_2_2));
+        assert!(ElectionCategory::KC.is_valid_for(EMLVersion::V1_3));
     }
 }

@@ -11,7 +11,7 @@ use crate::{
     },
     documents::{
         ElectionIdentifierBuilder, validate_category_and_subcategory,
-        validate_election_and_nomination_dates,
+        validate_election_and_nomination_dates, validate_election_category_version,
     },
     error::EMLErrorKind,
     io::{
@@ -586,10 +586,22 @@ impl EMLElement for CandidateListsElectionIdentifier {
             }
         }
 
+        if let Err(e) = validate_election_category_version(&data.category, elem.document_version())
+        {
+            let e = e.into_kind().with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(e);
+            } else {
+                elem.push_err(e);
+            }
+        }
+
         Ok(data)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        validate_election_category_version(&self.category, writer.document_version())?;
+
         writer
             .attr("Id", self.id.raw().as_ref())?
             .child_option(

@@ -586,6 +586,23 @@ pub(crate) fn validate_category_and_subcategory(
     Ok(())
 }
 
+/// Validate that the election category is supported in the given EML_NL version
+pub(crate) fn validate_election_category_version(
+    category: &StringValue<ElectionCategory>,
+    version: EMLVersion,
+) -> Result<(), EMLError> {
+    if let Some(c) = category.copied_value().ok()
+        && !c.is_valid_for(version)
+    {
+        return Err(EMLErrorKind::UnsupportedElectionCategoryForVersion(
+            c.to_eml_value(),
+            version,
+        ))
+        .without_span();
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -718,5 +735,12 @@ mod tests {
         assert!(eml.as_result_doc().is_some());
         assert!(eml.as_count_doc().is_none());
         assert!(eml.write_eml_root_str(true, true).is_ok());
+    }
+
+    #[test]
+    fn test_kc_election_category_rejected_before_v1_3() {
+        let category = StringValue::from_value(ElectionCategory::KC);
+        assert!(validate_election_category_version(&category, EMLVersion::V1_2_2).is_err());
+        assert!(validate_election_category_version(&category, EMLVersion::V1_3).is_ok());
     }
 }

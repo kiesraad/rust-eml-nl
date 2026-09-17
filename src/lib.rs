@@ -149,6 +149,12 @@ impl std::str::FromStr for EMLVersion {
     }
 }
 
+impl std::fmt::Display for EMLVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str().unwrap_or("legacy"))
+    }
+}
+
 /// EML_NL version is not known to this version of the library.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("Unsupported EML_NL version: {0}")]
