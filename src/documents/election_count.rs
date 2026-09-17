@@ -7,7 +7,7 @@ use crate::{
     OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
-        ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
+        ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure, Phase,
         ReportingUnitIdentifier, TransactionId,
     },
     documents::ElectionIdentifierBuilder,
@@ -357,6 +357,8 @@ impl CountType {
 /// The actual count data.
 #[derive(Debug, Clone)]
 pub struct ElectionCountCount {
+    /// The phase of this count.
+    pub phase: Option<Phase>,
     /// The election for this count.
     pub election: ElectionCountElection,
 }
@@ -365,6 +367,7 @@ impl ElectionCountCount {
     /// Create a new count for the election count document.
     pub fn new(election: impl Into<ElectionCountElection>) -> Self {
         ElectionCountCount {
+            phase: None,
             election: election.into(),
         }
     }
