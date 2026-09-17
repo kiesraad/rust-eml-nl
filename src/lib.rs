@@ -104,13 +104,14 @@ pub(crate) const NS_DS: &str = "http://www.w3.org/2000/09/xmldsig#";
 /// element is not present, the legacy unversioned EML_NL schema is assumed,
 /// in practice this means that this document should follow the EML_NL 1.2.2
 /// schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum EMLVersion {
+    /// A legacy unversioned EML_NL document, assumed to follow EML_NL 1.2.2
+    V1_2_2,
+
     /// An EML_NL version 1.3 document
     #[default]
     V1_3,
-    /// A legacy unversioned EML_NL document, assumed to follow EML_NL 1.2.2
-    V1_2_2,
 }
 
 impl EMLVersion {
@@ -163,3 +164,30 @@ impl From<UnsupportedEMLVersion> for EMLError {
 // pub(crate) const NS_XMLNS: &str = "http://www.w3.org/2000/xmlns/";
 // /// Namespace URI for XML
 // pub(crate) const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_eml_version_to_str() {
+        assert_eq!(EMLVersion::V1_3.to_str(), Some("1.3"));
+        assert_eq!(EMLVersion::V1_2_2.to_str(), None);
+    }
+
+    #[test]
+    fn test_eml_version_from_str() {
+        assert_eq!("1.3".parse::<EMLVersion>(), Ok(EMLVersion::V1_3));
+        assert!("1.2".parse::<EMLVersion>().is_err());
+    }
+
+    #[test]
+    fn test_comparison_of_eml_versions() {
+        assert!(EMLVersion::V1_3 > EMLVersion::V1_2_2);
+        assert!(EMLVersion::V1_3 >= EMLVersion::V1_3);
+        assert!(EMLVersion::V1_2_2 <= EMLVersion::V1_3);
+        assert!(EMLVersion::V1_2_2 < EMLVersion::V1_3);
+        assert!(EMLVersion::V1_3 != EMLVersion::V1_2_2);
+        assert!(EMLVersion::V1_3 == EMLVersion::V1_3);
+    }
+}
