@@ -6,9 +6,9 @@ use crate::{
     EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, NS_EML, NS_KR,
     OASIS_EML_SCHEMA_VERSION,
     common::{
-        CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
-        ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
-        ReportingUnitIdentifier, TransactionId,
+        CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountingMethod,
+        CreationDateTime, ElectionDomain, ManagingAuthority, MinimalQualifyingAddress,
+        PersonNameStructure, ReportingUnitIdentifier, TransactionId,
     },
     documents::ElectionIdentifierBuilder,
     io::{
@@ -90,6 +90,7 @@ impl TryFrom<ElectionCount> for String {
 #[derive(Debug, Clone)]
 pub struct ElectionCountBuilder {
     version: Option<EMLVersion>,
+    counting_method: Option<CountingMethod>,
     count_type: Option<CountType>,
     transaction_id: Option<TransactionId>,
     managing_authority: Option<ManagingAuthority>,
@@ -105,6 +106,7 @@ impl ElectionCountBuilder {
     pub fn new() -> Self {
         Self {
             version: None,
+            counting_method: None,
             count_type: None,
             transaction_id: None,
             managing_authority: None,
@@ -121,6 +123,15 @@ impl ElectionCountBuilder {
     /// If not set, the default version is used.
     pub fn version(mut self, version: impl Into<EMLVersion>) -> Self {
         self.version = Some(version.into());
+        self
+    }
+
+    /// Set the counting method for the document.
+    ///
+    /// This only has effect if the count was not set using the  [`Self::count`]
+    /// method on this builder.
+    pub fn counting_method(mut self, counting_method: impl Into<CountingMethod>) -> Self {
+        self.counting_method = Some(counting_method.into());
         self
     }
 
@@ -221,12 +232,16 @@ impl ElectionCountBuilder {
                         return Err(EMLErrorKind::MissingBuildProperty("contests").without_span());
                     }
 
-                    Ok(ElectionCountCount::new(ElectionCountElection::new(
+                    let mut count_elem = ElectionCountCount::new(ElectionCountElection::new(
                         self.election_identifier.ok_or_else(|| {
                             EMLErrorKind::MissingBuildProperty("election_identifier").without_span()
                         })?,
                         self.contests,
-                    )))
+                    ));
+
+                    count_elem.counting_method = self.counting_method;
+
+                    Ok(count_elem)
                 },
                 Ok,
             )?,
@@ -359,6 +374,9 @@ impl CountType {
 pub struct ElectionCountCount {
     /// The election for this count.
     pub election: ElectionCountElection,
+
+    /// The counting method used for this count.
+    pub counting_method: Option<CountingMethod>,
 }
 
 impl ElectionCountCount {
@@ -366,6 +384,7 @@ impl ElectionCountCount {
     pub fn new(election: impl Into<ElectionCountElection>) -> Self {
         ElectionCountCount {
             election: election.into(),
+            counting_method: None,
         }
     }
 }
@@ -383,6 +402,7 @@ impl EMLElement for ElectionCountCount {
         Ok(collect_struct!(elem, ElectionCountCount {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
             election: ElectionCountElection::EML_NAME => |elem| elem.read_element::<ElectionCountElection>()?,
+            counting_method as Option: CountingMethod::EML_NAME => |elem| elem.read_element::<CountingMethod>()?,
         }))
     }
 
@@ -390,6 +410,7 @@ impl EMLElement for ElectionCountCount {
         writer
             .child(("EventIdentifier", NS_EML), |w| w.empty())?
             .child_elem(ElectionCountElection::EML_NAME, &self.election)?
+            .child_elem_option(CountingMethod::EML_NAME, self.counting_method.as_ref())?
             .finish()
     }
 }
@@ -2142,7 +2163,7 @@ mod tests {
     use chrono::{NaiveDate, TimeZone as _};
 
     use crate::{
-        common::{AuthorityIdentifier, PersonName},
+        common::{AuthorityIdentifier, CountingMethodCode, PersonName},
         io::{EMLParsingMode, EMLRead, EMLWrite},
         utils::{AuthorityId, CandidateId, ReportingUnitIdentifierId},
     };
@@ -2258,6 +2279,33 @@ mod tests {
                 .ok_with_errors()
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn test_parse_510b_with_counting_method() {
+        let xml =
+            include_str!("../../test-files/election_count/eml_510b_1_3_with_counting_method.xml");
+
+        let count = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        dbg!(&count);
+
+        assert_eq!(
+            count.count.counting_method.unwrap().copied_value().unwrap(),
+            CountingMethodCode::CSO
+        );
+
+        let xml =
+            include_str!("../../test-files/election_count/eml_510b_1_2_2_with_counting_method.xml");
+        let failure = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        assert!(matches!(
+            failure.kind(),
+            EMLErrorKind::ElementNotSupportedInVersion(_, EMLVersion::V1_2_2)
+        ));
     }
 
     #[test]

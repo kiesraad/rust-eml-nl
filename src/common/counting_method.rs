@@ -10,6 +10,29 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CountingMethod(StringValue<CountingMethodCode>);
 
+impl CountingMethod {
+    /// Creates a new [`CountingMethod`] from the given [`CountingMethodCode`].
+    pub fn from(code: impl Into<CountingMethodCode>) -> Self {
+        Self(StringValue::Parsed(code.into()))
+    }
+
+    /// Returns the parsed value of the counting method.
+    pub fn copied_value(&self) -> Result<CountingMethodCode, EMLError> {
+        self.0.copied_value()
+    }
+
+    /// Returns a reference to the underlying [`StringValue`] of the counting method.
+    pub fn value(&self) -> &StringValue<CountingMethodCode> {
+        &self.0
+    }
+}
+
+impl From<CountingMethodCode> for CountingMethod {
+    fn from(code: CountingMethodCode) -> Self {
+        Self(StringValue::Parsed(code))
+    }
+}
+
 impl EMLElement for CountingMethod {
     const EML_NAME: QualifiedName<'_, '_> =
         QualifiedName::from_static("CountingMethod", Some(NS_KR));
