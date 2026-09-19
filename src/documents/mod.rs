@@ -56,30 +56,6 @@ pub enum EML {
 }
 
 impl EML {
-    /// Get the EML document ID string for this document variant (e.g. `110a`).
-    pub fn to_eml_id(&self) -> &'static str {
-        match self {
-            EML::ElectionDefinition(_) => EML_ELECTION_DEFINITION_ID,
-            EML::PollingStations(_) => EML_POLLING_STATIONS_ID,
-            EML::Nomination(_) => EML_NOMINATION_ID,
-            EML::CandidateLists(cl) => cl.lists_type.to_eml_id(),
-            EML::ElectionCount(c) => c.count_type.to_eml_id(),
-            EML::ElectionResult(_) => EML_ELECTION_RESULT_ID,
-        }
-    }
-
-    /// Get a friendly name for this EML document variant.
-    pub fn to_friendly_name(&self) -> &'static str {
-        match self {
-            EML::ElectionDefinition(_) => "Election Definition",
-            EML::PollingStations(_) => "Polling Stations",
-            EML::Nomination(_) => "Nomination",
-            EML::CandidateLists(cl) => cl.lists_type.to_friendly_name(),
-            EML::ElectionCount(c) => c.count_type.to_friendly_name(),
-            EML::ElectionResult(_) => "Result",
-        }
-    }
-
     /// Create a generic EML document from an Election Definition (`110a`) document.
     pub fn from_election_definition_doc(ed: ElectionDefinition) -> Self {
         EML::ElectionDefinition(Box::new(ed))
@@ -275,6 +251,28 @@ impl EMLDocument for EML {
             EML::CandidateLists(d) => d.version,
             EML::ElectionCount(d) => d.version,
             EML::ElectionResult(d) => d.version,
+        }
+    }
+
+    fn document_eml_id(&self) -> &'static str {
+        match self {
+            EML::ElectionDefinition(d) => d.document_eml_id(),
+            EML::PollingStations(d) => d.document_eml_id(),
+            EML::Nomination(d) => d.document_eml_id(),
+            EML::CandidateLists(d) => d.document_eml_id(),
+            EML::ElectionCount(d) => d.document_eml_id(),
+            EML::ElectionResult(d) => d.document_eml_id(),
+        }
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        match self {
+            EML::ElectionDefinition(d) => d.document_friendly_name(),
+            EML::PollingStations(d) => d.document_friendly_name(),
+            EML::Nomination(d) => d.document_friendly_name(),
+            EML::CandidateLists(d) => d.document_friendly_name(),
+            EML::ElectionCount(d) => d.document_friendly_name(),
+            EML::ElectionResult(d) => d.document_friendly_name(),
         }
     }
 }
@@ -636,8 +634,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "210");
-        assert_eq!(eml.to_friendly_name(), "Nomination");
+        assert_eq!(eml.document_eml_id(), "210");
+        assert_eq!(eml.document_friendly_name(), "Nomination");
         assert!(eml.is_nomination_doc());
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_nomination_doc().is_some());
@@ -651,8 +649,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "110a");
-        assert_eq!(eml.to_friendly_name(), "Election Definition");
+        assert_eq!(eml.document_eml_id(), "110a");
+        assert_eq!(eml.document_friendly_name(), "Election Definition");
         assert!(eml.is_election_definition_doc());
         assert!(!eml.is_result_doc());
         assert!(eml.as_election_definition_doc().is_some());
@@ -666,8 +664,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "110b");
-        assert_eq!(eml.to_friendly_name(), "Polling Stations");
+        assert_eq!(eml.document_eml_id(), "110b");
+        assert_eq!(eml.document_friendly_name(), "Polling Stations");
         assert!(eml.is_polling_stations_doc());
         assert!(!eml.is_election_definition_doc());
         assert!(eml.as_polling_stations_doc().is_some());
@@ -681,8 +679,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "230b");
-        assert_eq!(eml.to_friendly_name(), "Candidate Lists");
+        assert_eq!(eml.document_eml_id(), "230b");
+        assert_eq!(eml.document_friendly_name(), "Candidate Lists");
         assert!(eml.is_candidate_lists_doc());
         assert!(!eml.is_polling_stations_doc());
         assert!(eml.as_candidate_lists_doc().is_some());
@@ -696,8 +694,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "510b");
-        assert_eq!(eml.to_friendly_name(), "Municipal Count");
+        assert_eq!(eml.document_eml_id(), "510b");
+        assert_eq!(eml.document_friendly_name(), "Municipal Count");
         assert!(eml.is_count_doc());
         assert!(!eml.is_candidate_lists_doc());
         assert!(eml.as_count_doc().is_some());
@@ -711,8 +709,8 @@ mod tests {
         let eml = EML::parse_eml(doc, EMLParsingMode::Strict)
             .ok()
             .expect("Failed to parse EML document");
-        assert_eq!(eml.to_eml_id(), "520");
-        assert_eq!(eml.to_friendly_name(), "Result");
+        assert_eq!(eml.document_eml_id(), "520");
+        assert_eq!(eml.document_friendly_name(), "Result");
         assert!(eml.is_result_doc());
         assert!(!eml.is_count_doc());
         assert!(eml.as_result_doc().is_some());

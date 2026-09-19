@@ -68,6 +68,14 @@ impl EMLDocument for Nomination {
     fn document_version(&self) -> EMLVersion {
         self.version
     }
+
+    fn document_eml_id(&self) -> &'static str {
+        EML_NOMINATION_ID
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        "Nomination"
+    }
 }
 
 impl FromStr for Nomination {

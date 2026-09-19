@@ -57,6 +57,14 @@ impl EMLDocument for ElectionDefinition {
     fn document_version(&self) -> EMLVersion {
         self.version
     }
+
+    fn document_eml_id(&self) -> &'static str {
+        EML_ELECTION_DEFINITION_ID
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        "Election Definition"
+    }
 }
 
 impl FromStr for ElectionDefinition {

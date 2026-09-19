@@ -62,6 +62,14 @@ impl EMLDocument for PollingStations {
     fn document_version(&self) -> EMLVersion {
         self.version
     }
+
+    fn document_eml_id(&self) -> &'static str {
+        EML_POLLING_STATIONS_ID
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        "Polling Stations"
+    }
 }
 
 impl FromStr for PollingStations {

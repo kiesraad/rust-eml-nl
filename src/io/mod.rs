@@ -43,6 +43,12 @@ where
 pub trait EMLDocument {
     /// Get the EML_NL document version for the document.
     fn document_version(&self) -> EMLVersion;
+
+    /// Get the EML document ID string for this document variant (e.g. `110a`).
+    fn document_eml_id(&self) -> &'static str;
+
+    /// Get a friendly name for this EML document variant.
+    fn document_friendly_name(&self) -> &'static str;
 }
 
 #[cfg(test)]

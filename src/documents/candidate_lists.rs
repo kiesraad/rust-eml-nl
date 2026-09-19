@@ -63,6 +63,14 @@ impl EMLDocument for CandidateLists {
     fn document_version(&self) -> EMLVersion {
         self.version
     }
+
+    fn document_eml_id(&self) -> &'static str {
+        self.lists_type.to_eml_id()
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        self.lists_type.to_friendly_name()
+    }
 }
 
 impl FromStr for CandidateLists {
