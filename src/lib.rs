@@ -88,6 +88,9 @@ pub(crate) const NS_EML: &str = "urn:oasis:names:tc:evs:schema:eml";
 /// Namespace URI for the Kiesraad expansions on the EML standard
 pub(crate) const NS_KR: &str = "http://www.kiesraad.nl/extensions";
 
+/// Namespace URI for the Kiesraad SB (Stembureau) expansions on the EML standard
+pub(crate) const NS_SB: &str = "http://www.kiesraad.nl/sb-extensions";
+
 /// Namespace URI for the eXtensible Address Language (xAL)
 pub(crate) const NS_XAL: &str = "urn:oasis:names:tc:ciq:xsdschema:xAL:2.0";
 

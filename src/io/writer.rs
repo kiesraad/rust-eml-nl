@@ -510,7 +510,7 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
     let mut namespace_definitions = BTreeMap::new();
     let mut default_namespace_uri = Some(None);
     for ns in namespaces {
-        use crate::NS_DS;
+        use crate::{NS_DS, NS_SB};
 
         match *ns {
             NS_EML => {
@@ -518,6 +518,9 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
             }
             NS_KR => {
                 namespace_definitions.insert("kr", NS_KR);
+            }
+            NS_SB => {
+                namespace_definitions.insert("sb", NS_SB);
             }
             NS_XAL => {
                 namespace_definitions.insert("xal", NS_XAL);
