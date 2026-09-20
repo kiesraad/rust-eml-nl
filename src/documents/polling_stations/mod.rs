@@ -6,7 +6,7 @@ use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
+    EMLError, EMLValueResultExt, EMLVersion, EMLVersionRange, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
     OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
@@ -872,14 +872,14 @@ impl PollingPlaceBuilder {
                 .channel
                 .ok_or(EMLErrorKind::MissingBuildProperty("channel").without_span())?,
             physical_location: PhysicalLocation {
-                address: PhysicalLocationAddress {
+                address: Some(PhysicalLocationAddress {
                     locality: PhysicalLocationLocality {
                         locality_name: self.locality_name.ok_or(
                             EMLErrorKind::MissingBuildProperty("locality_name").without_span(),
                         )?,
                         postal_code: self.postal_code,
                     },
-                },
+                }),
                 polling_station: PhysicalLocationPollingStation {
                     id: self.polling_station_id.ok_or(
                         EMLErrorKind::MissingBuildProperty("polling_station_id").without_span(),
@@ -922,7 +922,7 @@ impl EMLElement for PollingPlace {
 #[derive(Debug, Clone)]
 pub struct PhysicalLocation {
     /// Address of the physical location.
-    pub address: PhysicalLocationAddress,
+    pub address: Option<PhysicalLocationAddress>,
 
     /// Polling station information of the physical location.
     pub polling_station: PhysicalLocationPollingStation,
@@ -934,14 +934,14 @@ impl EMLElement for PhysicalLocation {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocation {
-            address: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
+            address as Option: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
             polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| elem.read_element::<PhysicalLocationPollingStation>()?,
         }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child_elem(PhysicalLocationAddress::EML_NAME, &self.address)?
+            .child_elem_option(PhysicalLocationAddress::EML_NAME, self.address.as_ref())?
             .child_elem(
                 PhysicalLocationPollingStation::EML_NAME,
                 &self.polling_station,
@@ -951,6 +951,8 @@ impl EMLElement for PhysicalLocation {
 }
 
 /// Address of a physical location.
+///
+/// Note: this is a legacy element that is no longer available since EML v1.3
 #[derive(Debug, Clone)]
 pub struct PhysicalLocationAddress {
     /// Locality of the physical location.
@@ -959,6 +961,7 @@ pub struct PhysicalLocationAddress {
 
 impl EMLElement for PhysicalLocationAddress {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Address", Some(NS_EML));
+    const EML_VERSIONS: EMLVersionRange = EMLVersionRange::until(EMLVersion::V1_3);
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocationAddress {
@@ -1144,7 +1147,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-files/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
+                "../../../test-files/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
             )
         );
 
@@ -1157,7 +1160,7 @@ mod tests {
     #[test]
     fn test_read_polling_stations_with_max_votes_empty() {
         let xml = include_str!(
-            "../../test-files/polling_stations/eml110b_empty_number_of_voters.eml.xml"
+            "../../../test-files/polling_stations/eml110b_empty_number_of_voters.eml.xml"
         );
 
         let parsed = PollingStations::parse_eml(xml, EMLParsingMode::Strict).unwrap();
@@ -1217,7 +1220,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-files/polling_stations/eml110b_empty_polling_station.eml.xml"
+                    "../../../test-files/polling_stations/eml110b_empty_polling_station.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1231,7 +1234,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-files/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
+                    "../../../test-files/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1243,7 +1246,7 @@ mod tests {
     #[test]
     fn test_one_station() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-files/polling_stations/eml110b_1_station.eml.xml"),
+            include_str!("../../../test-files/polling_stations/eml110b_1_station.eml.xml"),
             EMLParsingMode::Strict,
         )
         .unwrap();
@@ -1256,7 +1259,9 @@ mod tests {
     #[test]
     fn test_less_than_10_stations() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-files/polling_stations/eml110b_less_than_10_stations.eml.xml"),
+            include_str!(
+                "../../../test-files/polling_stations/eml110b_less_than_10_stations.eml.xml"
+            ),
             EMLParsingMode::Strict,
         )
         .unwrap();
