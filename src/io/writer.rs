@@ -357,9 +357,6 @@ where
             ns_defs.insert("kr", NS_KR);
             ns_defs.insert("xal", NS_XAL);
             ns_defs.insert("xnl", NS_XNL);
-            // ns_defs.insert("ds", NS_DS);
-            // ns_defs.insert("xmlns", NS_XMLNS);
-            // ns_defs.insert("xml", NS_XML);
             ns_defs
         });
 
@@ -458,7 +455,7 @@ where
         self.write_root(
             None::<QualifiedName<'_, '_>>,
             None,
-            None,
+            self.document_namespaces(),
             self.document_version(),
             pretty_print,
             include_declaration,

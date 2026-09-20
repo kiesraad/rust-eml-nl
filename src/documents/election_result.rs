@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Result (`520`) document.
 
-use std::{ops::Deref, str::FromStr};
+use std::{collections::BTreeMap, ops::Deref, str::FromStr};
 
 use crate::{
     EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
@@ -62,6 +62,10 @@ impl EMLDocument for ElectionResult {
 
     fn document_friendly_name(&self) -> &'static str {
         "Result"
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        None
     }
 }
 

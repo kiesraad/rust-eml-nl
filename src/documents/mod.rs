@@ -1,6 +1,6 @@
 //! Document variants and related types for the all the specific EML_NL documents.
 
-use std::str::FromStr;
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::{
     EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML,
@@ -273,6 +273,17 @@ impl EMLDocument for EML {
             EML::CandidateLists(d) => d.document_friendly_name(),
             EML::ElectionCount(d) => d.document_friendly_name(),
             EML::ElectionResult(d) => d.document_friendly_name(),
+        }
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        match self {
+            EML::ElectionDefinition(d) => d.document_namespaces(),
+            EML::PollingStations(d) => d.document_namespaces(),
+            EML::Nomination(d) => d.document_namespaces(),
+            EML::CandidateLists(d) => d.document_namespaces(),
+            EML::ElectionCount(d) => d.document_namespaces(),
+            EML::ElectionResult(d) => d.document_namespaces(),
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Candidate List (`230b`) document.
 
-use std::{num::NonZeroU64, str::FromStr};
+use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
     EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
@@ -70,6 +70,10 @@ impl EMLDocument for CandidateLists {
 
     fn document_friendly_name(&self) -> &'static str {
         self.lists_type.to_friendly_name()
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        None
     }
 }
 

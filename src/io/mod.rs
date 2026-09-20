@@ -4,6 +4,8 @@ mod qualified_name;
 mod reader;
 mod writer;
 
+use std::collections::BTreeMap;
+
 pub use qualified_name::*;
 pub use reader::*;
 pub use writer::*;
@@ -49,6 +51,11 @@ pub trait EMLDocument {
 
     /// Get a friendly name for this EML document variant.
     fn document_friendly_name(&self) -> &'static str;
+
+    /// Get the document namespaces for this EML document.
+    ///
+    /// If set to `None`, the global default set of namespaces is used.
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>>;
 }
 
 #[cfg(test)]

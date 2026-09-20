@@ -1,12 +1,13 @@
 //! Document variant for the EML_NL Polling Stations (`110b`) document.
 
-use std::{num::NonZeroU64, str::FromStr, sync::LazyLock};
+use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
+    OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
         ElectionDomain, IssueDate, LocalityName, ManagingAuthority, PostalCode,
@@ -69,6 +70,19 @@ impl EMLDocument for PollingStations {
 
     fn document_friendly_name(&self) -> &'static str {
         "Polling Stations"
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        let mut ns_defs = BTreeMap::new();
+        ns_defs.insert("kr", NS_KR);
+        ns_defs.insert("xal", NS_XAL);
+        ns_defs.insert("xnl", NS_XNL);
+
+        // Only include the SB namespace for EML_NL 1.3+ documents
+        if self.document_version() >= EMLVersion::V1_3 {
+            ns_defs.insert("sb", NS_SB);
+        }
+        Some(ns_defs)
     }
 }
 

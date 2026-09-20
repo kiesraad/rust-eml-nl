@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Nomination (`210`) document.
 
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 
 use thiserror::Error;
 
@@ -75,6 +75,10 @@ impl EMLDocument for Nomination {
 
     fn document_friendly_name(&self) -> &'static str {
         "Nomination"
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        None
     }
 }
 

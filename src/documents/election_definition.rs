@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Election Definition (`110a`) document.
 
-use std::{num::NonZeroU64, str::FromStr};
+use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
     EMLError, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
@@ -64,6 +64,10 @@ impl EMLDocument for ElectionDefinition {
 
     fn document_friendly_name(&self) -> &'static str {
         "Election Definition"
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        None
     }
 }
 
