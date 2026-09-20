@@ -5,6 +5,8 @@ use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr, sync::LazyLock};
 use regex::Regex;
 use thiserror::Error;
 
+pub use location::*;
+
 use crate::{
     EMLError, EMLValueResultExt, EMLVersion, EMLVersionRange, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
     OASIS_EML_SCHEMA_VERSION,
@@ -24,6 +26,8 @@ use crate::{
         VotingChannelType, VotingMethod, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
+
+mod location;
 
 pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
 
@@ -1174,6 +1178,7 @@ mod tests {
     #[test]
     fn test_write_polling_stations_with_max_votes_empty() {
         let ps = PollingStations::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(
                 AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Test"),

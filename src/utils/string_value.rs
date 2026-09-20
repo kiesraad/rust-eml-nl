@@ -176,6 +176,21 @@ impl StringValueData for u64 {
     }
 }
 
+impl StringValueData for i64 {
+    type Error = std::num::ParseIntError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        s.parse::<i64>()
+    }
+
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_string().into()
+    }
+}
+
 impl StringValueData for NonZeroU64 {
     type Error = std::num::ParseIntError;
 

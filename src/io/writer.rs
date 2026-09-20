@@ -220,6 +220,10 @@ impl<'a> EMLElementWriter<'a> {
             .without_span()?;
         Ok(())
     }
+
+    pub fn bool(self, value: bool) -> Result<(), EMLError> {
+        self.content()?.bool(value)
+    }
 }
 
 pub(crate) struct EMLElementContentWriter<'a> {
@@ -301,6 +305,18 @@ impl<'a> EMLElementContentWriter<'a> {
             .write_event(Event::Text(BytesText::new(text)))
             .without_span()?;
         Ok(self)
+    }
+
+    pub fn bool(self, value: bool) -> Result<(), EMLError> {
+        self.writer
+            .writer
+            .write_event(Event::Text(BytesText::new(if value {
+                "true"
+            } else {
+                "false"
+            })))
+            .without_span()?;
+        self.finish()
     }
 
     pub fn finish(self) -> Result<(), EMLError> {
