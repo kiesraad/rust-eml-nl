@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, StringValueData},
+    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
 };
 
 /// The 'phase' of a count. PhaseCodes correspond to the names of the proces-verbaal
@@ -12,7 +12,7 @@ pub struct Phase(StringValue<PhaseCode>);
 
 impl Phase {
     /// Creates a new [`Phase`] from the given [`PhaseCode`].
-    pub fn from(code: impl Into<PhaseCode>) -> Self {
+    pub fn new(code: impl Into<PhaseCode>) -> Self {
         Self(StringValue::Parsed(code.into()))
     }
 
@@ -43,7 +43,6 @@ impl PhaseCode {
     }
 
     /// Create a PhaseCode from a `&str`, if possible.
-    ///
     pub fn from_eml_value(s: impl AsRef<str>) -> Result<Self, UnknownPhaseCodeError> {
         let data = s.as_ref();
         match data {
