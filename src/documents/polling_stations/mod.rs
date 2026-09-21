@@ -892,6 +892,7 @@ impl PollingPlaceBuilder {
                         EMLErrorKind::MissingBuildProperty("polling_station_data").without_span(),
                     )?,
                 },
+                locations: vec![],
             },
         })
     }
@@ -925,11 +926,14 @@ impl EMLElement for PollingPlace {
 /// Physical location of a polling place.
 #[derive(Debug, Clone)]
 pub struct PhysicalLocation {
-    /// Address of the physical location.
+    /// Address of the physical location (only until EML_NL 1.2.2).
     pub address: Option<PhysicalLocationAddress>,
 
     /// Polling station information of the physical location.
     pub polling_station: PhysicalLocationPollingStation,
+
+    /// Location of the physical location (only since EML_NL 1.3).
+    pub locations: Vec<Location>,
 }
 
 impl EMLElement for PhysicalLocation {
@@ -940,6 +944,7 @@ impl EMLElement for PhysicalLocation {
         Ok(collect_struct!(elem, PhysicalLocation {
             address as Option: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
             polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| elem.read_element::<PhysicalLocationPollingStation>()?,
+            locations as Vec: Location::EML_NAME => |elem| elem.read_element::<Location>()?,
         }))
     }
 
@@ -950,6 +955,7 @@ impl EMLElement for PhysicalLocation {
                 PhysicalLocationPollingStation::EML_NAME,
                 &self.polling_station,
             )?
+            .child_elems(Location::EML_NAME, &self.locations)?
             .finish()
     }
 }
