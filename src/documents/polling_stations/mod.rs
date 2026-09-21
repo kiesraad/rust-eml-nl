@@ -555,6 +555,12 @@ pub struct PollingStationsContest {
     /// EML specifies the default value as 1, so an empty tag will be parsed as 1 and vice versa.
     pub max_votes: StringValue<NonZeroU64>,
 
+    /// Any contact details for the municipality.
+    pub municipality_contact_details: Option<Box<str>>,
+
+    /// The election site of the municipality.
+    pub municipality_election_site: Option<StringValue<WebsiteType>>,
+
     /// List of polling places in this contest.
     pub polling_places: Vec<PollingPlace>,
 }
@@ -572,6 +578,8 @@ pub struct PollingStationsContestBuilder {
     reporting_unit: Option<PollingStationsReportingUnit>,
     voting_method: Option<StringValue<VotingMethod>>,
     max_votes: Option<StringValue<NonZeroU64>>,
+    municipality_contact_details: Option<Box<str>>,
+    municipality_election_site: Option<StringValue<WebsiteType>>,
     polling_places: Vec<PollingPlace>,
 }
 
@@ -582,6 +590,8 @@ impl PollingStationsContestBuilder {
             reporting_unit: None,
             voting_method: None,
             max_votes: None,
+            municipality_contact_details: None,
+            municipality_election_site: None,
             polling_places: vec![],
         }
     }
@@ -622,6 +632,42 @@ impl PollingStationsContestBuilder {
         self
     }
 
+    /// Set the municipality contact details for the contest.
+    pub fn municipality_contact_details(
+        mut self,
+        municipality_contact_details: impl Into<Box<str>>,
+    ) -> Self {
+        self.municipality_contact_details = Some(municipality_contact_details.into());
+        self
+    }
+
+    /// Optionally set the municipality contact details for the contest.
+    pub fn municipality_contact_details_option(
+        mut self,
+        municipality_contact_details: Option<impl Into<Box<str>>>,
+    ) -> Self {
+        self.municipality_contact_details = municipality_contact_details.map(|d| d.into());
+        self
+    }
+
+    /// Set the municipality election site for the contest.
+    pub fn municipality_election_site(
+        mut self,
+        municipality_election_site: impl Into<StringValue<WebsiteType>>,
+    ) -> Self {
+        self.municipality_election_site = Some(municipality_election_site.into());
+        self
+    }
+
+    /// Optionally set the municipality election site for the contest.
+    pub fn municipality_election_site_option(
+        mut self,
+        municipality_election_site: Option<impl Into<StringValue<WebsiteType>>>,
+    ) -> Self {
+        self.municipality_election_site = municipality_election_site.map(|s| s.into());
+        self
+    }
+
     /// Build the [`PollingStationsContest`], returning any errors if required fields are missing.
     pub fn build(self) -> Result<PollingStationsContest, EMLError> {
         if self.polling_places.is_empty() {
@@ -646,6 +692,8 @@ impl PollingStationsContestBuilder {
             max_votes: self
                 .max_votes
                 .ok_or(EMLErrorKind::MissingBuildProperty("max_votes").without_span())?,
+            municipality_contact_details: self.municipality_contact_details,
+            municipality_election_site: self.municipality_election_site,
             polling_places: self.polling_places,
         })
     }
@@ -666,6 +714,8 @@ impl EMLElement for PollingStationsContest {
             pub reporting_unit: PollingStationsReportingUnit,
             pub voting_method: StringValue<VotingMethod>,
             pub max_votes: StringValue<NonZeroU64>,
+            pub municipality_contact_details: Option<Box<str>>,
+            pub municipality_election_site: Option<StringValue<WebsiteType>>,
             pub polling_places: Vec<PollingPlace>,
         }
 
@@ -692,6 +742,8 @@ impl EMLElement for PollingStationsContest {
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
+            municipality_contact_details as Option: ("MunicipalityContactDetails", NS_SB) => |elem| elem.text_without_children()?,
+            municipality_election_site as Option: ("MunicipalityElectionSite", NS_SB) => |elem| elem.string_value()?,
             polling_places as Vec: PollingPlace::EML_NAME => |elem| elem.read_element::<PollingPlace>()?,
         });
 
@@ -736,11 +788,32 @@ impl EMLElement for PollingStationsContest {
             reporting_unit: data.reporting_unit,
             voting_method: data.voting_method,
             max_votes: data.max_votes,
+            municipality_contact_details: data.municipality_contact_details,
+            municipality_election_site: data.municipality_election_site,
             polling_places: data.polling_places,
         })
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        if self.municipality_contact_details.is_some()
+            && writer.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityContactDetails", Some(NS_SB)),
+                writer.document_version(),
+            )
+            .without_span());
+        }
+
+        if self.municipality_election_site.is_some() && writer.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityElectionSite", Some(NS_SB)),
+                writer.document_version(),
+            )
+            .without_span());
+        }
+
         writer
             .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
             .child_elem(PollingStationsReportingUnit::EML_NAME, &self.reporting_unit)?
@@ -756,6 +829,16 @@ impl EMLElement for PollingStationsContest {
                     elem.text(raw_text.as_ref())?.finish()
                 }
             })?
+            .child_option(
+                ("MunicipalityContactDetails", NS_SB),
+                self.municipality_contact_details.as_ref(),
+                |writer, value| writer.text(value.as_ref())?.finish(),
+            )?
+            .child_option(
+                ("MunicipalityElectionSite", NS_SB),
+                self.municipality_election_site.as_ref(),
+                |writer, value| writer.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elems(PollingPlace::EML_NAME, &self.polling_places)?
             .finish()
     }
