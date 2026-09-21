@@ -17,7 +17,7 @@ use crate::{
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
-        QualifiedName, collect_struct, write_eml_element,
+        EMLWriteElement, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
@@ -284,12 +284,12 @@ impl EMLElement for Nomination {
 
         Ok(collect_struct!(elem, Nomination {
             version: elem.document_version(),
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            nomination_data: NominationData::EML_NAME => |elem| NominationData::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority as Option: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            issue_date: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            nomination_data: NominationData::EML_NAME => |elem| elem.read_element::<NominationData>()?,
         }))
     }
 
@@ -340,10 +340,10 @@ impl EMLElement for NominationData {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationData {
-            election_identifier: NominationElectionIdentifier::EML_NAME => |elem| NominationElectionIdentifier::read_eml(elem)?,
-            contest_identifier: NominationContestIdentifier::EML_NAME => |elem| NominationContestIdentifier::read_eml(elem)?,
-            affiliation: NominationAffiliation::EML_NAME => |elem| NominationAffiliation::read_eml(elem)?,
-            nominate: NominationNominate::EML_NAME => |elem| NominationNominate::read_eml(elem)?,
+            election_identifier: NominationElectionIdentifier::EML_NAME => |elem| elem.read_element::<NominationElectionIdentifier>()?,
+            contest_identifier: NominationContestIdentifier::EML_NAME => |elem| elem.read_element::<NominationContestIdentifier>()?,
+            affiliation: NominationAffiliation::EML_NAME => |elem| elem.read_element::<NominationAffiliation>()?,
+            nominate: NominationNominate::EML_NAME => |elem| elem.read_element::<NominationNominate>()?,
         }))
     }
 
@@ -407,7 +407,7 @@ impl EMLElement for NominationElectionIdentifier {
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 nomination_date: ("NominationDate", NS_KR) => |elem| elem.string_value()?,
             }
@@ -557,12 +557,12 @@ impl EMLElement for NominationAffiliation {
 
         let data = collect_struct!(elem, NominationAffiliation {
             registered_name: NominationAffiliationIdentifier::EML_NAME => |elem| {
-                let id = NominationAffiliationIdentifier::read_eml(elem)?;
+                let id = elem.read_element::<NominationAffiliationIdentifier>()?;
                 id.registered_name
             },
             affiliation_type: ("Type", NS_EML) => |elem| elem.string_value()?,
-            list_data: ListData::EML_NAME => |elem| ListData::read_eml(elem)?,
-            candidates as Vec: NominationCandidate::EML_NAME => |elem| NominationCandidate::read_eml(elem)?,
+            list_data: ListData::EML_NAME => |elem| elem.read_element::<ListData>()?,
+            candidates as Vec: NominationCandidate::EML_NAME => |elem| elem.read_element::<NominationCandidate>()?,
         });
 
         if data.candidates.is_empty() {
@@ -635,13 +635,13 @@ impl EMLElement for NominationCandidate {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationCandidate {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
+            identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
             gender: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address: QualifyingAddress::EML_NAME => |elem| QualifyingAddress::read_eml(elem)?,
-            contact as Option: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            agent as Option: NominationAgent::EML_NAME => |elem| NominationAgent::read_eml(elem)?,
+            qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
+            contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
+            agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         }))
@@ -650,10 +650,9 @@ impl EMLElement for NominationCandidate {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(
-                ("CandidateFullName", NS_EML),
-                write_eml_element(&self.full_name),
-            )?
+            .child(("CandidateFullName", NS_EML), |writer| {
+                self.full_name.write_eml_element(writer)
+            })?
             .child_option(
                 ("DateOfBirth", NS_EML),
                 self.date_of_birth.as_ref(),
@@ -691,7 +690,7 @@ impl EMLElement for NominationContact {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationContact {
-            mailing_address: MailingAddress::EML_NAME => |elem| MailingAddress::read_eml(elem)?,
+            mailing_address: MailingAddress::EML_NAME => |elem| elem.read_element::<MailingAddress>()?,
         }))
     }
 
@@ -798,9 +797,9 @@ impl EMLElement for NominationAgent {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationAgent {
             role: elem.attribute_value("Role")?.map(Cow::into_owned),
-            agent_identifier: AgentIdentifier::EML_NAME => |elem| AgentIdentifier::read_eml(elem)?,
-            contact as Option: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
-            living_address: LivingAddress::EML_NAME => |elem| LivingAddress::read_eml(elem)?,
+            agent_identifier: AgentIdentifier::EML_NAME => |elem| elem.read_element::<AgentIdentifier>()?,
+            contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
+            living_address: LivingAddress::EML_NAME => |elem| elem.read_element::<LivingAddress>()?,
         }))
     }
 
@@ -912,7 +911,9 @@ impl EMLElement for AgentIdentifier {
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child(("AgentName", NS_EML), write_eml_element(&self.agent_name))?
+            .child(("AgentName", NS_EML), |writer| {
+                self.agent_name.write_eml_element(writer)
+            })?
             .finish()
     }
 }
@@ -987,7 +988,7 @@ impl EMLElement for NominationNominate {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, NominationNominate {
-            proposers as Vec: NominationProposer::EML_NAME => |elem| NominationProposer::read_eml(elem)?,
+            proposers as Vec: NominationProposer::EML_NAME => |elem| elem.read_element::<NominationProposer>()?,
         });
 
         if data.proposers.len() < 2 {
@@ -1039,16 +1040,18 @@ impl EMLElement for NominationProposer {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationProposer {
             name: ("Name", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            contact: NominationContact::EML_NAME => |elem| NominationContact::read_eml(elem)?,
+            contact: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
             job_title: ("JobTitle", NS_EML) => |elem| elem.string_value()?,
             id as Option: ("Id", NS_EML) => |elem| elem.text_without_children()?,
-            living_address as Option: LivingAddress::EML_NAME => |elem| LivingAddress::read_eml(elem)?,
+            living_address as Option: LivingAddress::EML_NAME => |elem| elem.read_element::<LivingAddress>()?,
         }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child(("Name", NS_EML), write_eml_element(&self.name))?
+            .child(("Name", NS_EML), |writer| {
+                self.name.write_eml_element(writer)
+            })?
             .child_elem(NominationContact::EML_NAME, &self.contact)?
             .child(("JobTitle", NS_EML), |elem| {
                 elem.text(self.job_title.raw().as_ref())?.finish()

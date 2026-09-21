@@ -265,12 +265,12 @@ impl EMLElement for PollingStations {
 
         Ok(collect_struct!(elem, PollingStations {
             version: elem.document_version(),
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            issue_date as Option: IssueDate::EML_NAME => |elem| IssueDate::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            election_event: PollingStationsElectionEvent::EML_NAME => |elem| PollingStationsElectionEvent::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            issue_date as Option: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            election_event: PollingStationsElectionEvent::EML_NAME => |elem| elem.read_element::<PollingStationsElectionEvent>()?,
         }))
     }
 
@@ -331,7 +331,7 @@ impl EMLElement for PollingStationsElectionEvent {
     {
         Ok(collect_struct!(elem, PollingStationsElectionEvent {
             id as None: ("EventIdentifier", NS_EML) => |elem| elem.skip().map(|_| ())?,
-            election: PollingStationsElection::EML_NAME => |elem| PollingStationsElection::read_eml(elem)?,
+            election: PollingStationsElection::EML_NAME => |elem| elem.read_element::<PollingStationsElection>()?,
         }))
     }
 
@@ -384,8 +384,8 @@ impl EMLElement for PollingStationsElection {
         Self: Sized,
     {
         Ok(collect_struct!(elem, PollingStationsElection {
-            identifier: PollingStationsElectionIdentifier::EML_NAME => |elem| PollingStationsElectionIdentifier::read_eml(elem)?,
-            contests as Vec: PollingStationsContest::EML_NAME => |elem| PollingStationsContest::read_eml(elem)?,
+            identifier: PollingStationsElectionIdentifier::EML_NAME => |elem| elem.read_element::<PollingStationsElectionIdentifier>()?,
+            contests as Vec: PollingStationsContest::EML_NAME => |elem| elem.read_element::<PollingStationsContest>()?,
         }))
     }
 
@@ -451,7 +451,7 @@ impl EMLElement for PollingStationsElectionIdentifier {
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date as Option: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
                 election_date_eml as Option: ("ElectionDate", NS_EML) => |elem| {
                     if elem.parsing_mode().is_strict() {
@@ -644,8 +644,8 @@ impl EMLElement for PollingStationsContest {
         }
 
         let data = collect_struct!(elem, PollingStationsContestInternal {
-            identifier as Option: ContestIdentifierGeen::EML_NAME => |elem| ContestIdentifierGeen::read_eml(elem)?,
-            reporting_unit: PollingStationsReportingUnit::EML_NAME => |elem| PollingStationsReportingUnit::read_eml(elem)?,
+            identifier as Option: ContestIdentifierGeen::EML_NAME => |elem| elem.read_element::<ContestIdentifierGeen>()?,
+            reporting_unit: PollingStationsReportingUnit::EML_NAME => |elem| elem.read_element::<PollingStationsReportingUnit>()?,
             voting_method: ("VotingMethod", NS_EML) => |elem| {
                 let value = elem.string_value_opt()?;
                 if let Some(value) = value {
@@ -666,7 +666,7 @@ impl EMLElement for PollingStationsContest {
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
-            polling_places as Vec: PollingPlace::EML_NAME => |elem| PollingPlace::read_eml(elem)?,
+            polling_places as Vec: PollingPlace::EML_NAME => |elem| elem.read_element::<PollingPlace>()?,
         });
 
         // Some municipalities omit the ContestIdentifier element, even though it is required.
@@ -763,7 +763,7 @@ impl EMLElement for PollingStationsReportingUnit {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PollingStationsReportingUnit {
-            identifier: ReportingUnitIdentifier::EML_NAME => |elem| ReportingUnitIdentifier::read_eml(elem)?,
+            identifier: ReportingUnitIdentifier::EML_NAME => |elem| elem.read_element::<ReportingUnitIdentifier>()?,
         }))
     }
 
@@ -883,7 +883,7 @@ impl EMLElement for PollingPlace {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PollingPlace {
-            physical_location: PhysicalLocation::EML_NAME => |elem| PhysicalLocation::read_eml(elem)?,
+            physical_location: PhysicalLocation::EML_NAME => |elem| elem.read_element::<PhysicalLocation>()?,
             channel: elem.string_value_attr("Channel", None)?,
         }))
     }
@@ -912,8 +912,8 @@ impl EMLElement for PhysicalLocation {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocation {
-            address: PhysicalLocationAddress::EML_NAME => |elem| PhysicalLocationAddress::read_eml(elem)?,
-            polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| PhysicalLocationPollingStation::read_eml(elem)?,
+            address: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
+            polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| elem.read_element::<PhysicalLocationPollingStation>()?,
         }))
     }
 
@@ -940,7 +940,7 @@ impl EMLElement for PhysicalLocationAddress {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocationAddress {
-            locality: PhysicalLocationLocality::EML_NAME => |elem| PhysicalLocationLocality::read_eml(elem)?,
+            locality: PhysicalLocationLocality::EML_NAME => |elem| elem.read_element::<PhysicalLocationLocality>()?,
         }))
     }
 
@@ -966,8 +966,8 @@ impl EMLElement for PhysicalLocationLocality {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocationLocality {
-            locality_name: LocalityName::EML_NAME => |elem| LocalityName::read_eml(elem)?,
-            postal_code as Option: PostalCode::EML_NAME => |elem| PostalCode::read_eml(elem)?,
+            locality_name: LocalityName::EML_NAME => |elem| elem.read_element::<LocalityName>()?,
+            postal_code as Option: PostalCode::EML_NAME => |elem| elem.read_element::<PostalCode>()?,
         }))
     }
 

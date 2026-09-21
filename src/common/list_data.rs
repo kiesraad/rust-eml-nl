@@ -98,7 +98,7 @@ impl EMLElement for ListData {
                 }
 
                 let res = collect_struct!(elem, Contests {
-                    contests as Vec: ListDataContest::EML_NAME => |elem| ListDataContest::read_eml(elem)?,
+                    contests as Vec: ListDataContest::EML_NAME => |elem| elem.read_element::<ListDataContest>()?,
                 });
 
                 res.contests

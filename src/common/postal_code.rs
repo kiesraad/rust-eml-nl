@@ -73,7 +73,7 @@ impl EMLElement for PostalCode {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PostalCode {
-            number: PostalCodeNumber::EML_NAME => |elem| PostalCodeNumber::read_eml(elem)?,
+            number: PostalCodeNumber::EML_NAME => |elem| elem.read_element::<PostalCodeNumber>()?,
             postal_code_type: elem.attribute_value("Type")?.map(|s| s.into()),
         }))
     }

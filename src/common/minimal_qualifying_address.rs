@@ -112,7 +112,7 @@ impl EMLElement for MinimalQualifyingAddressLocality {
         Ok(collect_struct!(
             elem,
             MinimalQualifyingAddressLocality {
-                locality_name: LocalityName::EML_NAME => |elem| LocalityName::read_eml(elem)?,
+                locality_name: LocalityName::EML_NAME => |elem| elem.read_element::<LocalityName>()?,
             }
         ))
     }
@@ -151,8 +151,8 @@ impl EMLElement for MinimalQualifyingAddressCountry {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, MinimalQualifyingAddressCountry {
-            country_name_code: CountryNameCode::EML_NAME => |elem| CountryNameCode::read_eml(elem)?,
-            locality: MinimalQualifyingAddressLocality::EML_NAME => |elem| MinimalQualifyingAddressLocality::read_eml(elem)?,
+            country_name_code: CountryNameCode::EML_NAME => |elem| elem.read_element::<CountryNameCode>()?,
+            locality: MinimalQualifyingAddressLocality::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddressLocality>()?,
         }))
     }
 

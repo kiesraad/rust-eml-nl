@@ -55,7 +55,7 @@ impl EMLReadElement for PersonNameStructure {
         Ok(collect_struct!(
             elem,
             PersonNameStructure {
-                person_name: PersonName::EML_NAME => |elem| PersonName::read_eml(elem)?,
+                person_name: PersonName::EML_NAME => |elem| elem.read_element::<PersonName>()?,
                 party_type: elem.attribute_value("PartyType")?.map(|s| s.into()),
                 code: elem.attribute_value("Code")?.map(|s| s.into()),
             }
@@ -198,11 +198,11 @@ impl EMLElement for PersonName {
             elem,
             PersonName {
                 name_line_initials as Option: NameLineInitials::EML_NAME => |elem| {
-                    NameLineInitials::read_eml(elem)?
+                    elem.read_element::<NameLineInitials>()?
                 },
-                first_name as Option: FirstName::EML_NAME => |elem| FirstName::read_eml(elem)?,
-                name_prefix as Option: NamePrefix::EML_NAME => |elem| NamePrefix::read_eml(elem)?,
-                last_name: LastName::EML_NAME => |elem| LastName::read_eml(elem)?,
+                first_name as Option: FirstName::EML_NAME => |elem| elem.read_element::<FirstName>()?,
+                name_prefix as Option: NamePrefix::EML_NAME => |elem| elem.read_element::<NamePrefix>()?,
+                last_name: LastName::EML_NAME => |elem| elem.read_element::<LastName>()?,
                 person_name_type: elem.attribute_value("Type")?.map(|s| s.into()),
                 code: elem.attribute_value("Code")?.map(|s| s.into()),
                 name_details_key_ref: elem

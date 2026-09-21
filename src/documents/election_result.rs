@@ -240,11 +240,11 @@ impl EMLElement for ElectionResult {
 
         Ok(collect_struct!(elem, ElectionResult {
             version: elem.document_version(),
-            transaction_id: TransactionId::EML_NAME => |elem| TransactionId::read_eml(elem)?,
-            managing_authority: ManagingAuthority::EML_NAME => |elem| ManagingAuthority::read_eml(elem)?,
-            creation_date_time: CreationDateTime::EML_NAME => |elem| CreationDateTime::read_eml(elem)?,
-            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| CanonicalizationMethod::read_eml(elem)?,
-            result: ElectionResultResult::EML_NAME => |elem| ElectionResultResult::read_eml(elem)?,
+            transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
+            managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
+            creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,
+            canonicalization_method as Option: CanonicalizationMethod::EML_NAME => |elem| elem.read_element::<CanonicalizationMethod>()?,
+            result: ElectionResultResult::EML_NAME => |elem| elem.read_element::<ElectionResultResult>()?,
         }))
     }
 
@@ -291,7 +291,7 @@ impl EMLElement for ElectionResultResult {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionResultResult {
-            election: ElectionResultElection::EML_NAME => |elem| ElectionResultElection::read_eml(elem)?,
+            election: ElectionResultElection::EML_NAME => |elem| elem.read_element::<ElectionResultElection>()?,
         }))
     }
 
@@ -330,8 +330,8 @@ impl EMLElement for ElectionResultElection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionResultElection {
-            identifier: ElectionResultElectionIdentifier::EML_NAME => |elem| ElectionResultElectionIdentifier::read_eml(elem)?,
-            contests as Vec: ElectionResultContest::EML_NAME => |elem| ElectionResultContest::read_eml(elem)?,
+            identifier: ElectionResultElectionIdentifier::EML_NAME => |elem| elem.read_element::<ElectionResultElectionIdentifier>()?,
+            contests as Vec: ElectionResultContest::EML_NAME => |elem| elem.read_element::<ElectionResultContest>()?,
         }))
     }
 
@@ -384,7 +384,7 @@ impl EMLElement for ElectionResultElectionIdentifier {
                 name as Option: ("ElectionName", NS_EML) => |elem| elem.text_without_children()?,
                 category: ("ElectionCategory", NS_EML) => |elem| elem.string_value()?,
                 subcategory as Option: ("ElectionSubcategory", NS_KR) => |elem| elem.string_value()?,
-                domain as Option: ElectionDomain::EML_NAME => |elem| ElectionDomain::read_eml(elem)?,
+                domain as Option: ElectionDomain::EML_NAME => |elem| elem.read_element::<ElectionDomain>()?,
                 election_date: ("ElectionDate", NS_KR) => |elem| elem.string_value()?,
             }
         ))
@@ -442,8 +442,8 @@ impl EMLElement for ElectionResultContest {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, ElectionResultContest {
-            identifier: ContestIdentifier::EML_NAME => |elem| ContestIdentifier::read_eml(elem)?,
-            selections as Vec: ElectionResultSelection::EML_NAME => |elem| ElectionResultSelection::read_eml(elem)?,
+            identifier: ContestIdentifier::EML_NAME => |elem| elem.read_element::<ContestIdentifier>()?,
+            selections as Vec: ElectionResultSelection::EML_NAME => |elem| elem.read_element::<ElectionResultSelection>()?,
         }))
     }
 
@@ -900,10 +900,10 @@ impl EMLElement for CandidateSelection {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, CandidateSelection {
-            identifier: CandidateIdentifier::EML_NAME => |elem| CandidateIdentifier::read_eml(elem)?,
+            identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| MinimalQualifyingAddress::read_eml(elem)?,
+            qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddress>()?,
         }))
     }
 
