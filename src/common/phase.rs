@@ -1,14 +1,31 @@
 use thiserror::Error;
 
 use crate::{
+    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, StringValueData},
-    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
 };
 
 /// The 'phase' of a count. PhaseCodes correspond to the names of the proces-verbaal
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Phase(StringValue<PhaseCode>);
+
+impl Phase {
+    /// Creates a new [`Phase`] from the given [`PhaseCode`].
+    pub fn from(code: impl Into<PhaseCode>) -> Self {
+        Self(StringValue::Parsed(code.into()))
+    }
+
+    /// Returns the parsed value of the phase
+    pub fn copied_value(&self) -> Result<PhaseCode, EMLError> {
+        self.0.copied_value()
+    }
+
+    /// Returns a reference to the underlying [`StringValue`] of the phase
+    pub fn value(&self) -> &StringValue<PhaseCode> {
+        &self.0
+    }
+}
 
 /// The phase of a count
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
