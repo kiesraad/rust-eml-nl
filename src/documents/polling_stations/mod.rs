@@ -8,7 +8,7 @@ use thiserror::Error;
 pub use location::*;
 
 use crate::{
-    EMLError, EMLValueResultExt, EMLVersion, EMLVersionRange, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
+    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
     OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
@@ -783,6 +783,23 @@ impl EMLElement for PollingStationsContest {
             }
         }
 
+        if data.municipality_contact_details.is_some() && elem.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityContactDetails", Some(NS_SB)),
+                elem.document_version(),
+            )
+            .without_span());
+        }
+
+        if data.municipality_election_site.is_some() && elem.document_version() < EMLVersion::V1_3 {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityElectionSite", Some(NS_SB)),
+                elem.document_version(),
+            )
+            .without_span());
+        }
+
         Ok(PollingStationsContest {
             identifier,
             reporting_unit: data.reporting_unit,
@@ -959,14 +976,15 @@ impl PollingPlaceBuilder {
                 .channel
                 .ok_or(EMLErrorKind::MissingBuildProperty("channel").without_span())?,
             physical_location: PhysicalLocation {
-                address: Some(PhysicalLocationAddress {
+                address: PhysicalLocationAddress {
                     locality: PhysicalLocationLocality {
                         locality_name: self.locality_name.ok_or(
                             EMLErrorKind::MissingBuildProperty("locality_name").without_span(),
                         )?,
                         postal_code: self.postal_code,
                     },
-                }),
+                    locations: vec![],
+                },
                 polling_station: PhysicalLocationPollingStation {
                     id: self.polling_station_id.ok_or(
                         EMLErrorKind::MissingBuildProperty("polling_station_id").without_span(),
@@ -975,7 +993,6 @@ impl PollingPlaceBuilder {
                         EMLErrorKind::MissingBuildProperty("polling_station_data").without_span(),
                     )?,
                 },
-                locations: vec![],
             },
         })
     }
@@ -1009,14 +1026,11 @@ impl EMLElement for PollingPlace {
 /// Physical location of a polling place.
 #[derive(Debug, Clone)]
 pub struct PhysicalLocation {
-    /// Address of the physical location (only until EML_NL 1.2.2).
-    pub address: Option<PhysicalLocationAddress>,
+    /// Address of the physical location.
+    pub address: PhysicalLocationAddress,
 
     /// Polling station information of the physical location.
     pub polling_station: PhysicalLocationPollingStation,
-
-    /// Location of the physical location (only since EML_NL 1.3).
-    pub locations: Vec<Location>,
 }
 
 impl EMLElement for PhysicalLocation {
@@ -1025,20 +1039,18 @@ impl EMLElement for PhysicalLocation {
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocation {
-            address as Option: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
+            address: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
             polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| elem.read_element::<PhysicalLocationPollingStation>()?,
-            locations as Vec: Location::EML_NAME => |elem| elem.read_element::<Location>()?,
         }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
-            .child_elem_option(PhysicalLocationAddress::EML_NAME, self.address.as_ref())?
+            .child_elem(PhysicalLocationAddress::EML_NAME, &self.address)?
             .child_elem(
                 PhysicalLocationPollingStation::EML_NAME,
                 &self.polling_station,
             )?
-            .child_elems(Location::EML_NAME, &self.locations)?
             .finish()
     }
 }
@@ -1050,21 +1062,25 @@ impl EMLElement for PhysicalLocation {
 pub struct PhysicalLocationAddress {
     /// Locality of the physical location.
     pub locality: PhysicalLocationLocality,
+
+    /// Adds optional detailed location information.
+    pub locations: Vec<Location>,
 }
 
 impl EMLElement for PhysicalLocationAddress {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Address", Some(NS_EML));
-    const EML_VERSIONS: EMLVersionRange = EMLVersionRange::until(EMLVersion::V1_3);
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocationAddress {
             locality: PhysicalLocationLocality::EML_NAME => |elem| elem.read_element::<PhysicalLocationLocality>()?,
+            locations as Vec: Location::EML_NAME => |elem| elem.read_element::<Location>()?,
         }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(PhysicalLocationLocality::EML_NAME, &self.locality)?
+            .child_elems(Location::EML_NAME, &self.locations)?
             .finish()
     }
 }
