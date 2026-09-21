@@ -2301,7 +2301,8 @@ mod tests {
 
     #[test]
     fn test_parse_510b_with_counting_method() {
-        let xml = include_str!("../../test-files/election_count/eml_510b_1_3_with_optionals.xml");
+        let xml =
+            include_str!("../../test-files/election_count/eml_510b_1_3_with_counting_method.xml");
 
         let count = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
             .ok()
@@ -2314,7 +2315,8 @@ mod tests {
             CountingMethodCode::CSO
         );
 
-        let xml = include_str!("../../test-files/election_count/eml_510b_1_2_2_with_optionals.xml");
+        let xml =
+            include_str!("../../test-files/election_count/eml_510b_1_2_2_with_counting_method.xml");
         let failure = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
             .ok()
             .unwrap_err();
@@ -2326,7 +2328,7 @@ mod tests {
 
     #[test]
     fn test_parse_510b_with_phase() {
-        let xml = include_str!("../../test-files/election_count/eml_510b_1_3_with_optionals.xml");
+        let xml = include_str!("../../test-files/election_count/eml_510b_1_3_with_phase.xml");
 
         let count = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
             .ok()
@@ -2339,7 +2341,7 @@ mod tests {
             PhaseCode::FirstSession,
         );
 
-        let xml = include_str!("../../test-files/election_count/eml_510b_1_2_2_with_optionals.xml");
+        let xml = include_str!("../../test-files/election_count/eml_510b_1_2_2_with_phase.xml");
         let failure = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
             .ok()
             .unwrap_err();

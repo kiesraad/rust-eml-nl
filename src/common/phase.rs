@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 use crate::{
+    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, StringValueData},
-    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
 };
 
 /// The 'phase' of a count. PhaseCodes correspond to the names of the proces-verbaal
