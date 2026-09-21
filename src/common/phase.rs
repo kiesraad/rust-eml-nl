@@ -71,10 +71,7 @@ impl EMLElement for Phase {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Phase", Some(NS_KR));
     const EML_VERSIONS: EMLVersionRange = EMLVersionRange::since(EMLVersion::V1_3);
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
-    where
-        Self: Sized,
-    {
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let code = elem.string_value_attr("PhaseCode", None)?;
         Ok(Self(code))
     }
