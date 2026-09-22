@@ -1380,4 +1380,25 @@ mod tests {
         let contest = &ps.election_event.election.contests[0];
         assert_eq!(contest.polling_places.len(), 9);
     }
+
+    #[test]
+    fn test_station_location() {
+        let ps = dbg!(
+            PollingStations::parse_eml(
+                include_str!("../../../test-files/polling_stations/eml110b_with_location.eml.xml"),
+                EMLParsingMode::Strict,
+            )
+            .ok()
+        )
+        .unwrap();
+
+        let contest = &ps.election_event.election.contests[0];
+        let location = &contest.polling_places[0]
+            .physical_location
+            .address
+            .locations[0];
+
+        assert!(!location.street_name.as_ref().unwrap().is_empty());
+        assert_eq!(location.number, Some(StringValue::Parsed(1)));
+    }
 }
