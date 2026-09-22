@@ -12,7 +12,7 @@ pub struct CountingMethod(StringValue<CountingMethodCode>);
 
 impl CountingMethod {
     /// Creates a new [`CountingMethod`] from the given [`CountingMethodCode`].
-    pub fn from(code: impl Into<CountingMethodCode>) -> Self {
+    pub fn new(code: impl Into<CountingMethodCode>) -> Self {
         Self(StringValue::Parsed(code.into()))
     }
 
