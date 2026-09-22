@@ -83,7 +83,7 @@ impl EMLElement for Phase {
 
 /// Error returned when an unknown phase string is encountered.
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
-#[error("Unknown counting method: {0}")]
+#[error("Unknown phase: {0}")]
 pub struct UnknownPhaseCodeError(String);
 
 impl From<UnknownPhaseCodeError> for EMLError {

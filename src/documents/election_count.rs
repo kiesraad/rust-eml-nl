@@ -130,7 +130,7 @@ impl ElectionCountBuilder {
 
     /// Set the phase for the document.
     ///
-    /// This only has effect if the phase was not set using the  [`Self::count`]
+    /// This only has effect if the count was not set using the  [`Self::count`]
     /// method on this builder.
     pub fn phase(mut self, phase: impl Into<Phase>) -> Self {
         self.phase = Some(phase.into());
@@ -425,10 +425,10 @@ impl EMLElement for ElectionCountCount {
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
+            .child_elem_option(CountingMethod::EML_NAME, self.counting_method.as_ref())?
             .child(("EventIdentifier", NS_EML), |w| w.empty())?
             .child_elem_option(Phase::EML_NAME, self.phase.as_ref())?
             .child_elem(ElectionCountElection::EML_NAME, &self.election)?
-            .child_elem_option(CountingMethod::EML_NAME, self.counting_method.as_ref())?
             .finish()
     }
 }
@@ -2308,8 +2308,6 @@ mod tests {
             .ok()
             .unwrap();
 
-        dbg!(&count);
-
         assert_eq!(
             count.count.counting_method.unwrap().copied_value().unwrap(),
             CountingMethodCode::CSO
@@ -2333,8 +2331,6 @@ mod tests {
         let count = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
             .ok()
             .unwrap();
-
-        dbg!(&count);
 
         assert_eq!(
             count.count.phase.unwrap().copied_value().unwrap(),

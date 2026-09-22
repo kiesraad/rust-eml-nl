@@ -7,8 +7,8 @@
     </ManagingAuthority>
     <kr:CreationDateTime>2021-09-01T12:00:00</kr:CreationDateTime>
     <Count>
-        <kr:Phase PhaseCode="eerste zitting"/>
         <EventIdentifier/>
+        <kr:Phase PhaseCode="eerste zitting"/>
         <Election>
             <ElectionIdentifier Id="GR2022">
                 <ElectionName>Municipal Election</ElectionName>
