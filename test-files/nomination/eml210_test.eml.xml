@@ -36,6 +36,7 @@
         </CandidateFullName>
         <DateOfBirth>1980-01-15</DateOfBirth>
         <Gender>male</Gender>
+        <kr:GenderAnnex>other</kr:GenderAnnex>
         <QualifyingAddress>
           <xal:Locality>
             <xal:LocalityName>Amsterdam</xal:LocalityName>
@@ -52,7 +53,7 @@
           </xnl:PersonName>
         </CandidateFullName>
         <DateOfBirth>1990-07-22</DateOfBirth>
-        <Gender>female</Gender>
+        <kr:GenderAnnex>female</kr:GenderAnnex>
         <QualifyingAddress>
           <xal:Country>
             <xal:CountryNameCode>NL</xal:CountryNameCode>
