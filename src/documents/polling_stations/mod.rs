@@ -1,12 +1,15 @@
 //! Document variant for the EML_NL Polling Stations (`110b`) document.
 
-use std::{num::NonZeroU64, str::FromStr, sync::LazyLock};
+use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
 use thiserror::Error;
 
+pub use location::*;
+
 use crate::{
-    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
+    OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
         ElectionDomain, IssueDate, LocalityName, ManagingAuthority, PostalCode,
@@ -23,6 +26,8 @@ use crate::{
         VotingChannelType, VotingMethod, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
+
+mod location;
 
 pub(crate) const EML_POLLING_STATIONS_ID: &str = "110b";
 
@@ -61,6 +66,27 @@ impl PollingStations {
 impl EMLDocument for PollingStations {
     fn document_version(&self) -> EMLVersion {
         self.version
+    }
+
+    fn document_eml_id(&self) -> &'static str {
+        EML_POLLING_STATIONS_ID
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        "Polling Stations"
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        let mut ns_defs = BTreeMap::new();
+        ns_defs.insert("kr", NS_KR);
+        ns_defs.insert("xal", NS_XAL);
+        ns_defs.insert("xnl", NS_XNL);
+
+        // Only include the SB namespace for EML_NL 1.3+ documents
+        if self.document_version() >= EMLVersion::V1_3 {
+            ns_defs.insert("sb", NS_SB);
+        }
+        Some(ns_defs)
     }
 }
 
@@ -529,6 +555,12 @@ pub struct PollingStationsContest {
     /// EML specifies the default value as 1, so an empty tag will be parsed as 1 and vice versa.
     pub max_votes: StringValue<NonZeroU64>,
 
+    /// Any contact details for the municipality.
+    pub municipality_contact_details: Option<Box<str>>,
+
+    /// The election site of the municipality.
+    pub municipality_election_site: Option<StringValue<WebsiteType>>,
+
     /// List of polling places in this contest.
     pub polling_places: Vec<PollingPlace>,
 }
@@ -546,6 +578,8 @@ pub struct PollingStationsContestBuilder {
     reporting_unit: Option<PollingStationsReportingUnit>,
     voting_method: Option<StringValue<VotingMethod>>,
     max_votes: Option<StringValue<NonZeroU64>>,
+    municipality_contact_details: Option<Box<str>>,
+    municipality_election_site: Option<StringValue<WebsiteType>>,
     polling_places: Vec<PollingPlace>,
 }
 
@@ -556,6 +590,8 @@ impl PollingStationsContestBuilder {
             reporting_unit: None,
             voting_method: None,
             max_votes: None,
+            municipality_contact_details: None,
+            municipality_election_site: None,
             polling_places: vec![],
         }
     }
@@ -596,6 +632,42 @@ impl PollingStationsContestBuilder {
         self
     }
 
+    /// Set the municipality contact details for the contest.
+    pub fn municipality_contact_details(
+        mut self,
+        municipality_contact_details: impl Into<Box<str>>,
+    ) -> Self {
+        self.municipality_contact_details = Some(municipality_contact_details.into());
+        self
+    }
+
+    /// Optionally set the municipality contact details for the contest.
+    pub fn municipality_contact_details_option(
+        mut self,
+        municipality_contact_details: Option<impl Into<Box<str>>>,
+    ) -> Self {
+        self.municipality_contact_details = municipality_contact_details.map(|d| d.into());
+        self
+    }
+
+    /// Set the municipality election site for the contest.
+    pub fn municipality_election_site(
+        mut self,
+        municipality_election_site: impl Into<StringValue<WebsiteType>>,
+    ) -> Self {
+        self.municipality_election_site = Some(municipality_election_site.into());
+        self
+    }
+
+    /// Optionally set the municipality election site for the contest.
+    pub fn municipality_election_site_option(
+        mut self,
+        municipality_election_site: Option<impl Into<StringValue<WebsiteType>>>,
+    ) -> Self {
+        self.municipality_election_site = municipality_election_site.map(|s| s.into());
+        self
+    }
+
     /// Build the [`PollingStationsContest`], returning any errors if required fields are missing.
     pub fn build(self) -> Result<PollingStationsContest, EMLError> {
         if self.polling_places.is_empty() {
@@ -620,6 +692,8 @@ impl PollingStationsContestBuilder {
             max_votes: self
                 .max_votes
                 .ok_or(EMLErrorKind::MissingBuildProperty("max_votes").without_span())?,
+            municipality_contact_details: self.municipality_contact_details,
+            municipality_election_site: self.municipality_election_site,
             polling_places: self.polling_places,
         })
     }
@@ -640,6 +714,8 @@ impl EMLElement for PollingStationsContest {
             pub reporting_unit: PollingStationsReportingUnit,
             pub voting_method: StringValue<VotingMethod>,
             pub max_votes: StringValue<NonZeroU64>,
+            pub municipality_contact_details: Option<Box<str>>,
+            pub municipality_election_site: Option<StringValue<WebsiteType>>,
             pub polling_places: Vec<PollingPlace>,
         }
 
@@ -666,6 +742,8 @@ impl EMLElement for PollingStationsContest {
                 let text = elem.text_without_children_opt()?.unwrap_or_else(|| "1".into());
                 elem.string_value_from_text(text, None, elem.full_span())?
             },
+            municipality_contact_details as Option: ("MunicipalityContactDetails", NS_SB) => |elem| elem.text_without_children()?,
+            municipality_election_site as Option: ("MunicipalityElectionSite", NS_SB) => |elem| elem.string_value()?,
             polling_places as Vec: PollingPlace::EML_NAME => |elem| elem.read_element::<PollingPlace>()?,
         });
 
@@ -705,16 +783,54 @@ impl EMLElement for PollingStationsContest {
             }
         }
 
+        if data.municipality_contact_details.is_some() && elem.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityContactDetails", Some(NS_SB)),
+                elem.document_version(),
+            )
+            .without_span());
+        }
+
+        if data.municipality_election_site.is_some() && elem.document_version() < EMLVersion::V1_3 {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityElectionSite", Some(NS_SB)),
+                elem.document_version(),
+            )
+            .without_span());
+        }
+
         Ok(PollingStationsContest {
             identifier,
             reporting_unit: data.reporting_unit,
             voting_method: data.voting_method,
             max_votes: data.max_votes,
+            municipality_contact_details: data.municipality_contact_details,
+            municipality_election_site: data.municipality_election_site,
             polling_places: data.polling_places,
         })
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        if self.municipality_contact_details.is_some()
+            && writer.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityContactDetails", Some(NS_SB)),
+                writer.document_version(),
+            )
+            .without_span());
+        }
+
+        if self.municipality_election_site.is_some() && writer.document_version() < EMLVersion::V1_3
+        {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                OwnedQualifiedName::from_static("MunicipalityElectionSite", Some(NS_SB)),
+                writer.document_version(),
+            )
+            .without_span());
+        }
+
         writer
             .child_elem(ContestIdentifier::EML_NAME, &self.identifier)?
             .child_elem(PollingStationsReportingUnit::EML_NAME, &self.reporting_unit)?
@@ -730,6 +846,16 @@ impl EMLElement for PollingStationsContest {
                     elem.text(raw_text.as_ref())?.finish()
                 }
             })?
+            .child_option(
+                ("MunicipalityContactDetails", NS_SB),
+                self.municipality_contact_details.as_ref(),
+                |writer, value| writer.text(value.as_ref())?.finish(),
+            )?
+            .child_option(
+                ("MunicipalityElectionSite", NS_SB),
+                self.municipality_election_site.as_ref(),
+                |writer, value| writer.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elems(PollingPlace::EML_NAME, &self.polling_places)?
             .finish()
     }
@@ -857,6 +983,7 @@ impl PollingPlaceBuilder {
                         )?,
                         postal_code: self.postal_code,
                     },
+                    locations: vec![],
                 },
                 polling_station: PhysicalLocationPollingStation {
                     id: self.polling_station_id.ok_or(
@@ -929,10 +1056,15 @@ impl EMLElement for PhysicalLocation {
 }
 
 /// Address of a physical location.
+///
+/// Note: this is a legacy element that is no longer available since EML v1.3
 #[derive(Debug, Clone)]
 pub struct PhysicalLocationAddress {
     /// Locality of the physical location.
     pub locality: PhysicalLocationLocality,
+
+    /// Adds optional detailed location information.
+    pub locations: Vec<Location>,
 }
 
 impl EMLElement for PhysicalLocationAddress {
@@ -941,12 +1073,14 @@ impl EMLElement for PhysicalLocationAddress {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, PhysicalLocationAddress {
             locality: PhysicalLocationLocality::EML_NAME => |elem| elem.read_element::<PhysicalLocationLocality>()?,
+            locations as Vec: Location::EML_NAME => |elem| elem.read_element::<Location>()?,
         }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(PhysicalLocationLocality::EML_NAME, &self.locality)?
+            .child_elems(Location::EML_NAME, &self.locations)?
             .finish()
     }
 }
@@ -1122,7 +1256,7 @@ mod tests {
         assert_eq!(
             xml,
             include_str!(
-                "../../test-files/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
+                "../../../test-files/polling_stations/eml110b_polling_stations_construction_output.eml.xml"
             )
         );
 
@@ -1135,7 +1269,7 @@ mod tests {
     #[test]
     fn test_read_polling_stations_with_max_votes_empty() {
         let xml = include_str!(
-            "../../test-files/polling_stations/eml110b_empty_number_of_voters.eml.xml"
+            "../../../test-files/polling_stations/eml110b_empty_number_of_voters.eml.xml"
         );
 
         let parsed = PollingStations::parse_eml(xml, EMLParsingMode::Strict).unwrap();
@@ -1149,6 +1283,7 @@ mod tests {
     #[test]
     fn test_write_polling_stations_with_max_votes_empty() {
         let ps = PollingStations::builder()
+            .version(EMLVersion::V1_2_2)
             .transaction_id(TransactionId::new(1))
             .managing_authority(
                 AuthorityIdentifier::new(AuthorityId::new("1234").unwrap()).with_name("Test"),
@@ -1195,7 +1330,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-files/polling_stations/eml110b_empty_polling_station.eml.xml"
+                    "../../../test-files/polling_stations/eml110b_empty_polling_station.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1209,7 +1344,7 @@ mod tests {
         assert!(
             PollingStations::parse_eml(
                 include_str!(
-                    "../../test-files/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
+                    "../../../test-files/polling_stations/eml110b_invalid_number_of_voters.eml.xml"
                 ),
                 EMLParsingMode::Strict
             )
@@ -1221,7 +1356,7 @@ mod tests {
     #[test]
     fn test_one_station() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-files/polling_stations/eml110b_1_station.eml.xml"),
+            include_str!("../../../test-files/polling_stations/eml110b_1_station.eml.xml"),
             EMLParsingMode::Strict,
         )
         .unwrap();
@@ -1234,7 +1369,9 @@ mod tests {
     #[test]
     fn test_less_than_10_stations() {
         let ps = PollingStations::parse_eml(
-            include_str!("../../test-files/polling_stations/eml110b_less_than_10_stations.eml.xml"),
+            include_str!(
+                "../../../test-files/polling_stations/eml110b_less_than_10_stations.eml.xml"
+            ),
             EMLParsingMode::Strict,
         )
         .unwrap();

@@ -57,6 +57,18 @@ impl EMLDocument for ElectionCount {
     fn document_version(&self) -> EMLVersion {
         self.version
     }
+
+    fn document_eml_id(&self) -> &'static str {
+        self.count_type.to_eml_id()
+    }
+
+    fn document_friendly_name(&self) -> &'static str {
+        self.count_type.to_friendly_name()
+    }
+
+    fn document_namespaces(&self) -> Option<BTreeMap<&'static str, &'static str>> {
+        None
+    }
 }
 
 impl FromStr for ElectionCount {
