@@ -18,7 +18,7 @@ use crate::{
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
+        GenderAnnex, StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -615,7 +615,10 @@ pub struct NominationCandidate {
     pub date_of_birth: Option<StringValue<XsDate>>,
 
     /// The gender of the candidate (required in 210).
-    pub gender: StringValue<Gender>,
+    pub gender: Option<StringValue<Gender>>,
+
+    /// The gender of the candidate (required in 210).
+    pub gender_annex: Option<StringValue<GenderAnnex>>,
 
     /// The qualifying address of the candidate (required in 210).
     pub qualifying_address: QualifyingAddress,
@@ -637,17 +640,22 @@ impl EMLElement for NominationCandidate {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationCandidate {
+        let nomination_candidate = collect_struct!(elem, NominationCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
             contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
             agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
-        }))
+        });
+
+        if nomination_candidate.gender.is_some() && nomination_candidate.gender_annex.is_some() {}
+
+        Ok(nomination_candidate)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -661,9 +669,14 @@ impl EMLElement for NominationCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child(("Gender", NS_EML), |elem| {
-                elem.text(self.gender.raw().as_ref())?.finish()
+            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
+                elem.text(value.raw().as_ref())?.finish()
             })?
+            .child_option(
+                GenderAnnex::EML_NAME,
+                self.gender_annex.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elem(QualifyingAddress::EML_NAME, &self.qualifying_address)?
             .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
             .child_elem_option(NominationAgent::EML_NAME, self.agent.as_ref())?
@@ -1132,7 +1145,8 @@ mod tests {
                         date_of_birth: Some(StringValue::from_value(
                             XsDate::from_date(1980, 1, 15).unwrap(),
                         )),
-                        gender: StringValue::from_value(Gender::Male),
+                        gender: Some(StringValue::from_value(Gender::Male)),
+                        gender_annex: None,
                         qualifying_address: QualifyingAddress::Locality(
                             QualifyingAddressLocality::new("Amsterdam"),
                         ),
@@ -1152,7 +1166,8 @@ mod tests {
                         date_of_birth: Some(StringValue::from_value(
                             XsDate::from_date(1990, 7, 22).unwrap(),
                         )),
-                        gender: StringValue::from_value(Gender::Female),
+                        gender: None,
+                        gender_annex: Some(StringValue::from_value(GenderAnnex::Female)),
                         qualifying_address: QualifyingAddress::Country(
                             QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
                         ),

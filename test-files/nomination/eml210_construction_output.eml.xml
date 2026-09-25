@@ -52,7 +52,7 @@
                     </xnl:PersonName>
                 </CandidateFullName>
                 <DateOfBirth>1990-07-22</DateOfBirth>
-                <Gender>female</Gender>
+                <kr:GenderAnnex>female</kr:GenderAnnex>
                 <QualifyingAddress>
                     <xal:Country>
                         <xal:CountryNameCode>NL</xal:CountryNameCode>
