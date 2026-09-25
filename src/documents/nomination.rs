@@ -5,24 +5,24 @@ use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
         ListData, ManagingAuthority, PersonNameStructure, TransactionId,
     },
     documents::{
-        ElectionIdentifierBuilder, validate_category_and_subcategory,
-        validate_election_and_nomination_dates,
+        validate_category_and_subcategory, validate_election_and_nomination_dates,
+        ElectionIdentifierBuilder,
     },
     error::EMLErrorKind,
     io::{
-        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
-        EMLWriteElement, QualifiedName, collect_struct,
+        collect_struct, EMLDocument, EMLElement, EMLElementReader, EMLElementWriter,
+        EMLReadElement as _, EMLWriteElement, QualifiedName,
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
+        GenderAnnex, StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
     },
+    EMLError, EMLValueResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
 };
 
 use super::candidate_lists::{
@@ -626,6 +626,9 @@ pub struct NominationCandidate {
     /// The gender of the candidate (required in 210).
     pub gender: StringValue<Gender>,
 
+    /// The gender of the candidate (required in 210).
+    pub gender_annex: StringValue<GenderAnnex>,
+
     /// The qualifying address of the candidate (required in 210).
     pub qualifying_address: QualifyingAddress,
 
@@ -651,6 +654,7 @@ impl EMLElement for NominationCandidate {
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
             gender: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender_annex: ("GenderAnnex", NS_EML) => |elem| elem.string_value()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
             contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
             agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
@@ -1142,6 +1146,7 @@ mod tests {
                             XsDate::from_date(1980, 1, 15).unwrap(),
                         )),
                         gender: StringValue::from_value(Gender::Male),
+                        gender_annex: StringValue::from_value(GenderAnnex::Male),
                         qualifying_address: QualifyingAddress::Locality(
                             QualifyingAddressLocality::new("Amsterdam"),
                         ),
@@ -1162,6 +1167,7 @@ mod tests {
                             XsDate::from_date(1990, 7, 22).unwrap(),
                         )),
                         gender: StringValue::from_value(Gender::Female),
+                        gender_annex: StringValue::from_value(GenderAnnex::Female),
                         qualifying_address: QualifyingAddress::Country(
                             QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
                         ),
