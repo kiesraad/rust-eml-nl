@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLVersion, EMLVersionRange, NS_SB,
-    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    io::{collect_struct, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::{StringValue, StringValueData},
+    EMLError, EMLVersion, EMLVersionRange, NS_SB,
 };
 
 /// Accessibility information about a polling station location
@@ -80,8 +80,8 @@ pub struct AccessibilityProperties {
     /// Whether the polling station is easily accessible by public transport
     pub accessible_public_transport: Option<bool>,
 
-    /// Whether the polling station is accessible by a wheelchair
-    pub accessible_wheelchair: Option<bool>,
+    /// Whether the polling station has an accessible toilet
+    pub accessible_toilet: Option<bool>,
 
     /// Whether a host is present at the polling station
     pub host_present: Option<bool>,
@@ -139,18 +139,18 @@ impl AccessibilityProperties {
         }
     }
 
-    /// Sets the `accessible_wheelchair` field.
-    pub fn with_accessible_wheelchair(self, accessible_wheelchair: bool) -> Self {
+    /// Sets the `accessible_toilet` field.
+    pub fn with_accessible_toilet(self, accessible_toilet: bool) -> Self {
         Self {
-            accessible_wheelchair: Some(accessible_wheelchair),
+            accessible_toilet: Some(accessible_toilet),
             ..self
         }
     }
 
-    /// Optionally sets the `accessible_wheelchair` field.
-    pub fn with_accessible_wheelchair_option(self, accessible_wheelchair: Option<bool>) -> Self {
+    /// Optionally sets the `accessible_toilet` field.
+    pub fn with_accessible_toilet_option(self, accessible_toilet: Option<bool>) -> Self {
         Self {
-            accessible_wheelchair,
+            accessible_toilet,
             ..self
         }
     }
@@ -351,7 +351,7 @@ impl EMLElement for AccessibilityProperties {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, AccessibilityProperties {
             accessible_public_transport as Option: ("AccessiblePublicTransport", Some(NS_SB)) => |elem| elem.read_bool()?,
-            accessible_wheelchair as Option: ("AccessibleWheelchair", Some(NS_SB)) => |elem| elem.read_bool()?,
+            accessible_toilet as Option: ("AccessibleToilet", Some(NS_SB)) => |elem| elem.read_bool()?,
             host_present as Option: ("HostPresent", Some(NS_SB)) => |elem| elem.read_bool()?,
             guidelines as Option: ("Guidelines", Some(NS_SB)) => |elem| elem.string_value()?,
             voting_template as Option: ("VotingTemplate", Some(NS_SB)) => |elem| elem.read_bool()?,
@@ -373,8 +373,8 @@ impl EMLElement for AccessibilityProperties {
                 |writer, value| writer.bool(value),
             )?
             .child_option(
-                ("AccessibleWheelchair", Some(NS_SB)),
-                self.accessible_wheelchair,
+                ("AccessibleToilet", Some(NS_SB)),
+                self.accessible_toilet,
                 |writer, value| writer.bool(value),
             )?
             .child_option(
