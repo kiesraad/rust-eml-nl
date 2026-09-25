@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 use crate::{
-    io::{collect_struct, EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
-    utils::{StringValue, StringValueData},
     EMLError, EMLVersion, EMLVersionRange, NS_SB,
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName, collect_struct},
+    utils::{StringValue, StringValueData},
 };
 
 /// Accessibility information about a polling station location

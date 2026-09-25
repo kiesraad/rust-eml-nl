@@ -72,7 +72,7 @@
                 <sb:Longitude>4.88115</sb:Longitude>
                 <sb:Website>https://www.melkweg.nl</sb:Website>
                 <sb:OpenTime>2022-02-04T11:16:26.827</sb:OpenTime>
-                <sb:CloseTime>2022-02-04T11:16:26.828</sb:CloseTime>
+                <sb:ClosingTime>2022-02-04T11:16:26.828</sb:ClosingTime>
                 <sb:CountingLocation>true</sb:CountingLocation>
                 <sb:Accessibility>
                   <sb:Accessible>true</sb:Accessible>
@@ -81,9 +81,9 @@
                     <sb:AccessibleToilet>true</sb:AccessibleToilet>
                     <sb:HostPresent>true</sb:HostPresent>
                     <sb:Guidelines>inside and outside</sb:Guidelines>
-                    <sb:VotingTemplate></sb:VotingTemplate>
-                    <sb:BrailleCandidateList></sb:BrailleCandidateList>
-                    <sb:LargeLetteredCandidateList></sb:LargeLetteredCandidateList>
+                    <sb:VotingTemplate>false</sb:VotingTemplate>
+                    <sb:BrailleCandidateList>true</sb:BrailleCandidateList>
+                    <sb:LargeLetteredCandidateList>false</sb:LargeLetteredCandidateList>
                     <sb:SignLanguageInterpreter>at location</sb:SignLanguageInterpreter>
                     <sb:SignLanguagePollingStationMember>true</sb:SignLanguagePollingStationMember>
                     <sb:AcousticsForHearingImpaired>true</sb:AcousticsForHearingImpaired>
