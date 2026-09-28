@@ -6,6 +6,7 @@ use quick_xml::{
     events::{BytesStart, Event},
     name::{QName, ResolveResult},
 };
+use thiserror::Error;
 
 use crate::{
     EMLVersion, MultipleEMLErrors, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
@@ -541,6 +542,31 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         Ok(text.into())
     }
 
+    /// Reads a boolean value from the current element.
+    ///
+    /// Returns `false` if the value is not a valid boolean and not in strict
+    /// mode. In strict mode this will return an error instead.
+    pub fn read_bool(&mut self) -> Result<bool, EMLError> {
+        let text = self.text_without_children()?;
+        match text.as_ref() {
+            "true" | "1" => Ok(true),
+            "false" | "0" => Ok(false),
+            other => {
+                let err = EMLErrorKind::InvalidValue(
+                    self.name()?.as_owned(),
+                    Box::new(InvalidBooleanValue(other.to_owned())),
+                )
+                .with_span(self.full_span());
+                if self.parsing_mode() == EMLParsingMode::Strict {
+                    Err(err)
+                } else {
+                    self.push_err(err);
+                    Ok(false)
+                }
+            }
+        }
+    }
+
     /// Skip all remaining content/events in this element. Stops reading just
     /// after the matching end tag.
     pub fn skip(&mut self) -> Result<(), EMLError> {
@@ -831,6 +857,17 @@ impl Drop for EMLElementReader<'_, '_> {
     fn drop(&mut self) {
         // Ensure we have consumed the entire element
         let _ = self.skip();
+    }
+}
+
+/// Represents an error that occurs when parsing a boolean value that is not a valid boolean.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid boolean value: {0}")]
+pub struct InvalidBooleanValue(String);
+
+impl From<InvalidBooleanValue> for EMLError {
+    fn from(err: InvalidBooleanValue) -> Self {
+        EMLError::value_conversion(err)
     }
 }
 

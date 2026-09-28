@@ -5,7 +5,7 @@ use clap::{Parser, error::ErrorKind};
 use eml_nl::{
     csv::find_matching_documents,
     documents::EML,
-    io::{EMLParsingMode, EMLRead as _},
+    io::{EMLDocument as _, EMLParsingMode, EMLRead as _},
 };
 use tracing::{debug, info, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
@@ -140,7 +140,7 @@ fn load_and_parse(path: impl AsRef<Path>) -> Result<EML, anyhow::Error> {
         .with_context(|| format!("Failed to parse file as EML: {}", path.as_ref().display()))?;
     info!(
         "EML file was parsed succesfully, found document type: {}",
-        eml.to_eml_id()
+        eml.document_eml_id()
     );
     Ok(eml)
 }

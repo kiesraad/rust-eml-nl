@@ -220,6 +220,10 @@ impl<'a> EMLElementWriter<'a> {
             .without_span()?;
         Ok(())
     }
+
+    pub fn bool(self, value: bool) -> Result<(), EMLError> {
+        self.content()?.bool(value)
+    }
 }
 
 pub(crate) struct EMLElementContentWriter<'a> {
@@ -303,6 +307,18 @@ impl<'a> EMLElementContentWriter<'a> {
         Ok(self)
     }
 
+    pub fn bool(self, value: bool) -> Result<(), EMLError> {
+        self.writer
+            .writer
+            .write_event(Event::Text(BytesText::new(if value {
+                "true"
+            } else {
+                "false"
+            })))
+            .without_span()?;
+        self.finish()
+    }
+
     pub fn finish(self) -> Result<(), EMLError> {
         self.writer
             .writer
@@ -357,9 +373,6 @@ where
             ns_defs.insert("kr", NS_KR);
             ns_defs.insert("xal", NS_XAL);
             ns_defs.insert("xnl", NS_XNL);
-            // ns_defs.insert("ds", NS_DS);
-            // ns_defs.insert("xmlns", NS_XMLNS);
-            // ns_defs.insert("xml", NS_XML);
             ns_defs
         });
 
@@ -458,7 +471,7 @@ where
         self.write_root(
             None::<QualifiedName<'_, '_>>,
             None,
-            None,
+            self.document_namespaces(),
             self.document_version(),
             pretty_print,
             include_declaration,
@@ -510,7 +523,7 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
     let mut namespace_definitions = BTreeMap::new();
     let mut default_namespace_uri = Some(None);
     for ns in namespaces {
-        use crate::NS_DS;
+        use crate::{NS_DS, NS_SB};
 
         match *ns {
             NS_EML => {
@@ -518,6 +531,9 @@ pub(crate) fn test_write_eml_element<T: crate::io::EMLElement>(
             }
             NS_KR => {
                 namespace_definitions.insert("kr", NS_KR);
+            }
+            NS_SB => {
+                namespace_definitions.insert("sb", NS_SB);
             }
             NS_XAL => {
                 namespace_definitions.insert("xal", NS_XAL);

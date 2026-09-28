@@ -7,7 +7,7 @@ use anyhow::Context;
 use clap::{Parser, error::ErrorKind};
 use eml_nl::{
     documents::EML,
-    io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+    io::{EMLDocument as _, EMLParsingMode, EMLRead as _, EMLWrite as _},
 };
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncReadExt;
@@ -248,8 +248,8 @@ async fn handle_file(
 
     info!(
         "Parsed EML document type: {} ({})",
-        doc.to_eml_id(),
-        doc.to_friendly_name()
+        doc.document_eml_id(),
+        doc.document_friendly_name()
     );
 
     if debug {
