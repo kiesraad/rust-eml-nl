@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use quick_xml::{
-    events::{attributes::Attribute, BytesDecl, BytesStart, BytesText, Event},
     Writer,
+    events::{BytesDecl, BytesStart, BytesText, Event, attributes::Attribute},
 };
 
 use crate::{

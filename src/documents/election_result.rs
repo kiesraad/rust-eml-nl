@@ -3,6 +3,7 @@
 use std::{collections::BTreeMap, ops::Deref, str::FromStr};
 
 use crate::{
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CreationDateTime,
         ElectionDomain, ManagingAuthority, MinimalQualifyingAddress, PersonNameStructure,
@@ -10,14 +11,13 @@ use crate::{
     },
     documents::ElectionIdentifierBuilder,
     io::{
-        collect_struct, EMLDocument, EMLElement, EMLElementReader, EMLElementWriter,
-        EMLReadElement as _, EMLWriteElement as _, QualifiedName,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, GenderAnnex,
         StringValue, StringValueData, XsDate, XsDateTime,
     },
-    EMLError, EMLErrorKind, EMLResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
 };
 
 pub(crate) const EML_ELECTION_RESULT_ID: &str = "520";
@@ -550,11 +550,7 @@ impl YesNoType {
 
     /// Returns the string representation of the value ("yes" or "no").
     pub fn to_eml_value(&self) -> &'static str {
-        if self.0 {
-            "yes"
-        } else {
-            "no"
-        }
+        if self.0 { "yes" } else { "no" }
     }
 
     /// Returns `true` if the value is "yes".
@@ -940,8 +936,8 @@ impl EMLElement for CandidateSelection {
         Ok(collect_struct!(elem, CandidateSelection {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            gender_annex as Option: ("GenderAnnex", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
+            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
             qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddress>()?,
         }))
     }
@@ -952,11 +948,11 @@ impl EMLElement for CandidateSelection {
             .child(("CandidateFullName", NS_EML), |elem| {
                 self.name.write_eml_element(elem)
             })?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
+            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
                 elem.text(value.raw().as_ref())?.finish()
             })?
             .child_option(
-                ("GenderAnnex", NS_EML),
+                GenderAnnex::EML_NAME,
                 self.gender_annex.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?

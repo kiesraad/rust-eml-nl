@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_KR,
+    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_EML, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
     utils::StringValueData,
 };
@@ -135,6 +135,23 @@ impl StringValueData for Gender {
 
     fn to_raw_value(&self) -> Box<str> {
         self.to_eml_value().into()
+    }
+}
+
+impl EMLElement for Gender {
+    const EML_NAME: QualifiedName<'static, 'static> =
+        QualifiedName::from_static("Gender", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
+    where
+        Self: Sized,
+    {
+        let gender = elem.string_value::<Self>()?;
+        Ok(Gender::from_eml_value(gender.raw())?)
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.attr("Gender", &self.to_raw_value())?.empty()
     }
 }
 

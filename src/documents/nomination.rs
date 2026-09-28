@@ -644,7 +644,7 @@ impl EMLElement for NominationCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
             gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
             contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
@@ -669,7 +669,7 @@ impl EMLElement for NominationCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
+            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
                 elem.text(value.raw().as_ref())?.finish()
             })?
             .child_option(

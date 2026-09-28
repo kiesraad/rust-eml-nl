@@ -3,25 +3,25 @@
 use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
+    EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountryNameCode,
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
         LocalityName, ManagingAuthority, PersonNameStructure, TransactionId,
     },
     documents::{
-        validate_category_and_subcategory, validate_election_and_nomination_dates,
-        ElectionIdentifierBuilder,
+        ElectionIdentifierBuilder, validate_category_and_subcategory,
+        validate_election_and_nomination_dates,
     },
     error::EMLErrorKind,
     io::{
-        collect_struct, EMLDocument, EMLElement, EMLElementReader, EMLElementWriter,
-        EMLReadElement as _, EMLWriteElement as _, QualifiedName,
+        EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
+        EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
         AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
         GenderAnnex, PublicationLanguage, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
     },
-    EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
 };
 
 /// Representing a `230b` document, containing the candidate lists.
@@ -1077,8 +1077,8 @@ impl EMLElement for CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
-            gender_annex as Option: ("GenderAnnex", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
+            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
         }))
     }
@@ -1094,11 +1094,11 @@ impl EMLElement for CandidateListsCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
+            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
                 elem.text(value.raw().as_ref())?.finish()
             })?
             .child_option(
-                ("GenderAnnex", NS_EML),
+                GenderAnnex::EML_NAME,
                 self.gender_annex.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
@@ -1616,12 +1616,12 @@ mod tests {
 
     use super::*;
     use crate::{
+        EMLVersion,
         common::PersonName,
         io::{
-            test_write_eml_element, test_xml_fragment, EMLParsingMode, EMLRead as _, EMLWrite as _,
+            EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
         },
         utils::{AuthorityId, CandidateId},
-        EMLVersion,
     };
 
     #[test]
@@ -1874,36 +1874,44 @@ mod tests {
 
     #[test]
     fn test_invalid_document_type() {
-        assert!(CandidateLists::parse_eml(
-            include_str!("../../test-files/candidate_lists/eml230b_invalid_document_type.eml.xml"),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_err());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_invalid_document_type.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
     }
 
     #[test]
     fn test_invalid_empty_affiliates() {
-        assert!(CandidateLists::parse_eml(
-            include_str!(
-                "../../test-files/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
-            ),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_err());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_affiliates.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
     }
 
     #[test]
     fn test_invalid_empty_candidates() {
-        assert!(CandidateLists::parse_eml(
-            include_str!(
-                "../../test-files/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
-            ),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_err());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_invalid_empty_candidates.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
     }
 
     #[test]
@@ -1948,23 +1956,29 @@ mod tests {
 
     #[test]
     fn test_incorrect_missing_authority() {
-        assert!(CandidateLists::parse_eml(
-            include_str!(
-                "../../test-files/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
-            ),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_err());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_invalid_missing_authority.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
     }
 
     #[test]
     fn test_with_missing_addresses() {
-        assert!(CandidateLists::parse_eml(
-            include_str!("../../test-files/candidate_lists/eml230b_test_without_addresses.eml.xml"),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_ok());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_test_without_addresses.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_ok()
+        );
     }
 }
