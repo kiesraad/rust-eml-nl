@@ -37,7 +37,7 @@ impl RDGeographicLocation {
 
 /// Regular expression for validating RD coordinate values.
 static RD_COORDINATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\d{1,6}(.\d{1,})?$").expect("Failed to compile RD coordinate regex")
+    Regex::new(r"^\d{1,6}(\.\d{1,})?$").expect("Failed to compile RD coordinate regex")
 });
 
 /// Invalid RD coordinate syntax error
