@@ -487,7 +487,7 @@ where
         self.write_root_str(
             None::<QualifiedName<'_, '_>>,
             None,
-            None,
+            self.document_namespaces(),
             self.document_version(),
             pretty_print,
             include_declaration,
