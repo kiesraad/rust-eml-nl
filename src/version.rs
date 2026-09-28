@@ -15,8 +15,11 @@ pub enum EMLVersion {
     V1_2_2,
 
     /// An EML_NL version 1.3 document
-    #[default]
     V1_3,
+
+    /// AN EML_NL version 1.3.1 document
+    #[default]
+    V1_3_1,
 }
 
 impl EMLVersion {
@@ -30,7 +33,13 @@ impl EMLVersion {
         match self {
             EMLVersion::V1_2_2 => None,
             EMLVersion::V1_3 => Some("1.3"),
+            EMLVersion::V1_3_1 => Some("1.3.1"),
         }
+    }
+
+    /// Returns `true` if this is an EML_NL version 1.3.1 document.
+    pub fn is_v1_3_1(&self) -> bool {
+        matches!(self, EMLVersion::V1_3_1)
     }
 
     /// Returns `true` if this is an EML_NL version 1.3 document.
@@ -55,6 +64,7 @@ impl std::str::FromStr for EMLVersion {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "1.3.1" => Ok(EMLVersion::V1_3_1),
             "1.3" => Ok(EMLVersion::V1_3),
             _ => Err(UnsupportedEMLVersion(s.to_owned())),
         }
@@ -129,12 +139,14 @@ mod tests {
 
     #[test]
     fn test_eml_version_to_str() {
+        assert_eq!(EMLVersion::V1_3_1.to_str(), Some("1.3.1"));
         assert_eq!(EMLVersion::V1_3.to_str(), Some("1.3"));
         assert_eq!(EMLVersion::V1_2_2.to_str(), None);
     }
 
     #[test]
     fn test_eml_version_from_str() {
+        assert_eq!("1.3.1".parse::<EMLVersion>(), Ok(EMLVersion::V1_3_1));
         assert_eq!("1.3".parse::<EMLVersion>(), Ok(EMLVersion::V1_3));
         assert!("1.2".parse::<EMLVersion>().is_err());
     }
