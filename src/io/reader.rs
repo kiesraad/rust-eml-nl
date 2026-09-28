@@ -911,56 +911,56 @@ macro_rules! collect_struct {
 
     // accumulate for a normal row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
-        $field:ident: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $field:ident: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
         $($tail:tt)*
     ) => {
         collect_struct!(@expand [$root] [$ty] [
             $($items ; )*
-            (@field [$field] [$namespaced_name] [$var] [$map]) ;
+            (@field [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]) ;
         ] $($tail)*)
     };
 
     // accumulate for a parse-only row (not stored in struct)
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
-        $field:ident as None: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $field:ident as None: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
         $($tail:tt)*
     ) => {
         collect_struct!(@expand [$root] [$ty] [
             $($items ; )*
-            (@parse_only [$field] [$namespaced_name] [$var] [$map]) ;
+            (@parse_only [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]) ;
         ] $($tail)*)
     };
 
     // accumulate, for an option row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
-        $field:ident as Option: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $field:ident as Option: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
         $($tail:tt)*
     ) => {
         collect_struct!(@expand [$root] [$ty] [
             $($items ; )*
-            (@optional [$field] [$namespaced_name] [$var] [$map]) ;
+            (@optional [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]) ;
         ] $($tail)*)
     };
 
     // accumulate, for a btreemap row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
-        $field:ident as BTreeMap: $namespaced_name:expr => |$var:ident| $map:expr,
+        $field:ident as BTreeMap: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr,
         $($tail:tt)*
     ) => {
         collect_struct!(@expand [$root] [$ty] [
             $($items ; )*
-            (@btreemap [$field] [$namespaced_name] [$var] [$map]) ;
+            (@btreemap [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]) ;
         ] $($tail)*)
     };
 
     // accumulate, for a vector row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
-        $field:ident as Vec: $namespaced_name:expr => |$var:ident| $map:expr ,
+        $field:ident as Vec: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
         $($tail:tt)*
     ) => {
         collect_struct!(@expand [$root] [$ty] [
             $($items ; )*
-            (@vec [$field] [$namespaced_name] [$var] [$map]) ;
+            (@vec [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]) ;
         ] $($tail)*)
     };
 
@@ -1008,55 +1008,61 @@ macro_rules! collect_struct {
     }};
 
     // Emit field declarations
-    (@decl (@parse_only [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@decl (@parse_only [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: Option<_> = None;
     };
     (@decl (@direct [$field:ident] [$value:expr])) => {};
-    (@decl (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@decl (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: Option<_> = None;
     };
-    (@decl (@btreemap [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@decl (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: std::collections::BTreeMap<_, _> = std::collections::BTreeMap::new();
     };
-    (@decl (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@decl (@field [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: Option<_> = None;
     };
-    (@decl (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@decl (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: Vec<_> = Vec::new();
     };
 
     // Emit match arms for each field
     (@matcher $next_child:ident, $name:ident, $handled:ident, (@direct [$field:ident] [$value:expr])) => {};
-    (@matcher $next_child:ident, $name:ident, $handled:ident, (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
-        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$var] [$map]));
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
+        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]));
     };
-    (@matcher $next_child:ident, $name:ident, $handled:ident, (@parse_only [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
-        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$var] [$map]));
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@parse_only [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
+        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]));
     };
-    (@matcher $next_child:ident, $name:ident, $handled:ident, (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@field [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         if !$handled &&
             &$name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref()
         {
+            $(collect_struct!(@version_check $next_child, [$namespaced_name] [$version_range]);)?
+
             let $var = &mut $next_child;
             $field = Some($map);
             $var.skip()?;
             $handled = true;
         }
     };
-    (@matcher $next_child:ident, $name:ident, $handled:ident, (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         if !$handled &&
             &$name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref()
         {
+            $(collect_struct!(@version_check $next_child, [$namespaced_name] [$version_range]);)?
+
             let $var = &mut $next_child;
             $field.push($map);
             $var.skip()?;
             $handled = true;
         }
     };
-    (@matcher $next_child:ident, $name:ident, $handled:ident, (@btreemap [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         if !$handled &&
             &$name == $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_ref()
         {
+            $(collect_struct!(@version_check $next_child, [$namespaced_name] [$version_range]);)?
+
             let $var = &mut $next_child;
             let (k, v) = $map;
             $field.insert(k, v);
@@ -1065,8 +1071,20 @@ macro_rules! collect_struct {
         }
     };
 
+    (@version_check $next_child:expr, [$namespaced_name:expr] [$version_range:expr]) => {
+        if !$version_range.contains($next_child.document_version()) {
+            return $crate::error::EMLResultExt::with_span(
+                Err($crate::error::EMLErrorKind::ElementNotSupportedInVersion(
+                    $crate::io::IntoQualifiedNameCow::into_qname_cow($namespaced_name).as_owned(),
+                    $next_child.document_version(),
+                )),
+                $next_child.span()
+            );
+        }
+    };
+
     // Emit pre-processing values
-    (@process $root:expr, (@parse_only [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {
+    (@process $root:expr, (@parse_only [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         $crate::error::EMLResultExt::with_span(
             $field.ok_or_else(|| $crate::error::EMLErrorKind::MissingElement(
                 $crate::io::QualifiedName::from($namespaced_name).as_owned()
@@ -1075,10 +1093,10 @@ macro_rules! collect_struct {
         )?;
     };
     (@process $root:expr, (@direct [$field:ident] [$value:expr])) => {};
-    (@process $root:expr, (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {};
-    (@process $root:expr, (@btreemap [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {};
-    (@process $root:expr, (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {};
-    (@process $root:expr, (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr])) => {};
+    (@process $root:expr, (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
+    (@process $root:expr, (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
+    (@process $root:expr, (@field [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
+    (@process $root:expr, (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
 
     // Start emitting field assignments
     (@build_struct $root:expr, $ty:ident, $($items:tt ; )* ) => {
@@ -1094,30 +1112,30 @@ macro_rules! collect_struct {
             $field: $value,
         ], $($tail)*)
     };
-    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@parse_only [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@parse_only [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
         collect_struct!(@assign $root, $ty, [
             $($out)*
         ], $($tail)*)
     };
-    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@optional [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
-        collect_struct!(@assign $root, $ty, [
-            $($out)*
-            $field: $field,
-        ], $($tail)*)
-    };
-    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@vec [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
         collect_struct!(@assign $root, $ty, [
             $($out)*
             $field: $field,
         ], $($tail)*)
     };
-    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@btreemap [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
         collect_struct!(@assign $root, $ty, [
             $($out)*
             $field: $field,
         ], $($tail)*)
     };
-    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@field [$field:ident] [$namespaced_name:expr] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: $field,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@field [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {
         collect_struct!(@assign $root, $ty, [
             $($out)*
             $field: $crate::error::EMLResultExt::with_span(
