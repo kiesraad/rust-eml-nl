@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, NS_EML, NS_KR,
-    OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLErrorKind, EMLResultExt as _, EMLValueResultExt, EMLVersion, EMLVersionRange,
+    NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
         CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountingMethod,
         CreationDateTime, ElectionDomain, ManagingAuthority, MinimalQualifyingAddress,
@@ -616,9 +616,13 @@ pub struct ElectionCountContestBuilder {
     identifier: Option<ContestIdentifier>,
     total_votes: Option<TotalVotes>,
     total_votes_selections: Vec<ElectionCountSelection>,
+    previous_total_eligible_voter_count: Option<StringValue<u64>>,
     total_eligible_voter_count: Option<StringValue<u64>>,
+    previous_total_candidate_votes_count: Option<StringValue<u64>>,
     total_candidate_votes_count: Option<StringValue<u64>>,
+    previous_total_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
     total_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+    previous_total_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
     total_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
     reporting_unit_votes: Vec<ReportingUnitVotes>,
 }
@@ -630,9 +634,13 @@ impl ElectionCountContestBuilder {
             identifier: None,
             total_votes: None,
             total_votes_selections: vec![],
+            previous_total_eligible_voter_count: None,
             total_eligible_voter_count: None,
+            previous_total_candidate_votes_count: None,
             total_candidate_votes_count: None,
+            previous_total_rejected_votes: BTreeMap::new(),
             total_rejected_votes: BTreeMap::new(),
+            previous_total_uncounted_votes: BTreeMap::new(),
             total_uncounted_votes: BTreeMap::new(),
             reporting_unit_votes: vec![],
         }
@@ -668,15 +676,57 @@ impl ElectionCountContestBuilder {
         self
     }
 
+    /// Set the previous total number of eligible voters within the contest.
+    pub fn previous_total_eligible_voter_count(mut self, count: impl Into<u64>) -> Self {
+        self.previous_total_eligible_voter_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous total number of eligible voters within the contest, optionally.
+    pub fn previous_total_eligible_voter_count_option(
+        mut self,
+        count: Option<impl Into<u64>>,
+    ) -> Self {
+        self.previous_total_eligible_voter_count = count.map(|c| StringValue::from_value(c.into()));
+        self
+    }
+
     /// Set the total number of eligible voters within the contest.
     pub fn total_eligible_voter_count(mut self, count: impl Into<u64>) -> Self {
         self.total_eligible_voter_count = Some(StringValue::from_value(count.into()));
         self
     }
 
+    /// Set the previous total number of votes on candidates within the contest.
+    pub fn previous_total_candidate_votes_count(mut self, count: impl Into<u64>) -> Self {
+        self.previous_total_candidate_votes_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous total number of votes on candidates within the contest, optionally.
+    pub fn previous_total_candidate_votes_count_option(
+        mut self,
+        count: Option<impl Into<u64>>,
+    ) -> Self {
+        self.previous_total_candidate_votes_count =
+            count.map(|c| StringValue::from_value(c.into()));
+        self
+    }
+
     /// Set the total number of votes on candidates within the contest.
     pub fn total_candidate_votes_count(mut self, count: impl Into<u64>) -> Self {
         self.total_candidate_votes_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous total number of rejected votes within the contest for a given reason.
+    pub fn previous_total_rejected_votes(
+        mut self,
+        reason: RejectedVotesReason,
+        count: impl Into<u64>,
+    ) -> Self {
+        self.previous_total_rejected_votes
+            .insert(reason, StringValue::from_value(count.into()));
         self
     }
 
@@ -687,6 +737,17 @@ impl ElectionCountContestBuilder {
         count: impl Into<u64>,
     ) -> Self {
         self.total_rejected_votes
+            .insert(reason, StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous total number of uncounted votes within the contest for a given reason.
+    pub fn previous_total_uncounted_votes(
+        mut self,
+        reason: UncountedVotesReason,
+        count: impl Into<u64>,
+    ) -> Self {
+        self.previous_total_uncounted_votes
             .insert(reason, StringValue::from_value(count.into()));
         self
     }
@@ -730,9 +791,13 @@ impl ElectionCountContestBuilder {
             total_votes: self.total_votes.map_or_else(
                 || {
                     if self.total_votes_selections.is_empty()
+                        && self.previous_total_eligible_voter_count.is_none()
                         && self.total_eligible_voter_count.is_none()
+                        && self.previous_total_candidate_votes_count.is_none()
                         && self.total_candidate_votes_count.is_none()
+                        && self.previous_total_rejected_votes.is_empty()
                         && self.total_rejected_votes.is_empty()
+                        && self.previous_total_uncounted_votes.is_empty()
                         && self.total_uncounted_votes.is_empty()
                     {
                         Ok(None)
@@ -760,12 +825,15 @@ impl ElectionCountContestBuilder {
 
                         Ok(Some(TotalVotes {
                             selections: self.total_votes_selections,
+                            previous_eligible_voter_count: self.previous_total_eligible_voter_count,
                             eligible_voter_count: self.total_eligible_voter_count.ok_or_else(
                                 || {
                                     EMLErrorKind::MissingBuildProperty("total_eligible_voter_count")
                                         .without_span()
                                 },
                             )?,
+                            previous_candidate_votes_count: self
+                                .previous_total_candidate_votes_count,
                             candidate_votes_count: self.total_candidate_votes_count.ok_or_else(
                                 || {
                                     EMLErrorKind::MissingBuildProperty(
@@ -774,7 +842,9 @@ impl ElectionCountContestBuilder {
                                     .without_span()
                                 },
                             )?,
+                            previous_rejected_votes: self.previous_total_rejected_votes,
                             rejected_votes: self.total_rejected_votes,
+                            previous_uncounted_votes: self.previous_total_uncounted_votes,
                             uncounted_votes: self.total_uncounted_votes,
                         }))
                     }
@@ -812,17 +882,39 @@ impl EMLElement for ElectionCountContest {
     }
 }
 
+const ELIGIBLE_VOTER_COUNT_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("Cast", Some(NS_EML));
+
+const PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreviousCast", Some(NS_KR));
+
+const CANDIDATE_VOTES_COUNT_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("TotalCounted", Some(NS_EML));
+
+const PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreviousTotalCounted", Some(NS_KR));
+
 const REJECTED_VOTES_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("RejectedVotes", Some(NS_EML));
 
+const PREVIOUS_REJECTED_VOTES_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreviousRejectedVotes", Some(NS_KR));
+
 const UNCOUNTED_VOTES_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("UncountedVotes", Some(NS_EML));
+
+const PREVIOUS_UNCOUNTED_VOTES_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreviousUncountedVotes", Some(NS_KR));
 
 /// Total votes in a contest.
 #[derive(Debug, Clone)]
 pub struct TotalVotes {
     /// Selections within the total votes.
     pub selections: Vec<ElectionCountSelection>,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous value for the [`Self::eligible_voter_count`] field (if known).
+    pub previous_eligible_voter_count: Option<StringValue<u64>>,
 
     /// Total number of eligible voters within the reporting unit votes.
     ///
@@ -832,6 +924,10 @@ pub struct TotalVotes {
     /// actual number of cast votes.
     pub eligible_voter_count: StringValue<u64>,
 
+    /// In case this document represents a corrigendum, this represents the
+    /// previous value for the [`Self::candidate_votes_count`] field (if known).
+    pub previous_candidate_votes_count: Option<StringValue<u64>>,
+
     /// Total number of votes on candidates.
     ///
     /// This element is called `TotalCounted` within EML_NL, but is renamed here
@@ -840,10 +936,18 @@ pub struct TotalVotes {
     /// the actual total number of counted votes.
     pub candidate_votes_count: StringValue<u64>,
 
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::rejected_votes`] fields (if known).
+    pub previous_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+
     /// Rejected votes within the reporting unit votes.
     ///
     /// Contains blank and invalid votes.
     pub rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::uncounted_votes`] fields (if known).
+    pub previous_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
 
     /// Uncounted votes within the reporting unit votes.
     pub uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
@@ -898,12 +1002,28 @@ impl EMLElement for TotalVotes {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let data = collect_struct!(elem, TotalVotes {
             selections as Vec: ElectionCountSelection::EML_NAME => |elem| elem.read_element::<ElectionCountSelection>()?,
-            eligible_voter_count: ("Cast", NS_EML) => |elem| elem.string_value()?,
-            candidate_votes_count: ("TotalCounted", NS_EML) => |elem| elem.string_value()?,
+            previous_eligible_voter_count as Option: PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| elem.string_value()?,
+            eligible_voter_count: ELIGIBLE_VOTER_COUNT_EML_NAME => |elem| elem.string_value()?,
+            previous_candidate_votes_count as Option: PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| elem.string_value()?,
+            candidate_votes_count: CANDIDATE_VOTES_COUNT_EML_NAME => |elem| elem.string_value()?,
+            previous_rejected_votes as BTreeMap: PREVIOUS_REJECTED_VOTES_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| {
+                let reason_code = elem.attribute_value_req("ReasonCode")?;
+                let reason = RejectedVotesReason::from_eml_value(&reason_code)
+                    .map_err(|e| EMLError::invalid_value(REJECTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
+
+                (reason, elem.string_value()?)
+            },
             rejected_votes as BTreeMap: REJECTED_VOTES_EML_NAME => |elem| {
                 let reason_code = elem.attribute_value_req("ReasonCode")?;
                 let reason = RejectedVotesReason::from_eml_value(&reason_code)
                     .map_err(|e| EMLError::invalid_value(REJECTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
+
+                (reason, elem.string_value()?)
+            },
+            previous_uncounted_votes as BTreeMap: PREVIOUS_UNCOUNTED_VOTES_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| {
+                let reason_code = elem.attribute_value_req("ReasonCode")?;
+                let reason = UncountedVotesReason::from_eml_value(&reason_code)
+                    .map_err(|e| EMLError::invalid_value(UNCOUNTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
 
                 (reason, elem.string_value()?)
             },
@@ -946,17 +1066,51 @@ impl EMLElement for TotalVotes {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elems(ElectionCountSelection::EML_NAME, &self.selections)?
-            .child(("Cast", NS_EML), |elem| {
+            .child_option_version(
+                PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_eligible_voter_count.as_ref(),
+                |elem, v| elem.text(v.raw().as_ref())?.finish(),
+            )?
+            .child(ELIGIBLE_VOTER_COUNT_EML_NAME, |elem| {
                 elem.text(self.eligible_voter_count.raw().as_ref())?
                     .finish()
             })?
-            .child(("TotalCounted", NS_EML), |elem| {
+            .child_option_version(
+                PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_candidate_votes_count.as_ref(),
+                |elem, v| elem.text(v.raw().as_ref())?.finish(),
+            )?
+            .child(CANDIDATE_VOTES_COUNT_EML_NAME, |elem| {
                 elem.text(self.candidate_votes_count.raw().as_ref())?
                     .finish()
             })?
+            .child_elems_map_version(
+                PREVIOUS_REJECTED_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                &self.previous_rejected_votes,
+                |elem, (reason, count)| {
+                    let reason_code = reason.to_eml_value();
+                    elem.attr("ReasonCode", reason_code.as_ref())?
+                        .text(count.raw().as_ref())?
+                        .finish()
+                },
+            )?
             .child_elems_map(
                 REJECTED_VOTES_EML_NAME,
                 &self.rejected_votes,
+                |elem, (reason, count)| {
+                    let reason_code = reason.to_eml_value();
+                    elem.attr("ReasonCode", reason_code.as_ref())?
+                        .text(count.raw().as_ref())?
+                        .finish()
+                },
+            )?
+            .child_elems_map_version(
+                PREVIOUS_UNCOUNTED_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                &self.previous_uncounted_votes,
                 |elem, (reason, count)| {
                     let reason_code = reason.to_eml_value();
                     elem.attr("ReasonCode", reason_code.as_ref())?
@@ -987,6 +1141,10 @@ pub struct ReportingUnitVotes {
     /// Selections within the reporting unit votes.
     pub selections: Vec<ElectionCountSelection>,
 
+    /// In case this document represents a corrigendum, this represents the
+    /// previous value for the [`Self::eligible_voter_count`] field (if known).
+    pub previous_eligible_voter_count: Option<StringValue<u64>>,
+
     /// Total number of eligible voters within the reporting unit votes.
     ///
     /// This element is called `Cast` within EML_NL, but is renamed here to
@@ -994,6 +1152,10 @@ pub struct ReportingUnitVotes {
     /// EML_NL to represent the total number of eligible voters instead of the
     /// actual number of cast votes.
     pub eligible_voter_count: StringValue<u64>,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous value for the [`Self::candidate_votes_count`] field (if known).
+    pub previous_candidate_votes_count: Option<StringValue<u64>>,
 
     /// Total number of votes on candidates.
     ///
@@ -1003,10 +1165,18 @@ pub struct ReportingUnitVotes {
     /// the actual total number of counted votes.
     pub candidate_votes_count: StringValue<u64>,
 
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::rejected_votes`] fields (if known).
+    pub previous_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+
     /// Rejected votes within the reporting unit votes.
     ///
     /// Contains blank and invalid votes.
     pub rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::uncounted_votes`] fields (if known).
+    pub previous_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
 
     /// Uncounted votes within the reporting unit votes.
     pub uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
@@ -1019,6 +1189,10 @@ pub struct ReportingUnitVotes {
 pub struct SelectionAffiliationVotes<'a> {
     /// The affiliation selection for which the votes were gathered.
     pub affiliation: &'a AffiliationSelection,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::valid_votes`] fields (if known).
+    pub previous_valid_votes: Option<u64>,
 
     /// The total number of valid votes for this affiliation.
     pub valid_votes: u64,
@@ -1034,6 +1208,10 @@ pub struct SelectionCandidateVotes<'a> {
 
     /// The candidate selection for which the votes were gathered.
     pub candidate: &'a CandidateSelection,
+
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::valid_votes`] fields (if known).
+    pub previous_valid_votes: Option<u64>,
 
     /// The total number of valid votes for this candidate.
     pub valid_votes: u64,
@@ -1105,6 +1283,14 @@ fn selections_per_affiliation(
                 {
                     result.push(SelectionAffiliationVotes {
                         affiliation: ca,
+                        previous_valid_votes: cas
+                            .previous_valid_votes
+                            .as_ref()
+                            .map(|v| {
+                                v.copied_value()
+                                    .wrap_field_value_error(PREVIOUS_VALID_VOTES_EML_NAME)
+                            })
+                            .transpose()?,
                         valid_votes: cas
                             .valid_votes
                             .copied_value()
@@ -1125,6 +1311,14 @@ fn selections_per_affiliation(
                 current_candidates.push(SelectionCandidateVotes {
                     affiliation: curr_aff,
                     candidate,
+                    previous_valid_votes: selection
+                        .previous_valid_votes
+                        .as_ref()
+                        .map(|v| {
+                            v.copied_value()
+                                .wrap_field_value_error(PREVIOUS_VALID_VOTES_EML_NAME)
+                        })
+                        .transpose()?,
                     valid_votes: selection
                         .valid_votes
                         .copied_value()
@@ -1142,10 +1336,19 @@ fn selections_per_affiliation(
     if let (Some(ca), Some(cas)) = (current_affiliation, current_affiliation_selection) {
         result.push(SelectionAffiliationVotes {
             affiliation: ca,
+            previous_valid_votes: cas
+                .previous_valid_votes
+                .as_ref()
+                .map(|v| {
+                    v.copied_value()
+                        .wrap_field_value_error(PREVIOUS_VALID_VOTES_EML_NAME)
+                })
+                .transpose()?,
             valid_votes: cas
                 .valid_votes
                 .copied_value()
                 .wrap_field_value_error(VALID_VOTES_EML_NAME)?,
+
             candidates: current_candidates,
         });
     }
@@ -1195,9 +1398,13 @@ fn find_affiliation_valid_votes(
 pub struct ReportingUnitVotesBuilder {
     identifier: Option<ReportingUnitIdentifier>,
     selections: Vec<ElectionCountSelection>,
+    previous_eligible_voter_count: Option<StringValue<u64>>,
     eligible_voter_count: Option<StringValue<u64>>,
+    previous_candidate_votes_count: Option<StringValue<u64>>,
     candidate_votes_count: Option<StringValue<u64>>,
+    previous_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
     rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+    previous_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
     uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
     investigations: BTreeMap<InvestigationReason, StringValue<bool>>,
 }
@@ -1208,9 +1415,13 @@ impl ReportingUnitVotesBuilder {
         Self {
             identifier: None,
             selections: vec![],
+            previous_eligible_voter_count: None,
             eligible_voter_count: None,
+            previous_candidate_votes_count: None,
             candidate_votes_count: None,
+            previous_rejected_votes: BTreeMap::new(),
             rejected_votes: BTreeMap::new(),
+            previous_uncounted_votes: BTreeMap::new(),
             uncounted_votes: BTreeMap::new(),
             investigations: BTreeMap::new(),
         }
@@ -1234,9 +1445,33 @@ impl ReportingUnitVotesBuilder {
         self
     }
 
+    /// Set the previous_eligible_voter_count field.
+    pub fn previous_eligible_voter_count(mut self, count: impl Into<u64>) -> Self {
+        self.previous_eligible_voter_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous_eligible_voter_count field, optionally.
+    pub fn previous_eligible_voter_count_option(mut self, count: Option<impl Into<u64>>) -> Self {
+        self.previous_eligible_voter_count = count.map(|c| StringValue::from_value(c.into()));
+        self
+    }
+
     /// Set the total number of eligible voters within the reporting unit votes.
     pub fn eligible_voter_count(mut self, count: impl Into<u64>) -> Self {
         self.eligible_voter_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous_candidate_votes_count field.
+    pub fn previous_candidate_votes_count(mut self, count: impl Into<u64>) -> Self {
+        self.previous_candidate_votes_count = Some(StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Set the previous_candidate_votes_count field, optionally.
+    pub fn previous_candidate_votes_count_option(mut self, count: Option<impl Into<u64>>) -> Self {
+        self.previous_candidate_votes_count = count.map(|c| StringValue::from_value(c.into()));
         self
     }
 
@@ -1246,9 +1481,31 @@ impl ReportingUnitVotesBuilder {
         self
     }
 
+    /// Add a previous rejected votes reason and count to the document.
+    pub fn previous_rejected_votes(
+        mut self,
+        reason: RejectedVotesReason,
+        count: impl Into<u64>,
+    ) -> Self {
+        self.previous_rejected_votes
+            .insert(reason, StringValue::from_value(count.into()));
+        self
+    }
+
     /// Set the total number of rejected votes within the reporting unit votes for a given reason.
     pub fn rejected_votes(mut self, reason: RejectedVotesReason, count: impl Into<u64>) -> Self {
         self.rejected_votes
+            .insert(reason, StringValue::from_value(count.into()));
+        self
+    }
+
+    /// Add a previous uncounted votes reason and count to the document.
+    pub fn previous_uncounted_votes(
+        mut self,
+        reason: UncountedVotesReason,
+        count: impl Into<u64>,
+    ) -> Self {
+        self.previous_uncounted_votes
             .insert(reason, StringValue::from_value(count.into()));
         self
     }
@@ -1292,13 +1549,17 @@ impl ReportingUnitVotesBuilder {
                 .identifier
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?,
             selections: self.selections,
+            previous_eligible_voter_count: self.previous_eligible_voter_count,
             eligible_voter_count: self.eligible_voter_count.ok_or_else(|| {
                 EMLErrorKind::MissingBuildProperty("eligible_voter_count").without_span()
             })?,
+            previous_candidate_votes_count: self.previous_candidate_votes_count,
             candidate_votes_count: self.candidate_votes_count.ok_or_else(|| {
                 EMLErrorKind::MissingBuildProperty("candidate_votes_count").without_span()
             })?,
+            previous_rejected_votes: self.previous_rejected_votes,
             rejected_votes: self.rejected_votes,
+            previous_uncounted_votes: self.previous_uncounted_votes,
             uncounted_votes: self.uncounted_votes,
             investigations: self.investigations,
         })
@@ -1325,9 +1586,13 @@ impl EMLElement for ReportingUnitVotes {
         struct ReportingUnitVotesInternal {
             identifier: ReportingUnitIdentifier,
             selections: Vec<ElectionCountSelection>,
+            previous_eligible_voter_count: Option<StringValue<u64>>,
             eligible_voter_count: StringValue<u64>,
+            previous_candidate_votes_count: Option<StringValue<u64>>,
             candidate_votes_count: StringValue<u64>,
+            previous_rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
             rejected_votes: BTreeMap<RejectedVotesReason, StringValue<u64>>,
+            previous_uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
             uncounted_votes: BTreeMap<UncountedVotesReason, StringValue<u64>>,
             investigations: Option<BTreeMap<InvestigationReason, StringValue<bool>>>,
         }
@@ -1335,12 +1600,28 @@ impl EMLElement for ReportingUnitVotes {
         let data = collect_struct!(elem, ReportingUnitVotesInternal {
             identifier: ReportingUnitIdentifier::EML_NAME => |elem| elem.read_element::<ReportingUnitIdentifier>()?,
             selections as Vec: ElectionCountSelection::EML_NAME => |elem| elem.read_element::<ElectionCountSelection>()?,
-            eligible_voter_count: ("Cast", NS_EML) => |elem| elem.string_value()?,
-            candidate_votes_count: ("TotalCounted", NS_EML) => |elem| elem.string_value()?,
+            previous_eligible_voter_count as Option: PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| elem.string_value()?,
+            eligible_voter_count: ELIGIBLE_VOTER_COUNT_EML_NAME => |elem| elem.string_value()?,
+            previous_candidate_votes_count as Option: PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| elem.string_value()?,
+            candidate_votes_count: CANDIDATE_VOTES_COUNT_EML_NAME => |elem| elem.string_value()?,
+            previous_rejected_votes as BTreeMap: PREVIOUS_REJECTED_VOTES_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| {
+                let reason_code = elem.attribute_value_req("ReasonCode")?;
+                let reason = RejectedVotesReason::from_eml_value(&reason_code)
+                    .map_err(|e| EMLError::invalid_value(REJECTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
+
+                (reason, elem.string_value()?)
+            },
             rejected_votes as BTreeMap: REJECTED_VOTES_EML_NAME => |elem| {
                 let reason_code = elem.attribute_value_req("ReasonCode")?;
                 let reason = RejectedVotesReason::from_eml_value(&reason_code)
                     .map_err(|e| EMLError::invalid_value(REJECTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
+
+                (reason, elem.string_value()?)
+            },
+            previous_uncounted_votes as BTreeMap: PREVIOUS_UNCOUNTED_VOTES_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| {
+                let reason_code = elem.attribute_value_req("ReasonCode")?;
+                let reason = UncountedVotesReason::from_eml_value(&reason_code)
+                    .map_err(|e| EMLError::invalid_value(UNCOUNTED_VOTES_EML_NAME.as_owned(), e, Some(elem.full_span())))?;
 
                 (reason, elem.string_value()?)
             },
@@ -1397,9 +1678,13 @@ impl EMLElement for ReportingUnitVotes {
         Ok(ReportingUnitVotes {
             identifier: data.identifier,
             selections: data.selections,
+            previous_eligible_voter_count: data.previous_eligible_voter_count,
             eligible_voter_count: data.eligible_voter_count,
+            previous_candidate_votes_count: data.previous_candidate_votes_count,
             candidate_votes_count: data.candidate_votes_count,
+            previous_rejected_votes: data.previous_rejected_votes,
             rejected_votes: data.rejected_votes,
+            previous_uncounted_votes: data.previous_uncounted_votes,
             uncounted_votes: data.uncounted_votes,
             investigations: data.investigations.unwrap_or_default(),
         })
@@ -1409,17 +1694,51 @@ impl EMLElement for ReportingUnitVotes {
         writer
             .child_elem(ReportingUnitIdentifier::EML_NAME, &self.identifier)?
             .child_elems(ElectionCountSelection::EML_NAME, &self.selections)?
-            .child(("Cast", NS_EML), |elem| {
+            .child_option_version(
+                PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_eligible_voter_count.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child(ELIGIBLE_VOTER_COUNT_EML_NAME, |elem| {
                 elem.text(self.eligible_voter_count.raw().as_ref())?
                     .finish()
             })?
-            .child(("TotalCounted", NS_EML), |elem| {
+            .child_option_version(
+                PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_candidate_votes_count.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child(CANDIDATE_VOTES_COUNT_EML_NAME, |elem| {
                 elem.text(self.candidate_votes_count.raw().as_ref())?
                     .finish()
             })?
+            .child_elems_map_version(
+                PREVIOUS_REJECTED_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                &self.previous_rejected_votes,
+                |elem, (reason, count)| {
+                    let reason_code = reason.to_eml_value();
+                    elem.attr("ReasonCode", reason_code.as_ref())?
+                        .text(count.raw().as_ref())?
+                        .finish()
+                },
+            )?
             .child_elems_map(
                 REJECTED_VOTES_EML_NAME,
                 &self.rejected_votes,
+                |elem, (reason, count)| {
+                    let reason_code = reason.to_eml_value();
+                    elem.attr("ReasonCode", reason_code.as_ref())?
+                        .text(count.raw().as_ref())?
+                        .finish()
+                },
+            )?
+            .child_elems_map_version(
+                PREVIOUS_UNCOUNTED_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                &self.previous_uncounted_votes,
                 |elem, (reason, count)| {
                     let reason_code = reason.to_eml_value();
                     elem.attr("ReasonCode", reason_code.as_ref())?
@@ -1640,6 +1959,10 @@ pub struct ElectionCountSelection {
     /// Type of selection.
     pub selection_type: ElectionCountSelectionType,
 
+    /// In case this document represents a corrigendum, this represents the
+    /// previous values for the [`Self::valid_votes`] fields (if known).
+    pub previous_valid_votes: Option<StringValue<u64>>,
+
     /// Number of valid votes for this selection.
     pub valid_votes: StringValue<u64>,
 
@@ -1661,6 +1984,7 @@ impl ElectionCountSelection {
 #[derive(Debug, Clone)]
 pub struct ElectionCountSelectionBuilder {
     selection_type: Option<ElectionCountSelectionType>,
+    previous_valid_votes: Option<StringValue<u64>>,
     valid_votes: Option<StringValue<u64>>,
     value: Option<Box<str>>,
     category: Option<Box<str>>,
@@ -1671,6 +1995,7 @@ impl ElectionCountSelectionBuilder {
     pub fn new() -> Self {
         Self {
             selection_type: None,
+            previous_valid_votes: None,
             valid_votes: None,
             value: None,
             category: None,
@@ -1704,6 +2029,21 @@ impl ElectionCountSelectionBuilder {
         self
     }
 
+    /// Set the previous valid votes for the election count selection.
+    pub fn previous_valid_votes(mut self, previous_valid_votes: impl Into<u64>) -> Self {
+        self.previous_valid_votes = Some(StringValue::from_value(previous_valid_votes.into()));
+        self
+    }
+
+    /// Optionally set the previous valid votes option for the election count selection.
+    pub fn previous_valid_votes_option(
+        mut self,
+        previous_valid_votes: Option<impl Into<u64>>,
+    ) -> Self {
+        self.previous_valid_votes = previous_valid_votes.map(|v| StringValue::from_value(v.into()));
+        self
+    }
+
     /// Set the number of valid votes for the election count selection.
     pub fn valid_votes(mut self, valid_votes: impl Into<u64>) -> Self {
         self.valid_votes = Some(StringValue::from_value(valid_votes.into()));
@@ -1728,6 +2068,7 @@ impl ElectionCountSelectionBuilder {
             selection_type: self.selection_type.ok_or_else(|| {
                 EMLErrorKind::MissingBuildProperty("selection_type").without_span()
             })?,
+            previous_valid_votes: self.previous_valid_votes,
             valid_votes: self
                 .valid_votes
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("valid_votes").without_span())?,
@@ -1746,6 +2087,9 @@ impl Default for ElectionCountSelectionBuilder {
 const VALID_VOTES_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("ValidVotes", Some(NS_EML));
 
+const PREVIOUS_VALID_VOTES_EML_NAME: QualifiedName<'_, '_> =
+    QualifiedName::from_static("PreviousValidVotes", Some(NS_KR));
+
 impl EMLElement for ElectionCountSelection {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Selection", Some(NS_EML));
 
@@ -1754,6 +2098,7 @@ impl EMLElement for ElectionCountSelection {
         let category = elem.attribute_value("Category")?.map(|s| s.into());
         let mut selection_type = None;
         let mut valid_votes = None;
+        let mut previous_valid_votes = None;
 
         while let Some(mut child) = elem.next_child()? {
             let name = child.name()?;
@@ -1774,6 +2119,18 @@ impl EMLElement for ElectionCountSelection {
                         ReferendumOptionSelection::read_eml(&mut child)?,
                     )));
                 }
+                n if n == PREVIOUS_VALID_VOTES_EML_NAME => {
+                    if !EMLVersionRange::since(EMLVersion::V1_3_1)
+                        .contains(child.document_version())
+                    {
+                        return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                            PREVIOUS_VALID_VOTES_EML_NAME.as_owned(),
+                            child.document_version(),
+                        )
+                        .with_span(child.span()));
+                    }
+                    previous_valid_votes = Some(child.string_value()?);
+                }
                 n if n == VALID_VOTES_EML_NAME => {
                     valid_votes = Some(child.string_value()?);
                 }
@@ -1793,6 +2150,7 @@ impl EMLElement for ElectionCountSelection {
         Ok(ElectionCountSelection {
             selection_type: selection_type
                 .ok_or_else(|| EMLErrorKind::MissingSelectionType.with_span(elem.inner_span()))?,
+            previous_valid_votes,
             valid_votes: valid_votes.ok_or_else(|| {
                 EMLErrorKind::MissingElement(VALID_VOTES_EML_NAME.as_owned())
                     .with_span(elem.inner_span())
@@ -1821,9 +2179,21 @@ impl EMLElement for ElectionCountSelection {
                 )?,
         };
         writer
-            .child(("ValidVotes", NS_EML), |elem| {
+            .child_option_version(
+                PREVIOUS_VALID_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_valid_votes.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child(VALID_VOTES_EML_NAME, |elem| {
                 elem.text(self.valid_votes.raw().as_ref())?.finish()
             })?
+            .child_option_version(
+                PREVIOUS_VALID_VOTES_EML_NAME,
+                EMLVersionRange::since(EMLVersion::V1_3_1),
+                self.previous_valid_votes.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
             .finish()
     }
 }
