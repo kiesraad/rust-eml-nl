@@ -1,4 +1,7 @@
-use crate::{EMLError, EMLErrorKind, NS_KR, io::QualifiedName};
+use crate::{
+    EMLError, EMLErrorKind, NS_KR,
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+};
 
 /// Describes the EML_NL version of the EML standard.
 ///
@@ -50,6 +53,31 @@ impl EMLVersion {
     /// Returns `true` if this is a legacy unversioned EML_NL document.
     pub fn is_v1_2_2(&self) -> bool {
         matches!(self, EMLVersion::V1_2_2)
+    }
+}
+
+impl EMLElement for EMLVersion {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Schema", Some(NS_KR));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        // we only do the version check during reading
+
+        let version = elem.attribute_value_req("Version")?;
+        Ok(version.parse()?)
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        if self.is_v1_2_2() {
+            // don't write if the version is 1.2.2
+            return Ok(());
+        }
+        writer
+            .attr(
+                "Version",
+                self.to_str()
+                    .expect("Version is not 1.2.2, so should have version string"),
+            )?
+            .empty()
     }
 }
 

@@ -298,7 +298,7 @@ impl EMLElement for CandidateLists {
             .map_err(|e| e.into_kind().with_span(elem.span()))?;
 
         Ok(collect_struct!(elem, CandidateLists {
-            version: elem.document_version(),
+            version as Default(EMLVersion::V1_2_2): EMLVersion::EML_NAME => |elem| elem.read_element::<EMLVersion>()?,
             lists_type: candidate_lists_type,
             transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,

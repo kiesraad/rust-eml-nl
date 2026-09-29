@@ -292,7 +292,7 @@ impl EMLElement for Nomination {
         }
 
         Ok(collect_struct!(elem, Nomination {
-            version: elem.document_version(),
+            version as Default(EMLVersion::V1_2_2): EMLVersion::EML_NAME => |elem| elem.read_element::<EMLVersion>()?,
             transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
             managing_authority as Option: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
             issue_date: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
