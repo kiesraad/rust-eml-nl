@@ -653,7 +653,14 @@ impl EMLElement for NominationCandidate {
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
 
-        if nomination_candidate.gender.is_some() && nomination_candidate.gender_annex.is_some() {}
+        if nomination_candidate.gender.is_some() && nomination_candidate.gender_annex.is_some() {
+            let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
 
         Ok(nomination_candidate)
     }
@@ -1082,14 +1089,14 @@ impl EMLElement for NominationProposer {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU64;
+    use std::{assert_matches, num::NonZeroU64};
 
     use chrono::{NaiveDate, NaiveDateTime};
 
     use super::*;
     use crate::{
         common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        io::{EMLParsingMode, EMLRead as _, EMLReadResult, EMLWrite as _},
         utils::{
             AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
             ElectionDomainId, ElectionId, ElectionSubcategory, Gender, StringValue, XsDate,
@@ -1325,6 +1332,19 @@ mod tests {
         assert_eq!(
             NominationJobTitle::DeputyCombinationRepresentative.to_eml_value(),
             "plaatsvervanger voor het aangaan van lijstencombinaties"
+        );
+    }
+
+    #[test]
+    fn test_gender_and_gender_annex_fails() {
+        let doc = include_str!("../../test-files/nomination/eml210_test_gender_and_annex.eml.xml");
+        let result = Nomination::parse_eml(doc, EMLParsingMode::Strict);
+        assert_matches!(
+            result,
+            EMLReadResult::Err(EMLError::Positioned {
+                kind: EMLErrorKind::InvalidGenderElement,
+                ..
+            })
         );
     }
 }

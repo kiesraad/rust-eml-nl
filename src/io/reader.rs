@@ -42,6 +42,7 @@ pub trait EMLRead {
 
 /// The result of reading an EML document, which may include non-fatal errors.
 #[must_use]
+#[derive(Debug)]
 pub enum EMLReadResult<T> {
     /// The document was parsed successfully, with optional non-fatal errors.
     Ok(T, Vec<EMLError>),

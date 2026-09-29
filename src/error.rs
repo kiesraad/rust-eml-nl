@@ -177,6 +177,10 @@ pub enum EMLErrorKind {
     #[error("Could not find a candidate for affiliation id {0} and candidate id {1}")]
     UnknownCandidate(AffiliationId, CandidateId),
 
+    /// Found both Gender and GenderAnnex
+    #[error("Found both Gender and GenderAnnex elements. Prefer GenderAnnex")]
+    InvalidGenderElement,
+
     /// Could not find an affiliation for the given affiliation id.
     #[error("Could not find an affiliation for affiliation id {0}")]
     UnknownAffiliation(AffiliationId),
