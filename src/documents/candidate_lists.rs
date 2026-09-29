@@ -1077,8 +1077,8 @@ impl EMLElement for CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
-            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
+            gender as Option: Gender::EML_NAME => |elem| elem.read_element::<Gender>()?,
+            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.read_element::<GenderAnnex>()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
         }))
     }
