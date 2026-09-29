@@ -2570,6 +2570,8 @@ impl EMLElement for ReferendumOptionSelection {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use chrono::{NaiveDate, TimeZone as _};
 
     use crate::{
@@ -2843,6 +2845,42 @@ mod tests {
                 )
                 .unwrap(),
             0
+        );
+    }
+
+    #[test]
+    fn test_election_count_1_2_2_with_previous_values_errors() {
+        let xml = include_str!(
+            "../../test-files/election_count/deserialize_eml510b_test_1_2_2_with_previous_values.eml.xml"
+        );
+        let error = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        let kind = error.kind();
+
+        assert_matches!(kind, EMLErrorKind::ElementNotSupportedInVersion(_, _))
+    }
+
+    #[test]
+    fn test_election_count_1_3_1_with_previous_values_works() {
+        let xml = include_str!(
+            "../../test-files/election_count/deserialize_eml510b_test_1_3_1_with_previous_values.eml.xml"
+        );
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        assert_eq!(
+            eml.count.election.contests[0]
+                .total_votes
+                .as_ref()
+                .unwrap()
+                .previous_candidate_votes_count
+                .as_ref()
+                .unwrap()
+                .copied_value()
+                .unwrap(),
+            99
         );
     }
 }
