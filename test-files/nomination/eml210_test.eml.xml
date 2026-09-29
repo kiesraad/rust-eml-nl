@@ -52,7 +52,7 @@
           </xnl:PersonName>
         </CandidateFullName>
         <DateOfBirth>1990-07-22</DateOfBirth>
-        <kr:GenderAnnex>female</kr:GenderAnnex>
+        <Gender>female</Gender>
         <QualifyingAddress>
           <xal:Country>
             <xal:CountryNameCode>NL</xal:CountryNameCode>
@@ -81,7 +81,6 @@
           <kr:LivingAddress>
             <kr:LocalityName>Den Haag</kr:LocalityName>
           </kr:LivingAddress>
-          <kr:GenderAnnex>other</kr:GenderAnnex>
         </Agent>
         <kr:DateOfBirthAnnex>XX-07-1990</kr:DateOfBirthAnnex>
         <kr:NationalIdentificationNumber>123456789</kr:NationalIdentificationNumber>

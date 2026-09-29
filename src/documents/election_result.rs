@@ -936,8 +936,8 @@ impl EMLElement for CandidateSelection {
         Ok(collect_struct!(elem, CandidateSelection {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
-            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddress>()?,
         }))
     }
@@ -948,11 +948,13 @@ impl EMLElement for CandidateSelection {
             .child(("CandidateFullName", NS_EML), |elem| {
                 self.name.write_eml_element(elem)
             })?
-            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
             .child_option(
-                GenderAnnex::EML_NAME,
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
                 self.gender_annex.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?

@@ -644,8 +644,8 @@ impl EMLElement for NominationCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: Gender::EML_NAME => |elem| elem.string_value()?,
-            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.string_value()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
             contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
             agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
@@ -676,11 +676,13 @@ impl EMLElement for NominationCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
             .child_option(
-                GenderAnnex::EML_NAME,
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
                 self.gender_annex.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
@@ -1173,8 +1175,8 @@ mod tests {
                         date_of_birth: Some(StringValue::from_value(
                             XsDate::from_date(1990, 7, 22).unwrap(),
                         )),
-                        gender: None,
-                        gender_annex: Some(StringValue::from_value(GenderAnnex::Female)),
+                        gender: Some(StringValue::from_value(Gender::Female)),
+                        gender_annex: None,
                         qualifying_address: QualifyingAddress::Country(
                             QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
                         ),

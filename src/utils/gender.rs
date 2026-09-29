@@ -3,7 +3,7 @@ use thiserror::Error;
 use crate::{
     EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_EML, NS_KR,
     io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
-    utils::StringValueData,
+    utils::{StringValue, StringValueData},
 };
 
 /// Gender of a candidate. Differentiates from Gender on the `Other` variant, where gender has `Unknown`.
@@ -45,17 +45,16 @@ impl GenderAnnex {
     }
 }
 
-impl EMLElement for GenderAnnex {
+impl EMLElement for StringValue<GenderAnnex> {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("GenderAnnex", Some(NS_KR));
     const EML_VERSIONS: EMLVersionRange = EMLVersionRange::since(EMLVersion::V1_3);
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let gender_annex = elem.string_value::<Self>()?;
-        Ok(GenderAnnex::from_eml_value(gender_annex.raw())?)
+        elem.string_value()
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("GenderAnnex", &self.to_raw_value())?.empty()
+        writer.text(&self.raw())?.finish()
     }
 }
 
@@ -138,20 +137,16 @@ impl StringValueData for Gender {
     }
 }
 
-impl EMLElement for Gender {
+impl EMLElement for StringValue<Gender> {
     const EML_NAME: QualifiedName<'static, 'static> =
         QualifiedName::from_static("Gender", Some(NS_EML));
 
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError>
-    where
-        Self: Sized,
-    {
-        let gender = elem.string_value::<Self>()?;
-        Ok(Gender::from_eml_value(gender.raw())?)
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        elem.string_value::<Gender>()
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer.attr("Gender", &self.to_raw_value())?.empty()
+        writer.text(&self.raw())?.finish()
     }
 }
 

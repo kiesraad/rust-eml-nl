@@ -9,10 +9,7 @@ use crate::{
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
         LocalityName, ManagingAuthority, PersonNameStructure, TransactionId,
     },
-    documents::{
-        ElectionIdentifierBuilder, validate_category_and_subcategory,
-        validate_election_and_nomination_dates,
-    },
+    documents::ElectionIdentifierBuilder,
     error::EMLErrorKind,
     io::{
         EMLDocument, EMLElement, EMLElementReader, EMLElementWriter, EMLReadElement as _,
@@ -1077,8 +1074,8 @@ impl EMLElement for CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: Gender::EML_NAME => |elem| elem.read_element::<Gender>()?,
-            gender_annex as Option: GenderAnnex::EML_NAME => |elem| elem.read_element::<GenderAnnex>()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
         }))
     }
@@ -1094,11 +1091,13 @@ impl EMLElement for CandidateListsCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child_option(Gender::EML_NAME, self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
             .child_option(
-                GenderAnnex::EML_NAME,
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
                 self.gender_annex.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
