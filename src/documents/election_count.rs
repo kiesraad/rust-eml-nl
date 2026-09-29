@@ -17,7 +17,7 @@ use crate::{
     },
     utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        GenderAnnex, StringValue, XsDate, XsDateTime,
+(??)        GenderAnnex, ReportingUnitType, StringValue, XsDate, XsDateTime,
     },
 };
 
@@ -1138,6 +1138,12 @@ pub struct ReportingUnitVotes {
     /// Identifier for the reporting unit votes.
     pub identifier: ReportingUnitIdentifier,
 
+    /// The type of the reporting unit (fixed, mobile, special)
+    pub reporting_unit_type: Option<StringValue<ReportingUnitType>>,
+
+    /// Whether the reporting unit shares a location with other reporting units.
+    pub shared_location: Option<bool>,
+
     /// Selections within the reporting unit votes.
     pub selections: Vec<ElectionCountSelection>,
 
@@ -1397,6 +1403,8 @@ fn find_affiliation_valid_votes(
 #[derive(Debug, Clone)]
 pub struct ReportingUnitVotesBuilder {
     identifier: Option<ReportingUnitIdentifier>,
+    reporting_unit_type: Option<StringValue<ReportingUnitType>>,
+    shared_location: Option<bool>,
     selections: Vec<ElectionCountSelection>,
     previous_eligible_voter_count: Option<StringValue<u64>>,
     eligible_voter_count: Option<StringValue<u64>>,
@@ -1414,6 +1422,8 @@ impl ReportingUnitVotesBuilder {
     pub fn new() -> Self {
         Self {
             identifier: None,
+            reporting_unit_type: None,
+            shared_location: None,
             selections: vec![],
             previous_eligible_voter_count: None,
             eligible_voter_count: None,
@@ -1430,6 +1440,36 @@ impl ReportingUnitVotesBuilder {
     /// Set the identifier for the reporting unit votes.
     pub fn identifier(mut self, identifier: impl Into<ReportingUnitIdentifier>) -> Self {
         self.identifier = Some(identifier.into());
+        self
+    }
+
+    /// Set the reporting unit type for the reporting unit votes.
+    pub fn reporting_unit_type(
+        mut self,
+        reporting_unit_type: impl Into<ReportingUnitType>,
+    ) -> Self {
+        self.reporting_unit_type = Some(StringValue::from_value(reporting_unit_type.into()));
+        self
+    }
+
+    /// Optionally set the reporting unit type for the reporting unit votes.
+    pub fn reporting_unit_type_option(
+        mut self,
+        reporting_unit_type: Option<impl Into<ReportingUnitType>>,
+    ) -> Self {
+        self.reporting_unit_type = reporting_unit_type.map(|t| StringValue::from_value(t.into()));
+        self
+    }
+
+    /// Set the shared location for the reporting unit votes.
+    pub fn shared_location(mut self, shared_location: bool) -> Self {
+        self.shared_location = Some(shared_location);
+        self
+    }
+
+    /// Optionally set the shared location for the reporting unit votes.
+    pub fn shared_location_option(mut self, shared_location: Option<bool>) -> Self {
+        self.shared_location = shared_location;
         self
     }
 
@@ -1548,6 +1588,8 @@ impl ReportingUnitVotesBuilder {
             identifier: self
                 .identifier
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?,
+            reporting_unit_type: self.reporting_unit_type,
+            shared_location: self.shared_location,
             selections: self.selections,
             previous_eligible_voter_count: self.previous_eligible_voter_count,
             eligible_voter_count: self.eligible_voter_count.ok_or_else(|| {
@@ -1585,6 +1627,8 @@ impl EMLElement for ReportingUnitVotes {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         struct ReportingUnitVotesInternal {
             identifier: ReportingUnitIdentifier,
+            reporting_unit_type: Option<StringValue<ReportingUnitType>>,
+            shared_location: Option<bool>,
             selections: Vec<ElectionCountSelection>,
             previous_eligible_voter_count: Option<StringValue<u64>>,
             eligible_voter_count: StringValue<u64>,
@@ -1599,6 +1643,8 @@ impl EMLElement for ReportingUnitVotes {
 
         let data = collect_struct!(elem, ReportingUnitVotesInternal {
             identifier: ReportingUnitIdentifier::EML_NAME => |elem| elem.read_element::<ReportingUnitIdentifier>()?,
+            reporting_unit_type as Option: StringValue::<ReportingUnitType>::EML_NAME => |elem| elem.read_element::<StringValue<ReportingUnitType>>()?,
+            shared_location as Option: ("SharedLocation", NS_KR); EMLVersionRange::since(EMLVersion::V1_3) => |elem| elem.read_bool()?,
             selections as Vec: ElectionCountSelection::EML_NAME => |elem| elem.read_element::<ElectionCountSelection>()?,
             previous_eligible_voter_count as Option: PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME; EMLVersionRange::since(EMLVersion::V1_3_1) => |elem| elem.string_value()?,
             eligible_voter_count: ELIGIBLE_VOTER_COUNT_EML_NAME => |elem| elem.string_value()?,
@@ -1677,6 +1723,8 @@ impl EMLElement for ReportingUnitVotes {
 
         Ok(ReportingUnitVotes {
             identifier: data.identifier,
+            reporting_unit_type: data.reporting_unit_type,
+            shared_location: data.shared_location,
             selections: data.selections,
             previous_eligible_voter_count: data.previous_eligible_voter_count,
             eligible_voter_count: data.eligible_voter_count,
@@ -1693,6 +1741,16 @@ impl EMLElement for ReportingUnitVotes {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(ReportingUnitIdentifier::EML_NAME, &self.identifier)?
+            .child_elem_option(
+                StringValue::<ReportingUnitType>::EML_NAME,
+                self.reporting_unit_type.as_ref(),
+            )?
+            .child_option_version(
+                ("SharedLocation", NS_KR),
+                EMLVersionRange::since(EMLVersion::V1_3),
+                self.shared_location,
+                |elem, value| elem.bool(value),
+            )?
             .child_elems(ElectionCountSelection::EML_NAME, &self.selections)?
             .child_option_version(
                 PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME,

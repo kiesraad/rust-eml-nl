@@ -8,7 +8,7 @@ use thiserror::Error;
 pub use location::*;
 
 use crate::{
-    EMLError, EMLValueResultExt, EMLVersion, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
+    EMLError, EMLValueResultExt, EMLVersion, EMLVersionRange, NS_EML, NS_KR, NS_SB, NS_XAL, NS_XNL,
     OASIS_EML_SCHEMA_VERSION,
     common::{
         CanonicalizationMethod, ContestIdentifier, ContestIdentifierGeen, CreationDateTime,
@@ -22,8 +22,8 @@ use crate::{
         QualifiedName, collect_struct,
     },
     utils::{
-        ElectionCategory, ElectionId, ElectionSubcategory, StringValue, StringValueData,
-        VotingChannelType, VotingMethod, XsDate, XsDateOrDateTime, XsDateTime,
+        ElectionCategory, ElectionId, ElectionSubcategory, ReportingUnitType, StringValue,
+        StringValueData, VotingChannelType, VotingMethod, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -927,6 +927,8 @@ pub struct PollingPlaceBuilder {
     polling_station_data: Option<Box<str>>,
     locality_name: Option<LocalityName>,
     postal_code: Option<PostalCode>,
+    reporting_unit_type: Option<StringValue<ReportingUnitType>>,
+    shared_location: Option<bool>,
 }
 
 impl PollingPlaceBuilder {
@@ -938,6 +940,8 @@ impl PollingPlaceBuilder {
             polling_station_data: None,
             locality_name: None,
             postal_code: None,
+            reporting_unit_type: None,
+            shared_location: None,
         }
     }
 
@@ -971,6 +975,36 @@ impl PollingPlaceBuilder {
         self
     }
 
+    /// Set the reporting unit type of the polling place.
+    pub fn reporting_unit_type(
+        mut self,
+        reporting_unit_type: impl Into<ReportingUnitType>,
+    ) -> Self {
+        self.reporting_unit_type = Some(StringValue::from_value(reporting_unit_type.into()));
+        self
+    }
+
+    /// Optionally set the reporting unit type of the polling place.
+    pub fn reporting_unit_type_option(
+        mut self,
+        reporting_unit_type: Option<impl Into<ReportingUnitType>>,
+    ) -> Self {
+        self.reporting_unit_type = reporting_unit_type.map(|t| StringValue::from_value(t.into()));
+        self
+    }
+
+    /// Set the shared location of the polling place.
+    pub fn shared_location(mut self, shared_location: impl Into<bool>) -> Self {
+        self.shared_location = Some(shared_location.into());
+        self
+    }
+
+    /// Optionally set the shared location of the polling place.
+    pub fn shared_location_option(mut self, shared_location: Option<impl Into<bool>>) -> Self {
+        self.shared_location = shared_location.map(|t| t.into());
+        self
+    }
+
     /// Build the [`PollingPlace`], returning any errors if required fields are missing.
     pub fn build(self) -> Result<PollingPlace, EMLError> {
         Ok(PollingPlace {
@@ -995,6 +1029,8 @@ impl PollingPlaceBuilder {
                         EMLErrorKind::MissingBuildProperty("polling_station_data").without_span(),
                     )?,
                 },
+                reporting_unit_type: self.reporting_unit_type,
+                shared_location: self.shared_location,
             },
         })
     }
@@ -1033,6 +1069,12 @@ pub struct PhysicalLocation {
 
     /// Polling station information of the physical location.
     pub polling_station: PhysicalLocationPollingStation,
+
+    /// Type of reporting unit.
+    pub reporting_unit_type: Option<StringValue<ReportingUnitType>>,
+
+    /// Whether the physical location is shared with other reporting units.
+    pub shared_location: Option<bool>,
 }
 
 impl EMLElement for PhysicalLocation {
@@ -1043,6 +1085,8 @@ impl EMLElement for PhysicalLocation {
         Ok(collect_struct!(elem, PhysicalLocation {
             address: PhysicalLocationAddress::EML_NAME => |elem| elem.read_element::<PhysicalLocationAddress>()?,
             polling_station: PhysicalLocationPollingStation::EML_NAME => |elem| elem.read_element::<PhysicalLocationPollingStation>()?,
+            reporting_unit_type as Option: StringValue::<ReportingUnitType>::EML_NAME => |elem| elem.read_element::<StringValue<ReportingUnitType>>()?,
+            shared_location as Option: ("SharedLocation", NS_KR); EMLVersionRange::since(EMLVersion::V1_3) => |elem| elem.read_bool()?,
         }))
     }
 
@@ -1052,6 +1096,16 @@ impl EMLElement for PhysicalLocation {
             .child_elem(
                 PhysicalLocationPollingStation::EML_NAME,
                 &self.polling_station,
+            )?
+            .child_elem_option(
+                StringValue::<ReportingUnitType>::EML_NAME,
+                self.reporting_unit_type.as_ref(),
+            )?
+            .child_option_version(
+                ("SharedLocation", NS_KR),
+                EMLVersionRange::since(EMLVersion::V1_3),
+                self.shared_location,
+                |writer, value| writer.bool(value),
             )?
             .finish()
     }
