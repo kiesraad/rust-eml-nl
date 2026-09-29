@@ -1915,14 +1915,16 @@ mod tests {
 
     #[test]
     fn test_invalid_incorrect_election_date() {
-        assert!(CandidateLists::parse_eml(
-            include_str!(
-                "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
-            ),
-            EMLParsingMode::Strict
-        )
-        .ok_with_errors()
-        .is_err());
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230b_invalid_incorrect_election_date.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
     }
 
     #[test]
