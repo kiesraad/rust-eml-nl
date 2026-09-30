@@ -17,7 +17,7 @@ pub enum EMLVersion {
     /// An EML_NL version 1.3 document
     V1_3,
 
-    /// AN EML_NL version 1.3.1 document
+    /// An EML_NL version 1.3.1 document
     #[default]
     V1_3_1,
 }

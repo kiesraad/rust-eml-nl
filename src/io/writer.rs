@@ -6,7 +6,8 @@ use quick_xml::{
 };
 
 use crate::{
-    EMLError, EMLErrorKind, EMLResultExt, EMLVersion, NS_EML, NS_KR, NS_XAL, NS_XNL,
+    EMLError, EMLErrorKind, EMLResultExt, EMLVersion, EMLVersionRange, NS_EML, NS_KR, NS_XAL,
+    NS_XNL,
     io::{EMLDocument, EMLElement, QualifiedName},
 };
 
@@ -256,6 +257,24 @@ impl<'a> EMLElementContentWriter<'a> {
         }
     }
 
+    pub fn child_option_version<'b, 'c, T>(
+        self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        version_range: EMLVersionRange,
+        value: Option<T>,
+        child_writer: impl FnOnce(EMLElementWriter, T) -> Result<(), EMLError>,
+    ) -> Result<Self, EMLError> {
+        let name = name.into();
+        if value.is_some() && !version_range.contains(self.writer.version) {
+            return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                name.as_owned(),
+                self.writer.version,
+            )
+            .without_span());
+        }
+        self.child_option(name, value, child_writer)
+    }
+
     pub fn child_elem<'b, 'c>(
         self,
         name: impl Into<QualifiedName<'b, 'c>>,
@@ -294,6 +313,27 @@ impl<'a> EMLElementContentWriter<'a> {
     ) -> Result<EMLElementContentWriter<'a>, EMLError> {
         let name = name.into();
         for child in children {
+            self = self.child(name.clone(), |writer| child_map(writer, child))?;
+        }
+        Ok(self)
+    }
+
+    pub fn child_elems_map_version<'b, 'c, T>(
+        mut self,
+        name: impl Into<QualifiedName<'b, 'c>>,
+        version_range: EMLVersionRange,
+        children: impl IntoIterator<Item = T>,
+        child_map: impl Fn(EMLElementWriter, T) -> Result<(), EMLError>,
+    ) -> Result<EMLElementContentWriter<'a>, EMLError> {
+        let name = name.into();
+        for child in children {
+            if !version_range.contains(self.writer.version) {
+                return Err(EMLErrorKind::ElementNotSupportedInVersion(
+                    name.as_owned(),
+                    self.writer.version,
+                )
+                .without_span());
+            }
             self = self.child(name.clone(), |writer| child_map(writer, child))?;
         }
         Ok(self)
