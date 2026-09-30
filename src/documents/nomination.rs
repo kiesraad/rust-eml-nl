@@ -18,7 +18,7 @@ use crate::{
     },
     utils::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
+        GenderAnnex, StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -615,7 +615,10 @@ pub struct NominationCandidate {
     pub date_of_birth: Option<StringValue<XsDate>>,
 
     /// The gender of the candidate (required in 210).
-    pub gender: StringValue<Gender>,
+    pub gender: Option<StringValue<Gender>>,
+
+    /// The gender of the candidate (required in 210).
+    pub gender_annex: Option<StringValue<GenderAnnex>>,
 
     /// The qualifying address of the candidate (required in 210).
     pub qualifying_address: QualifyingAddress,
@@ -637,17 +640,29 @@ impl EMLElement for NominationCandidate {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationCandidate {
+        let nomination_candidate = collect_struct!(elem, NominationCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
             contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
             agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
-        }))
+        });
+
+        if nomination_candidate.gender.is_some() && nomination_candidate.gender_annex.is_some() {
+            let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
+
+        Ok(nomination_candidate)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -661,9 +676,16 @@ impl EMLElement for NominationCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child(("Gender", NS_EML), |elem| {
-                elem.text(self.gender.raw().as_ref())?.finish()
-            })?
+            .child_option(
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
+                self.gender_annex.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elem(QualifyingAddress::EML_NAME, &self.qualifying_address)?
             .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
             .child_elem_option(NominationAgent::EML_NAME, self.agent.as_ref())?
@@ -1069,14 +1091,14 @@ impl EMLElement for NominationProposer {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU64;
+    use std::{assert_matches, num::NonZeroU64};
 
     use chrono::{NaiveDate, NaiveDateTime};
 
     use super::*;
     use crate::{
         common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
-        io::{EMLParsingMode, EMLRead as _, EMLWrite as _},
+        io::{EMLParsingMode, EMLRead as _, EMLReadResult, EMLWrite as _},
         utils::{
             AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
             ElectionDomainId, ElectionId, ElectionSubcategory, Gender, StringValue, XsDate,
@@ -1132,7 +1154,8 @@ mod tests {
                         date_of_birth: Some(StringValue::from_value(
                             XsDate::from_date(1980, 1, 15).unwrap(),
                         )),
-                        gender: StringValue::from_value(Gender::Male),
+                        gender: Some(StringValue::from_value(Gender::Male)),
+                        gender_annex: None,
                         qualifying_address: QualifyingAddress::Locality(
                             QualifyingAddressLocality::new("Amsterdam"),
                         ),
@@ -1152,7 +1175,8 @@ mod tests {
                         date_of_birth: Some(StringValue::from_value(
                             XsDate::from_date(1990, 7, 22).unwrap(),
                         )),
-                        gender: StringValue::from_value(Gender::Female),
+                        gender: Some(StringValue::from_value(Gender::Female)),
+                        gender_annex: None,
                         qualifying_address: QualifyingAddress::Country(
                             QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
                         ),
@@ -1310,6 +1334,19 @@ mod tests {
         assert_eq!(
             NominationJobTitle::DeputyCombinationRepresentative.to_eml_value(),
             "plaatsvervanger voor het aangaan van lijstencombinaties"
+        );
+    }
+
+    #[test]
+    fn test_gender_and_gender_annex_fails() {
+        let doc = include_str!("../../test-files/nomination/eml210_test_gender_and_annex.eml.xml");
+        let result = Nomination::parse_eml(doc, EMLParsingMode::Strict);
+        assert_matches!(
+            result,
+            EMLReadResult::Err(EMLError::Positioned {
+                kind: EMLErrorKind::InvalidGenderElement,
+                ..
+            })
         );
     }
 }

@@ -1,6 +1,77 @@
 use thiserror::Error;
 
-use crate::{EMLError, EMLValueResultExt as _, utils::StringValueData};
+use crate::{
+    EMLError, EMLValueResultExt as _, EMLVersion, EMLVersionRange, NS_EML, NS_KR,
+    io::{EMLElement, EMLElementReader, EMLElementWriter, QualifiedName},
+    utils::{StringValue, StringValueData},
+};
+
+/// Gender of a candidate. Differentiates from Gender on the `Other` variant, where gender has `Unknown`.
+/// Prefer using this over the original 'Gender' element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GenderAnnex {
+    /// Male gender
+    Male,
+    /// Female gender
+    Female,
+    /// Other gender
+    Other,
+}
+
+impl GenderAnnex {
+    /// Create a new Gender from a string, validating its format.
+    pub fn new(s: impl AsRef<str>) -> Result<Self, EMLError> {
+        Self::from_eml_value(s).wrap_value_error()
+    }
+
+    /// Create a Gender from a `&str`, if possible.
+    pub fn from_eml_value(s: impl AsRef<str>) -> Result<Self, UnknownGenderError> {
+        let data = s.as_ref();
+        match data {
+            "male" => Ok(GenderAnnex::Male),
+            "female" => Ok(GenderAnnex::Female),
+            "other" => Ok(GenderAnnex::Other),
+            _ => Err(UnknownGenderError(data.to_string())),
+        }
+    }
+
+    /// Get the `&str` representation of this Gender.
+    pub fn to_eml_value(&self) -> &'static str {
+        match self {
+            GenderAnnex::Male => "male",
+            GenderAnnex::Female => "female",
+            GenderAnnex::Other => "other",
+        }
+    }
+}
+
+impl EMLElement for StringValue<GenderAnnex> {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("GenderAnnex", Some(NS_KR));
+    const EML_VERSIONS: EMLVersionRange = EMLVersionRange::since(EMLVersion::V1_3);
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        elem.string_value()
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.text(&self.raw())?.finish()
+    }
+}
+
+impl StringValueData for GenderAnnex {
+    type Error = UnknownGenderError;
+
+    fn parse_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        Self::from_eml_value(s)
+    }
+
+    fn to_raw_value(&self) -> Box<str> {
+        self.to_eml_value().into()
+    }
+}
 
 /// Gender of a candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -63,6 +134,19 @@ impl StringValueData for Gender {
 
     fn to_raw_value(&self) -> Box<str> {
         self.to_eml_value().into()
+    }
+}
+
+impl EMLElement for StringValue<Gender> {
+    const EML_NAME: QualifiedName<'static, 'static> =
+        QualifiedName::from_static("Gender", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        elem.string_value::<Gender>()
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer.text(&self.raw())?.finish()
     }
 }
 

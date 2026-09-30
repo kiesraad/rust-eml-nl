@@ -17,7 +17,7 @@ use crate::{
     },
     utils::{
         AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        PublicationLanguage, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
+        GenderAnnex, PublicationLanguage, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -963,7 +963,12 @@ pub struct CandidateListsCandidate {
     pub date_of_birth: Option<StringValue<XsDate>>,
 
     /// The gender of the candidate, if present.
+    /// Prefer using `gender_annex`.
     pub gender: Option<StringValue<Gender>>,
+
+    /// The gender_annex of the candidate, if present.
+    /// Prefer this over `gender`
+    pub gender_annex: Option<StringValue<GenderAnnex>>,
 
     /// The qualifying address of the candidate.
     pub qualifying_address: Option<QualifyingAddress>,
@@ -982,6 +987,7 @@ pub struct CandidateListsCandidateBuilder {
     identifier: Option<CandidateIdentifier>,
     date_of_birth: Option<XsDate>,
     gender: Option<Gender>,
+    gender_annex: Option<GenderAnnex>,
     full_name: Option<PersonNameStructure>,
     qualifying_address: Option<QualifyingAddress>,
 }
@@ -993,6 +999,7 @@ impl CandidateListsCandidateBuilder {
             identifier: None,
             date_of_birth: None,
             gender: None,
+            gender_annex: None,
             full_name: None,
             qualifying_address: None,
         }
@@ -1013,6 +1020,12 @@ impl CandidateListsCandidateBuilder {
     /// Set the gender for the candidate.
     pub fn gender(mut self, gender: impl Into<Gender>) -> Self {
         self.gender = Some(gender.into());
+        self
+    }
+
+    /// Set the gender_annex for the candidate.
+    pub fn gender_annex(mut self, gender_annex: impl Into<GenderAnnex>) -> Self {
+        self.gender_annex = Some(gender_annex.into());
         self
     }
 
@@ -1039,6 +1052,7 @@ impl CandidateListsCandidateBuilder {
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("full_name").without_span())?,
             date_of_birth: self.date_of_birth.map(StringValue::from_value),
             gender: self.gender.map(StringValue::from_value),
+            gender_annex: self.gender_annex.map(StringValue::from_value),
             qualifying_address: self.qualifying_address,
         })
     }
@@ -1056,13 +1070,25 @@ impl EMLElement for CandidateListsCandidate {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         // TODO: parse Contact, Agent, kr:DateOfBirthAnnex and kr:NationalIdentificationNumber when present
 
-        Ok(collect_struct!(elem, CandidateListsCandidate {
+        let clc = collect_struct!(elem, CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
-        }))
+        });
+
+        if clc.gender.is_some() && clc.gender_annex.is_some() {
+            let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
+
+        Ok(clc)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -1076,9 +1102,16 @@ impl EMLElement for CandidateListsCandidate {
                 self.date_of_birth.as_ref(),
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
+            .child_option(
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
+                self.gender_annex.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elem_option(
                 QualifyingAddress::EML_NAME,
                 self.qualifying_address.as_ref(),

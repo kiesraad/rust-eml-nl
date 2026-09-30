@@ -15,8 +15,8 @@ use crate::{
         EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
-        AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, StringValue,
-        StringValueData, XsDate, XsDateTime,
+        AffiliationId, ElectionCategory, ElectionId, ElectionSubcategory, Gender, GenderAnnex,
+        StringValue, StringValueData, XsDate, XsDateTime,
     },
 };
 
@@ -794,8 +794,11 @@ pub struct CandidateSelection {
     /// Name of the candidate.
     pub name: PersonNameStructure,
 
-    /// Gender of the candidate.
+    /// Gender of the candidate. Prefer using `GenderAnnex`.
     pub gender: Option<StringValue<Gender>>,
+
+    /// Gender of the candidate. Prefer using this over `Gender`.
+    pub gender_annex: Option<StringValue<GenderAnnex>>,
 
     /// The minimal qualifying address of the candidate, if present.
     pub qualifying_address: MinimalQualifyingAddress,
@@ -814,6 +817,7 @@ pub struct CandidateSelectionBuilder {
     identifier: Option<CandidateIdentifier>,
     name: Option<PersonNameStructure>,
     gender: Option<StringValue<Gender>>,
+    gender_annex: Option<StringValue<GenderAnnex>>,
     qualifying_address: Option<MinimalQualifyingAddress>,
     locality_name: Option<Box<str>>,
     country_name_code: Option<Box<str>>,
@@ -826,6 +830,7 @@ impl CandidateSelectionBuilder {
             identifier: None,
             name: None,
             gender: None,
+            gender_annex: None,
             qualifying_address: None,
             locality_name: None,
             country_name_code: None,
@@ -847,6 +852,12 @@ impl CandidateSelectionBuilder {
     /// Set the gender of the candidate selection.
     pub fn gender(mut self, gender: impl Into<Gender>) -> Self {
         self.gender = Some(StringValue::from_value(gender.into()));
+        self
+    }
+
+    /// Set the gender_annex of the candidate selection. Prefer gender_annex over gender.
+    pub fn gender_annex(mut self, gender_annex: impl Into<GenderAnnex>) -> Self {
+        self.gender_annex = Some(StringValue::from_value(gender_annex.into()));
         self
     }
 
@@ -890,6 +901,7 @@ impl CandidateSelectionBuilder {
                 .name
                 .ok_or_else(|| EMLErrorKind::MissingBuildProperty("name").without_span())?,
             gender: self.gender,
+            gender_annex: self.gender_annex,
             qualifying_address: self.qualifying_address.map_or_else(
                 || {
                     let locality_name = self.locality_name.ok_or_else(|| {
@@ -921,12 +933,24 @@ impl EMLElement for CandidateSelection {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, CandidateSelection {
+        let candidate_selection = collect_struct!(elem, CandidateSelection {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            gender as Option: ("Gender", NS_EML) => |elem| elem.string_value()?,
+            gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
+            gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address: MinimalQualifyingAddress::EML_NAME => |elem| elem.read_element::<MinimalQualifyingAddress>()?,
-        }))
+        });
+
+        if candidate_selection.gender.is_some() && candidate_selection.gender_annex.is_some() {
+            let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
+
+        Ok(candidate_selection)
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
@@ -935,9 +959,16 @@ impl EMLElement for CandidateSelection {
             .child(("CandidateFullName", NS_EML), |elem| {
                 self.name.write_eml_element(elem)
             })?
-            .child_option(("Gender", NS_EML), self.gender.as_ref(), |elem, value| {
-                elem.text(value.raw().as_ref())?.finish()
-            })?
+            .child_option(
+                StringValue::<Gender>::EML_NAME,
+                self.gender.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
+            .child_option(
+                StringValue::<GenderAnnex>::EML_NAME,
+                self.gender_annex.as_ref(),
+                |elem, value| elem.text(value.raw().as_ref())?.finish(),
+            )?
             .child_elem(MinimalQualifyingAddress::EML_NAME, &self.qualifying_address)?
             .finish()
     }
