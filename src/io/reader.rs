@@ -931,6 +931,17 @@ macro_rules! collect_struct {
         ] $($tail)*)
     };
 
+    // accumulate for a row with a default value if the element is missing
+    ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
+        $field:ident as Default($default:expr): $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
+        $($tail:tt)*
+    ) => {
+        collect_struct!(@expand [$root] [$ty] [
+            $($items ; )*
+            (@default [$field] [$namespaced_name] [$($version_range)?] [$var] [$map] [$default]) ;
+        ] $($tail)*)
+    };
+
     // accumulate, for an option row
     ( @expand [$root:expr] [$ty:ident] [$($items:tt ; )*]
         $field:ident as Option: $namespaced_name:expr $(; $version_range:expr)? => |$var:ident| $map:expr ,
@@ -1015,6 +1026,9 @@ macro_rules! collect_struct {
     (@decl (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: Option<_> = None;
     };
+    (@decl (@default [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr] [$default:expr])) => {
+        let mut $field: Option<_> = None;
+    };
     (@decl (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
         let mut $field: std::collections::BTreeMap<_, _> = std::collections::BTreeMap::new();
     };
@@ -1028,6 +1042,9 @@ macro_rules! collect_struct {
     // Emit match arms for each field
     (@matcher $next_child:ident, $name:ident, $handled:ident, (@direct [$field:ident] [$value:expr])) => {};
     (@matcher $next_child:ident, $name:ident, $handled:ident, (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
+        collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]));
+    };
+    (@matcher $next_child:ident, $name:ident, $handled:ident, (@default [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr] [$default:expr])) => {
         collect_struct!(@matcher $next_child, $name, $handled, (@field [$field] [$namespaced_name] [$($version_range)?] [$var] [$map]));
     };
     (@matcher $next_child:ident, $name:ident, $handled:ident, (@parse_only [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {
@@ -1094,6 +1111,7 @@ macro_rules! collect_struct {
     };
     (@process $root:expr, (@direct [$field:ident] [$value:expr])) => {};
     (@process $root:expr, (@optional [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
+    (@process $root:expr, (@default [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr] [$default:expr])) => {};
     (@process $root:expr, (@btreemap [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
     (@process $root:expr, (@field [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
     (@process $root:expr, (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr])) => {};
@@ -1121,6 +1139,15 @@ macro_rules! collect_struct {
         collect_struct!(@assign $root, $ty, [
             $($out)*
             $field: $field,
+        ], $($tail)*)
+    };
+    (@assign $root:expr, $ty:ident, [$($out:tt)*], (@default [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr] [$default:expr]) ; $($tail:tt)*) => {
+        collect_struct!(@assign $root, $ty, [
+            $($out)*
+            $field: match $field {
+                Some(v) => v,
+                None => $default,
+            },
         ], $($tail)*)
     };
     (@assign $root:expr, $ty:ident, [$($out:tt)*], (@vec [$field:ident] [$namespaced_name:expr] [$($version_range:expr)?] [$var:ident] [$map:expr]) ; $($tail:tt)*) => {

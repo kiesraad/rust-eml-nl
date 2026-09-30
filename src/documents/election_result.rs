@@ -251,7 +251,7 @@ impl EMLElement for ElectionResult {
         }
 
         Ok(collect_struct!(elem, ElectionResult {
-            version: elem.document_version(),
+            version as Default(EMLVersion::V1_2_2): EMLVersion::EML_NAME => |elem| elem.read_element::<EMLVersion>()?,
             transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
             creation_date_time: CreationDateTime::EML_NAME => |elem| elem.read_element::<CreationDateTime>()?,

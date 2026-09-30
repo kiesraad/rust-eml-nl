@@ -290,7 +290,7 @@ impl EMLElement for PollingStations {
         }
 
         Ok(collect_struct!(elem, PollingStations {
-            version: elem.document_version(),
+            version as Default(EMLVersion::V1_2_2): EMLVersion::EML_NAME => |elem| elem.read_element::<EMLVersion>()?,
             transaction_id: TransactionId::EML_NAME => |elem| elem.read_element::<TransactionId>()?,
             managing_authority: ManagingAuthority::EML_NAME => |elem| elem.read_element::<ManagingAuthority>()?,
             issue_date as Option: IssueDate::EML_NAME => |elem| elem.read_element::<IssueDate>()?,
@@ -304,11 +304,7 @@ impl EMLElement for PollingStations {
         writer
             .attr(("Id", None), EML_POLLING_STATIONS_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
-            .child_option(
-                EMLVersion::EML_NAME,
-                self.version.to_str(),
-                |elem, version| elem.attr("Version", version)?.empty(),
-            )?
+            .child_elem(EMLVersion::EML_NAME, &self.version)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
