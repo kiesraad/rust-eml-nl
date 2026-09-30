@@ -1253,6 +1253,8 @@ impl StringValueData for PhysicalLocationPollingStationId {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use chrono::TimeZone as _;
 
     use crate::{
@@ -1456,5 +1458,47 @@ mod tests {
 
         assert!(!location.street_name.as_ref().unwrap().is_empty());
         assert_eq!(location.number, Some(StringValue::Parsed(1)));
+    }
+
+    #[test]
+    fn test_polling_stations_1_2_2_with_reporting_unit_type_fails() {
+        let error = PollingStations::parse_eml(
+            include_str!("../../../test-files/polling_stations/eml110b_1_2_2_with_reporting_unit_type.eml.xml"),
+            EMLParsingMode::Strict,
+        )
+        .ok().unwrap_err();
+        let kind = error.kind();
+
+        assert_matches!(kind, EMLErrorKind::ElementNotSupportedInVersion(_, _))
+    }
+
+    #[test]
+    fn test_polling_stations_1_3_with_reporting_unit_type() {
+        let ps = PollingStations::parse_eml(
+            include_str!(
+                "../../../test-files/polling_stations/eml110b_1_3_with_reporting_unit_type.eml.xml"
+            ),
+            EMLParsingMode::Strict,
+        )
+        .ok()
+        .unwrap();
+
+        assert_eq!(
+            ps.election_event.election.contests[0].polling_places[0]
+                .physical_location
+                .reporting_unit_type
+                .as_ref()
+                .unwrap()
+                .copied_value()
+                .unwrap(),
+            ReportingUnitType::FixedLocation
+        );
+
+        assert!(
+            ps.election_event.election.contests[0].polling_places[0]
+                .physical_location
+                .shared_location
+                .unwrap()
+        );
     }
 }

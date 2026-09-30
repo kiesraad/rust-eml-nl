@@ -2984,4 +2984,37 @@ mod tests {
             99
         );
     }
+
+    #[test]
+    fn test_election_count_1_2_2_with_reporting_unit_type_errors() {
+        let xml = include_str!(
+            "../../test-files/election_count/deserialize_eml510b_test_1_2_2_reporting_unit_type.eml.xml"
+        );
+        let error = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap_err();
+        let kind = error.kind();
+
+        assert_matches!(kind, EMLErrorKind::ElementNotSupportedInVersion(_, _))
+    }
+
+    #[test]
+    fn test_election_count_1_3_with_reporting_unit_type_works() {
+        let xml = include_str!(
+            "../../test-files/election_count/deserialize_eml510b_test_1_3_reporting_unit_type.eml.xml"
+        );
+        let eml = ElectionCount::parse_eml(xml, EMLParsingMode::Strict)
+            .ok()
+            .unwrap();
+
+        assert_eq!(
+            eml.count.election.contests[0].reporting_unit_votes[0]
+                .reporting_unit_type
+                .as_ref()
+                .unwrap()
+                .copied_value()
+                .unwrap(),
+            ReportingUnitType::FixedLocation
+        );
+    }
 }
