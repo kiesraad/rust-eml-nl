@@ -17,7 +17,7 @@ use crate::{
     },
     utils::{
         AffiliationId, CandidateId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-(??)        GenderAnnex, ReportingUnitType, StringValue, XsDate, XsDateTime,
+        GenderAnnex, ReportingUnitType, StringValue, XsDate, XsDateTime,
     },
 };
 
@@ -882,15 +882,32 @@ impl EMLElement for ElectionCountContest {
     }
 }
 
+/// The qualified name of the eligible voter count. Note that this field
+/// is internally called eligible_voter_count, but is serialized as "Cast" in EML.
+/// This was caused by atempting to remain backwards compatible with older EML
+/// versions and giving another meaning to this field than originally intended.
 const ELIGIBLE_VOTER_COUNT_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("Cast", Some(NS_EML));
 
+/// The qualified name of the previous eligible voter count. Note that
+/// this field is internally called previous_eligible_voter_count, but is
+/// serialized as "PreviousCast" in EML. This was done to remain consistent, see
+/// the explanation of the `ELIGIBLE_VOTER_COUNT_EML_NAME` field.
 const PREVIOUS_ELIGIBLE_VOTER_COUNT_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("PreviousCast", Some(NS_KR));
 
+/// The qualified name of the candidate votes count. Note that this field
+/// is internally called candidate_votes_count, but is serialized as "TotalCounted"
+/// in EML. This was caused by attempting to remain backwards compatible with
+/// older EML versions and giving another meaning to this field than originally
+/// intended.
 const CANDIDATE_VOTES_COUNT_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("TotalCounted", Some(NS_EML));
 
+/// The qualified name of the previous candidate votes count. Note that
+/// this field is internally called previous_candidate_votes_count, but is
+/// serialized as "PreviousTotalCounted" in EML. This was done to remain
+/// consistent with the `CANDIDATE_VOTES_COUNT_EML_NAME` field.
 const PREVIOUS_CANDIDATE_VOTES_COUNT_EML_NAME: QualifiedName<'_, '_> =
     QualifiedName::from_static("PreviousTotalCounted", Some(NS_KR));
 
