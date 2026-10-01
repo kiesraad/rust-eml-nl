@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Nomination (`210`) document.
 
-use std::{borrow::Cow, collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr};
 
 use thiserror::Error;
 
@@ -22,8 +22,11 @@ use crate::{
     },
 };
 
+use super::candidate_lists::{Agent, Contact, LivingAddress, QualifyingAddress};
+
+#[cfg(test)]
 use super::candidate_lists::{
-    QualifyingAddress, QualifyingAddressCountry, QualifyingAddressLocality,
+    AgentIdentifier, MailingAddress, QualifyingAddressCountry, QualifyingAddressLocality,
 };
 
 /// EML document ID for nominations.
@@ -614,20 +617,20 @@ pub struct NominationCandidate {
     /// The date of birth of the candidate, if present.
     pub date_of_birth: Option<StringValue<XsDate>>,
 
-    /// The gender of the candidate (required in 210).
+    /// The gender of the candidate.
     pub gender: Option<StringValue<Gender>>,
 
-    /// The gender of the candidate (required in 210).
+    /// The gender of the candidate.
     pub gender_annex: Option<StringValue<GenderAnnex>>,
 
     /// The qualifying address of the candidate (required in 210).
     pub qualifying_address: QualifyingAddress,
 
     /// Contact details for the candidate, if present.
-    pub contact: Option<NominationContact>,
+    pub contact: Option<Contact>,
 
     /// Agent details for the candidate, if present.
-    pub agent: Option<NominationAgent>,
+    pub agent: Option<Agent>,
 
     /// Alternative date of birth representation when exact date is unknown.
     pub date_of_birth_annex: Option<Box<str>>,
@@ -647,8 +650,8 @@ impl EMLElement for NominationCandidate {
             gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
             gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
-            contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
-            agent as Option: NominationAgent::EML_NAME => |elem| elem.read_element::<NominationAgent>()?,
+            contact as Option: Contact::EML_NAME => |elem| elem.read_element::<Contact>()?,
+            agent as Option: Agent::EML_NAME => |elem| elem.read_element::<Agent>()?,
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
@@ -687,8 +690,8 @@ impl EMLElement for NominationCandidate {
                 |elem, value| elem.text(value.raw().as_ref())?.finish(),
             )?
             .child_elem(QualifyingAddress::EML_NAME, &self.qualifying_address)?
-            .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
-            .child_elem_option(NominationAgent::EML_NAME, self.agent.as_ref())?
+            .child_elem_option(Contact::EML_NAME, self.contact.as_ref())?
+            .child_elem_option(Agent::EML_NAME, self.agent.as_ref())?
             .child_option(
                 ("DateOfBirthAnnex", NS_KR),
                 self.date_of_birth_annex.as_ref(),
@@ -699,141 +702,6 @@ impl EMLElement for NominationCandidate {
                 self.national_identification_number.as_ref(),
                 |elem, value| elem.text(value.as_ref())?.finish(),
             )?
-            .finish()
-    }
-}
-
-/// Contact details (containing a mailing address).
-#[derive(Debug, Clone)]
-pub struct NominationContact {
-    /// The mailing address.
-    pub mailing_address: MailingAddress,
-}
-
-impl EMLElement for NominationContact {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contact", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationContact {
-            mailing_address: MailingAddress::EML_NAME => |elem| elem.read_element::<MailingAddress>()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(MailingAddress::EML_NAME, &self.mailing_address)?
-            .finish()
-    }
-}
-
-/// A mailing address, structured as a qualifying address (Locality or Country).
-#[derive(Debug, Clone)]
-pub struct MailingAddress {
-    /// The address content (Locality or Country).
-    pub address: QualifyingAddress,
-}
-
-impl MailingAddress {
-    /// Create a new mailing address with a locality.
-    pub fn new(address: impl Into<QualifyingAddress>) -> Self {
-        MailingAddress {
-            address: address.into(),
-        }
-    }
-}
-
-impl EMLElement for MailingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("MailingAddress", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let parent_name = elem.name()?.as_owned();
-        let mut found_value = None;
-        while let Some(mut next_child) = elem.next_child()? {
-            let name = next_child.name()?;
-            if found_value.is_some()
-                || name != QualifyingAddressLocality::EML_NAME
-                    && name != QualifyingAddressCountry::EML_NAME
-            {
-                let err = EMLErrorKind::UnexpectedElement(name.as_owned(), parent_name.clone())
-                    .with_span(next_child.span());
-                if next_child.parsing_mode().is_strict() {
-                    return Err(err);
-                } else {
-                    next_child.push_err(err);
-                    next_child.skip()?;
-                }
-            } else {
-                match name {
-                    name if name == QualifyingAddressLocality::EML_NAME => {
-                        let locality = QualifyingAddressLocality::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Locality(locality));
-                    }
-                    name if name == QualifyingAddressCountry::EML_NAME => {
-                        let country = QualifyingAddressCountry::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Country(country));
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        }
-        let Some(value) = found_value else {
-            return Err(EMLErrorKind::MissingChoiceElements(vec![
-                QualifyingAddressLocality::EML_NAME.as_owned(),
-                QualifyingAddressCountry::EML_NAME.as_owned(),
-            ])
-            .with_span(elem.span()));
-        };
-        Ok(MailingAddress { address: value })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        match &self.address {
-            QualifyingAddress::Locality(locality) => {
-                writer.child_elem(QualifyingAddressLocality::EML_NAME, locality)?
-            }
-            QualifyingAddress::Country(country) => {
-                writer.child_elem(QualifyingAddressCountry::EML_NAME, country)?
-            }
-        }
-        .finish()
-    }
-}
-
-/// An agent for a candidate.
-#[derive(Debug, Clone)]
-pub struct NominationAgent {
-    /// The role of the agent (e.g. "H10" or "H10a").
-    pub role: Option<String>,
-
-    /// The agent's name.
-    pub agent_identifier: AgentIdentifier,
-
-    /// Contact details for the agent, if present.
-    pub contact: Option<NominationContact>,
-
-    /// The living address of the agent.
-    pub living_address: LivingAddress,
-}
-
-impl EMLElement for NominationAgent {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Agent", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, NominationAgent {
-            role: elem.attribute_value("Role")?.map(Cow::into_owned),
-            agent_identifier: AgentIdentifier::EML_NAME => |elem| elem.read_element::<AgentIdentifier>()?,
-            contact as Option: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
-            living_address: LivingAddress::EML_NAME => |elem| elem.read_element::<LivingAddress>()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Role", self.role.as_ref())?
-            .child_elem(AgentIdentifier::EML_NAME, &self.agent_identifier)?
-            .child_elem_option(NominationContact::EML_NAME, self.contact.as_ref())?
-            .child_elem(LivingAddress::EML_NAME, &self.living_address)?
             .finish()
     }
 }
@@ -908,92 +776,6 @@ impl StringValueData for NominationJobTitle {
     }
 }
 
-/// Agent identifier containing the agent's name.
-#[derive(Debug, Clone)]
-pub struct AgentIdentifier {
-    /// The agent's name.
-    pub agent_name: PersonNameStructure,
-}
-
-impl AgentIdentifier {
-    /// Create a new `AgentIdentifier`.
-    pub fn new(agent_name: impl Into<PersonNameStructure>) -> Self {
-        AgentIdentifier {
-            agent_name: agent_name.into(),
-        }
-    }
-}
-
-impl EMLElement for AgentIdentifier {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("AgentIdentifier", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, AgentIdentifier {
-            agent_name: ("AgentName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("AgentName", NS_EML), |writer| {
-                self.agent_name.write_eml_element(writer)
-            })?
-            .finish()
-    }
-}
-
-/// A living address (kr:LivingAddress).
-#[derive(Debug, Clone)]
-pub struct LivingAddress {
-    /// The locality name.
-    pub locality_name: Box<str>,
-
-    /// The country name code, if present.
-    pub country_name_code: Option<Box<str>>,
-}
-
-impl LivingAddress {
-    /// Create a new `LivingAddress`.
-    pub fn new(locality_name: impl Into<Box<str>>) -> Self {
-        LivingAddress {
-            locality_name: locality_name.into(),
-            country_name_code: None,
-        }
-    }
-
-    /// Set the country name code.
-    pub fn with_country_name_code(mut self, code: impl Into<Box<str>>) -> Self {
-        self.country_name_code = Some(code.into());
-        self
-    }
-}
-
-impl EMLElement for LivingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("LivingAddress", Some(NS_KR));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, LivingAddress {
-            locality_name: ("LocalityName", NS_KR) => |elem| elem.text_without_children()?,
-            country_name_code as Option: ("CountryNameCode", NS_KR) => |elem| elem.text_without_children()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child(("LocalityName", NS_KR), |elem| {
-                elem.text(self.locality_name.as_ref())?.finish()
-            })?
-            .child_option(
-                ("CountryNameCode", NS_KR),
-                self.country_name_code.as_ref(),
-                |elem, value| elem.text(value.as_ref())?.finish(),
-            )?
-            .finish()
-    }
-}
-
 /// The `<Nominate>` element containing proposers.
 #[derive(Debug, Clone)]
 pub struct NominationNominate {
@@ -1043,7 +825,7 @@ pub struct NominationProposer {
     pub name: PersonNameStructure,
 
     /// Contact details for the proposer (required).
-    pub contact: NominationContact,
+    pub contact: Contact,
 
     /// The job title of the proposer.
     ///
@@ -1065,7 +847,7 @@ impl EMLElement for NominationProposer {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         Ok(collect_struct!(elem, NominationProposer {
             name: ("Name", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
-            contact: NominationContact::EML_NAME => |elem| elem.read_element::<NominationContact>()?,
+            contact: Contact::EML_NAME => |elem| elem.read_element::<Contact>()?,
             job_title: ("JobTitle", NS_EML) => |elem| elem.string_value()?,
             id as Option: ("Id", NS_EML) => |elem| elem.text_without_children()?,
             living_address as Option: LivingAddress::EML_NAME => |elem| elem.read_element::<LivingAddress>()?,
@@ -1077,7 +859,7 @@ impl EMLElement for NominationProposer {
             .child(("Name", NS_EML), |writer| {
                 self.name.write_eml_element(writer)
             })?
-            .child_elem(NominationContact::EML_NAME, &self.contact)?
+            .child_elem(Contact::EML_NAME, &self.contact)?
             .child(("JobTitle", NS_EML), |elem| {
                 elem.text(self.job_title.raw().as_ref())?.finish()
             })?
@@ -1180,12 +962,12 @@ mod tests {
                         qualifying_address: QualifyingAddress::Country(
                             QualifyingAddressCountry::new(Some("NL"), "Rotterdam"),
                         ),
-                        contact: Some(NominationContact {
+                        contact: Some(Contact {
                             mailing_address: MailingAddress::new(QualifyingAddress::Locality(
                                 QualifyingAddressLocality::new("Rotterdam"),
                             )),
                         }),
-                        agent: Some(NominationAgent {
+                        agent: Some(Agent {
                             role: Some("H10".to_string()),
                             agent_identifier: AgentIdentifier::new(
                                 PersonName::new("Groot")
@@ -1206,7 +988,7 @@ mod tests {
                         .with_initials("K.")
                         .with_first_name("Karel")
                         .into(),
-                    contact: NominationContact {
+                    contact: Contact {
                         mailing_address: MailingAddress::new(QualifyingAddress::Locality(
                             QualifyingAddressLocality::new("Amsterdam"),
                         )),
@@ -1221,7 +1003,7 @@ mod tests {
                         .with_first_name("Maria")
                         .with_name_prefix("de")
                         .into(),
-                    contact: NominationContact {
+                    contact: Contact {
                         mailing_address: MailingAddress::new(QualifyingAddress::Locality(
                             QualifyingAddressLocality::new("Utrecht"),
                         )),

@@ -1,6 +1,6 @@
 //! Document variant for the EML_NL Candidate List (`230b`) document.
 
-use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
     EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
@@ -972,6 +972,18 @@ pub struct CandidateListsCandidate {
 
     /// The qualifying address of the candidate.
     pub qualifying_address: Option<QualifyingAddress>,
+
+    /// Contact details for the candidate, if present.
+    pub contact: Option<Contact>,
+
+    /// Agent details for the candidate, if present.
+    pub agent: Option<Agent>,
+
+    /// Alternative date of birth representation when exact date is unknown.
+    pub date_of_birth_annex: Option<Box<str>>,
+
+    /// National identification number (e.g. BSN in the Netherlands).
+    pub national_identification_number: Option<Box<str>>,
 }
 
 impl CandidateListsCandidate {
@@ -990,6 +1002,10 @@ pub struct CandidateListsCandidateBuilder {
     gender_annex: Option<GenderAnnex>,
     full_name: Option<PersonNameStructure>,
     qualifying_address: Option<QualifyingAddress>,
+    contact: Option<Contact>,
+    agent: Option<Agent>,
+    date_of_birth_annex: Option<Box<str>>,
+    national_identification_number: Option<Box<str>>,
 }
 
 impl CandidateListsCandidateBuilder {
@@ -1002,6 +1018,10 @@ impl CandidateListsCandidateBuilder {
             gender_annex: None,
             full_name: None,
             qualifying_address: None,
+            contact: None,
+            agent: None,
+            date_of_birth_annex: None,
+            national_identification_number: None,
         }
     }
 
@@ -1041,6 +1061,33 @@ impl CandidateListsCandidateBuilder {
         self
     }
 
+    /// Set the contact details for the candidate.
+    pub fn contact(mut self, contact: impl Into<Contact>) -> Self {
+        self.contact = Some(contact.into());
+        self
+    }
+
+    /// Set the agent for the candidate.
+    pub fn agent(mut self, agent: impl Into<Agent>) -> Self {
+        self.agent = Some(agent.into());
+        self
+    }
+
+    /// Set the date of birth for the candidate with the alternative representation.
+    pub fn date_of_birth_annex(mut self, date_of_birth_annex: impl Into<Box<str>>) -> Self {
+        self.date_of_birth_annex = Some(date_of_birth_annex.into());
+        self
+    }
+
+    /// Set the national identification number for the candidate.
+    pub fn national_identification_number(
+        mut self,
+        national_identification_number: impl Into<Box<str>>,
+    ) -> Self {
+        self.national_identification_number = Some(national_identification_number.into());
+        self
+    }
+
     /// Build the candidate, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateListsCandidate, EMLError> {
         Ok(CandidateListsCandidate {
@@ -1054,6 +1101,10 @@ impl CandidateListsCandidateBuilder {
             gender: self.gender.map(StringValue::from_value),
             gender_annex: self.gender_annex.map(StringValue::from_value),
             qualifying_address: self.qualifying_address,
+            contact: self.contact,
+            agent: self.agent,
+            date_of_birth_annex: self.date_of_birth_annex,
+            national_identification_number: self.national_identification_number,
         })
     }
 }
@@ -1068,8 +1119,6 @@ impl EMLElement for CandidateListsCandidate {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO: parse Contact, Agent, kr:DateOfBirthAnnex and kr:NationalIdentificationNumber when present
-
         let clc = collect_struct!(elem, CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
@@ -1077,6 +1126,10 @@ impl EMLElement for CandidateListsCandidate {
             gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
             gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
+            contact as Option: Contact::EML_NAME => |elem| elem.read_element::<Contact>()?,
+            agent as Option: Agent::EML_NAME => |elem| elem.read_element::<Agent>()?,
+            date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
+            national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
 
         if clc.gender.is_some() && clc.gender_annex.is_some() {
@@ -1115,6 +1168,18 @@ impl EMLElement for CandidateListsCandidate {
             .child_elem_option(
                 QualifyingAddress::EML_NAME,
                 self.qualifying_address.as_ref(),
+            )?
+            .child_elem_option(Contact::EML_NAME, self.contact.as_ref())?
+            .child_elem_option(Agent::EML_NAME, self.agent.as_ref())?
+            .child_option(
+                ("DateOfBirthAnnex", NS_KR),
+                self.date_of_birth_annex.as_ref(),
+                |elem, value| elem.text(value.as_ref())?.finish(),
+            )?
+            .child_option(
+                ("NationalIdentificationNumber", NS_KR),
+                self.national_identification_number.as_ref(),
+                |elem, value| elem.text(value.as_ref())?.finish(),
             )?
             .finish()
     }
@@ -1229,6 +1294,236 @@ impl EMLElement for QualifyingAddress {
             }
         }
         .finish()
+    }
+}
+
+/// A mailing address, structured as a qualifying address (Locality or Country).
+#[derive(Debug, Clone)]
+pub struct MailingAddress {
+    /// The address content (Locality or Country).
+    pub address: QualifyingAddress,
+}
+
+impl MailingAddress {
+    /// Create a new mailing address with a locality.
+    pub fn new(address: impl Into<QualifyingAddress>) -> Self {
+        MailingAddress {
+            address: address.into(),
+        }
+    }
+}
+
+impl EMLElement for MailingAddress {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("MailingAddress", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        let parent_name = elem.name()?.as_owned();
+        let mut found_value = None;
+        while let Some(mut next_child) = elem.next_child()? {
+            let name = next_child.name()?;
+            if found_value.is_some()
+                || name != QualifyingAddressLocality::EML_NAME
+                    && name != QualifyingAddressCountry::EML_NAME
+            {
+                let err = EMLErrorKind::UnexpectedElement(name.as_owned(), parent_name.clone())
+                    .with_span(next_child.span());
+                if next_child.parsing_mode().is_strict() {
+                    return Err(err);
+                } else {
+                    next_child.push_err(err);
+                    next_child.skip()?;
+                }
+            } else {
+                match name {
+                    name if name == QualifyingAddressLocality::EML_NAME => {
+                        let locality = QualifyingAddressLocality::read_eml(&mut next_child)?;
+                        found_value = Some(QualifyingAddress::Locality(locality));
+                    }
+                    name if name == QualifyingAddressCountry::EML_NAME => {
+                        let country = QualifyingAddressCountry::read_eml(&mut next_child)?;
+                        found_value = Some(QualifyingAddress::Country(country));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        let Some(value) = found_value else {
+            return Err(EMLErrorKind::MissingChoiceElements(vec![
+                QualifyingAddressLocality::EML_NAME.as_owned(),
+                QualifyingAddressCountry::EML_NAME.as_owned(),
+            ])
+            .with_span(elem.span()));
+        };
+        Ok(MailingAddress { address: value })
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        match &self.address {
+            QualifyingAddress::Locality(locality) => {
+                writer.child_elem(QualifyingAddressLocality::EML_NAME, locality)?
+            }
+            QualifyingAddress::Country(country) => {
+                writer.child_elem(QualifyingAddressCountry::EML_NAME, country)?
+            }
+        }
+        .finish()
+    }
+}
+
+/// Contact details for a candidate (containing a mailing address).
+#[derive(Debug, Clone)]
+pub struct Contact {
+    /// The mailing address.
+    pub mailing_address: MailingAddress,
+}
+
+impl Contact {
+    /// Create a new Contact with the given mailing address.
+    pub fn new(mailing_address: impl Into<MailingAddress>) -> Self {
+        Contact {
+            mailing_address: mailing_address.into(),
+        }
+    }
+}
+
+impl EMLElement for Contact {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Contact", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, Contact {
+            mailing_address: MailingAddress::EML_NAME => |elem| elem.read_element::<MailingAddress>()?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child_elem(MailingAddress::EML_NAME, &self.mailing_address)?
+            .finish()
+    }
+}
+
+/// An agent acting on behalf of a candidate.
+#[derive(Debug, Clone)]
+pub struct Agent {
+    /// The role of the agent (e.g. "H10" or "H10a").
+    pub role: Option<String>,
+
+    /// The agent's name.
+    pub agent_identifier: AgentIdentifier,
+
+    /// Contact details for the agent, if present.
+    pub contact: Option<Contact>,
+
+    /// The living address of the agent.
+    pub living_address: LivingAddress,
+}
+
+impl EMLElement for Agent {
+    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Agent", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, Agent {
+            role: elem.attribute_value("Role")?.map(Cow::into_owned),
+            agent_identifier: AgentIdentifier::EML_NAME => |elem| elem.read_element::<AgentIdentifier>()?,
+            contact as Option: Contact::EML_NAME => |elem| elem.read_element::<Contact>()?,
+            living_address: LivingAddress::EML_NAME => |elem| elem.read_element::<LivingAddress>()?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .attr_opt("Role", self.role.as_ref())?
+            .child_elem(AgentIdentifier::EML_NAME, &self.agent_identifier)?
+            .child_elem_option(Contact::EML_NAME, self.contact.as_ref())?
+            .child_elem(LivingAddress::EML_NAME, &self.living_address)?
+            .finish()
+    }
+}
+
+/// Agent identifier containing the agent's name.
+#[derive(Debug, Clone)]
+pub struct AgentIdentifier {
+    /// The agent's name.
+    pub agent_name: PersonNameStructure,
+}
+
+impl AgentIdentifier {
+    /// Create a new `AgentIdentifier`.
+    pub fn new(agent_name: impl Into<PersonNameStructure>) -> Self {
+        AgentIdentifier {
+            agent_name: agent_name.into(),
+        }
+    }
+}
+
+impl EMLElement for AgentIdentifier {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("AgentIdentifier", Some(NS_EML));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, AgentIdentifier {
+            agent_name: ("AgentName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child(("AgentName", NS_EML), |writer| {
+                self.agent_name.write_eml_element(writer)
+            })?
+            .finish()
+    }
+}
+
+/// A living address (kr:LivingAddress).
+#[derive(Debug, Clone)]
+pub struct LivingAddress {
+    /// The locality name.
+    pub locality_name: Box<str>,
+
+    /// The country name code, if present.
+    pub country_name_code: Option<Box<str>>,
+}
+
+impl LivingAddress {
+    /// Create a new `LivingAddress`.
+    pub fn new(locality_name: impl Into<Box<str>>) -> Self {
+        LivingAddress {
+            locality_name: locality_name.into(),
+            country_name_code: None,
+        }
+    }
+
+    /// Set the country name code.
+    pub fn with_country_name_code(mut self, code: impl Into<Box<str>>) -> Self {
+        self.country_name_code = Some(code.into());
+        self
+    }
+}
+
+impl EMLElement for LivingAddress {
+    const EML_NAME: QualifiedName<'_, '_> =
+        QualifiedName::from_static("LivingAddress", Some(NS_KR));
+
+    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
+        Ok(collect_struct!(elem, LivingAddress {
+            locality_name: ("LocalityName", NS_KR) => |elem| elem.text_without_children()?,
+            country_name_code as Option: ("CountryNameCode", NS_KR) => |elem| elem.text_without_children()?,
+        }))
+    }
+
+    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
+        writer
+            .child(("LocalityName", NS_KR), |elem| {
+                elem.text(self.locality_name.as_ref())?.finish()
+            })?
+            .child_option(
+                ("CountryNameCode", NS_KR),
+                self.country_name_code.as_ref(),
+                |elem, value| elem.text(value.as_ref())?.finish(),
+            )?
+            .finish()
     }
 }
 
@@ -1631,7 +1926,7 @@ mod tests {
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
         },
-        utils::{AuthorityId, CandidateId},
+        utils::{AuthorityId, CandidateId, NameShortCode},
     };
 
     #[test]
@@ -1992,5 +2287,140 @@ mod tests {
             .ok_with_errors()
             .is_ok()
         );
+    }
+
+    #[test]
+    fn multiple_candidate_lists_construction() {
+        let cl = CandidateLists::builder()
+            .version(EMLVersion::V1_3)
+            .lists_type(CandidateListsType::Multiple)
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                CandidateListsElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .category(ElectionCategory::GR)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_candidate_lists()
+                    .unwrap(),
+            )
+            .contests([CandidateListsContest::builder()
+                .identifier(ContestIdentifier::geen())
+                .affiliations([
+                    CandidateListsAffiliation::builder()
+                        .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                        .registered_name("Affiliation 1")
+                        .affiliation_type(AffiliationType::StandAloneList)
+                        .publish_gender(true)
+                        .candidates([
+                            CandidateListsCandidate::builder()
+                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
+                                .full_name(
+                                    PersonName::new("Pietersen")
+                                        .with_initials("P.")
+                                        .with_first_name("Piet"),
+                                )
+                                .qualifying_address(QualifyingAddressCountry::new(
+                                    Some("NL"),
+                                    "Amsterdam",
+                                ))
+                                .build()
+                                .unwrap(),
+                            CandidateListsCandidate::builder()
+                                .identifier(
+                                    CandidateIdentifier::new(CandidateId::new(
+                                        NonZeroU64::new(2).unwrap(),
+                                    ))
+                                    .with_short_code(NameShortCode::new("VlagW").unwrap()),
+                                )
+                                .full_name(PersonName::new("Vlag").with_initials("W."))
+                                .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
+                                .gender_annex(GenderAnnex::Male)
+                                .qualifying_address(QualifyingAddressLocality::new("'s-Gravenhage"))
+                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                    QualifyingAddressLocality::new("'s-Gravenhage")
+                                        .with_address_line("Houttuinen 49")
+                                        .with_postal_code("2551 VN"),
+                                    None::<CountryNameCode>,
+                                ))))
+                                .build()
+                                .unwrap(),
+                        ])
+                        .build()
+                        .unwrap(),
+                    CandidateListsAffiliation::builder()
+                        .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
+                        .affiliation_type(AffiliationType::StandAloneList)
+                        .publish_gender(true)
+                        .candidates([CandidateListsCandidate::builder()
+                            .identifier(
+                                CandidateIdentifier::new(CandidateId::new(
+                                    NonZeroU64::new(9).unwrap(),
+                                ))
+                                .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
+                            )
+                            .full_name(
+                                PersonName::new("Bultenaar")
+                                    .with_initials("B.")
+                                    .with_first_name("Berend"),
+                            )
+                            .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
+                            .gender_annex(GenderAnnex::Male)
+                            .qualifying_address(QualifyingAddressCountry::new(
+                                Some("JP"),
+                                "Zdjapan",
+                            ))
+                            .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                QualifyingAddressLocality::new("Hellevoetsluis")
+                                    .with_address_line("Eik 555")
+                                    .with_postal_code("3224 TB"),
+                                None::<CountryNameCode>,
+                            ))))
+                            .agent(Agent {
+                                role: Some("H10".to_string()),
+                                agent_identifier: AgentIdentifier::new(
+                                    PersonName::new("Grupstal")
+                                        .with_initials("H.J.T.")
+                                        .with_first_name("Hendrika Johanna Theodora"),
+                                ),
+                                contact: Some(Contact::new(MailingAddress::new(
+                                    QualifyingAddress::new(
+                                        QualifyingAddressLocality::new("Amsterdam")
+                                            .with_address_line("J.C.Schröderstraat 1")
+                                            .with_postal_code("1068 JT"),
+                                        None::<CountryNameCode>,
+                                    ),
+                                ))),
+                                living_address: LivingAddress::new("Amsterdam"),
+                            })
+                            .build()
+                            .unwrap()])
+                        .build()
+                        .unwrap(),
+                ])
+                .build()
+                .unwrap()])
+            .build()
+            .unwrap();
+
+        let xml = cl.write_eml_root_str(true, true).unwrap();
+        assert_eq!(
+            xml,
+            include_str!(
+                "../../test-files/candidate_lists/eml230c_candidate_lists_construction_output.eml.xml"
+            )
+        );
+
+        // check if it still is the same after a second parse and write
+        let parsed = CandidateLists::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        assert_eq!(xml, xml2);
     }
 }
