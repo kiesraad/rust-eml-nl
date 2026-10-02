@@ -7,8 +7,9 @@ use thiserror::Error;
 use crate::{
     EMLError, EMLValueResultExt as _, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
-        CandidateIdentifier, CanonicalizationMethod, CreationDateTime, ElectionDomain, IssueDate,
-        ListData, ManagingAuthority, PersonNameStructure, TransactionId,
+        Agent, CandidateIdentifier, CanonicalizationMethod, Contact, CreationDateTime,
+        ElectionDomain, IssueDate, ListData, LivingAddress, ManagingAuthority, PersonNameStructure,
+        QualifyingAddress, TransactionId,
     },
     documents::ElectionIdentifierBuilder,
     error::EMLErrorKind,
@@ -20,13 +21,6 @@ use crate::{
         AffiliationType, ContestId, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
         GenderAnnex, StringValue, StringValueData, XsDate, XsDateOrDateTime, XsDateTime,
     },
-};
-
-use super::candidate_lists::{Agent, Contact, LivingAddress, QualifyingAddress};
-
-#[cfg(test)]
-use super::candidate_lists::{
-    AgentIdentifier, MailingAddress, QualifyingAddressCountry, QualifyingAddressLocality,
 };
 
 /// EML document ID for nominations.
@@ -879,7 +873,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        common::{AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData, PersonName},
+        common::{
+            AgentIdentifier, AuthorityIdentifier, CandidateIdentifier, ElectionDomain, ListData,
+            MailingAddress, PersonName, QualifyingAddressCountry, QualifyingAddressLocality,
+        },
         io::{EMLParsingMode, EMLRead as _, EMLReadResult, EMLWrite as _},
         utils::{
             AffiliationType, AuthorityId, CandidateId, ContestId, ElectionCategory,
