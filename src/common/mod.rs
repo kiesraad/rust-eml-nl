@@ -1,5 +1,6 @@
 //! Element definitions common to multiple EML_NL document variants.
 
+mod agent;
 mod candidate_identifier;
 mod canonicalization_method;
 mod committee;
@@ -11,16 +12,19 @@ mod election_domain;
 mod election_tree;
 mod issue_date;
 mod list_data;
+mod living_address;
 mod locality_name;
 mod managing_authority;
 mod minimal_qualifying_address;
 mod person_name;
 mod phase;
 mod postal_code;
+mod qualifying_address;
 mod region;
 mod reporting_unit_identifier;
 mod transaction_id;
 
+pub use agent::*;
 pub use candidate_identifier::*;
 pub use canonicalization_method::*;
 pub use committee::*;
@@ -32,12 +36,14 @@ pub use election_domain::*;
 pub use election_tree::*;
 pub use issue_date::*;
 pub use list_data::*;
+pub use living_address::*;
 pub use locality_name::*;
 pub use managing_authority::*;
 pub use minimal_qualifying_address::*;
 pub use person_name::*;
 pub use phase::*;
 pub use postal_code::*;
+pub use qualifying_address::*;
 pub use region::*;
 pub use reporting_unit_identifier::*;
 pub use transaction_id::*;
