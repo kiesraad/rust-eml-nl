@@ -956,8 +956,11 @@ pub struct CandidateListsCandidate {
     /// The candidate identifier.
     pub identifier: CandidateIdentifier,
 
-    /// The full name of the candidate.
-    pub full_name: PersonNameStructure,
+    /// The full name of the candidate, if present.
+    ///
+    /// This is absent when the candidate refers to a candidate defined
+    /// elsewhere in the election using a short code.
+    pub full_name: Option<PersonNameStructure>,
 
     /// The date of birth of the candidate, if present.
     pub date_of_birth: Option<StringValue<XsDate>>,
@@ -1090,13 +1093,17 @@ impl CandidateListsCandidateBuilder {
 
     /// Build the candidate, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateListsCandidate, EMLError> {
-        Ok(CandidateListsCandidate {
-            identifier: self
+        let identifier = self
                 .identifier
-                .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?,
-            full_name: self
-                .full_name
-                .ok_or_else(|| EMLErrorKind::MissingBuildProperty("full_name").without_span())?,
+            .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?;
+
+        if !identifier.has_reference() && self.full_name.is_none() {
+            return Err(EMLErrorKind::MissingBuildProperty("full_name").without_span());
+        }
+
+        Ok(CandidateListsCandidate {
+            identifier,
+            full_name: self.full_name,
             date_of_birth: self.date_of_birth.map(StringValue::from_value),
             gender: self.gender.map(StringValue::from_value),
             gender_annex: self.gender_annex.map(StringValue::from_value),
@@ -1121,7 +1128,7 @@ impl EMLElement for CandidateListsCandidate {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let clc = collect_struct!(elem, CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
-            full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
+            full_name as Option: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
             gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
             gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
@@ -1131,6 +1138,18 @@ impl EMLElement for CandidateListsCandidate {
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
+
+        if !clc.identifier.has_reference() && clc.full_name.is_none() {
+            let err = EMLErrorKind::MissingElement(
+                QualifiedName::from_static("CandidateFullName", Some(NS_EML)).as_owned(),
+            )
+            .with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
 
         if clc.gender.is_some() && clc.gender_annex.is_some() {
             let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
@@ -1147,9 +1166,11 @@ impl EMLElement for CandidateListsCandidate {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(("CandidateFullName", NS_EML), |writer| {
-                self.full_name.write_eml_element(writer)
-            })?
+            .child_option(
+                ("CandidateFullName", NS_EML),
+                self.full_name.as_ref(),
+                |elem, full_name| full_name.write_eml_element(elem),
+            )?
             .child_option(
                 ("DateOfBirth", NS_EML),
                 self.date_of_birth.as_ref(),
@@ -1261,6 +1282,38 @@ mod tests {
             test_write_eml_element(&affiliation_identifier, &[NS_EML], EMLVersion::default())
                 .unwrap();
         assert_eq!(xml_output, xml);
+    }
+
+    #[test]
+    fn test_candidate_without_full_name() {
+        let xml = test_xml_fragment(
+            r#"
+                <Candidate xmlns="urn:oasis:names:tc:evs:schema:eml">
+                    <CandidateIdentifier Id="1" ShortCode="VlagW"/>
+                </Candidate>
+            "#,
+        );
+
+        assert!(
+            CandidateListsCandidate::parse_eml_fragment(
+                &xml,
+                EMLParsingMode::Strict,
+                EMLVersion::default(),
+            )
+            .ok()
+            .is_err()
+        );
+
+        let (candidate, errors) = CandidateListsCandidate::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Loose,
+            EMLVersion::default(),
+        )
+        .ok_with_errors()
+        .unwrap();
+        assert!(candidate.full_name.is_none());
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(errors[0].kind(), EMLErrorKind::MissingElement(_)));
     }
 
     #[test]
@@ -1432,6 +1485,30 @@ mod tests {
             )
             .ok_with_errors()
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_short_code_references() {
+        let doc = CandidateLists::parse_eml(
+            include_str!("../../test-files/candidate_lists/eml230c_test.eml.xml"),
+            EMLParsingMode::Strict,
+        )
+        .unwrap();
+        let short_code = |s| Some(StringValue::Parsed(NameShortCode::new(s).unwrap()));
+
+        let contests = &doc.candidate_list.election.contests;
+        let full = &contests[0].affiliations[0].candidates[0];
+        assert!(full.full_name.is_some());
+        assert_eq!(full.identifier.short_code, short_code("StreeveldHT"));
+        assert_eq!(full.identifier.short_code_ref, None);
+
+        let reference = &contests[1].affiliations[0].candidates[0];
+        assert!(reference.full_name.is_none());
+        assert_eq!(reference.identifier.short_code, None);
+        assert_eq!(
+            reference.identifier.short_code_ref,
+            short_code("StreeveldHT")
         );
     }
 

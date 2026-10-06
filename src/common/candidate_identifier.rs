@@ -66,6 +66,11 @@ impl CandidateIdentifier {
         self.expected_confirmation_reference = Some(reference.into());
         self
     }
+
+    /// Returns true if this identifier has a short code reference.
+    pub fn has_reference(&self) -> bool {
+        self.short_code_ref.is_some()
+    }
 }
 
 impl From<CandidateId> for CandidateIdentifier {
