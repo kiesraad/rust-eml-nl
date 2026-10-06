@@ -16,8 +16,9 @@ use crate::{
         EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
-        AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        GenderAnnex, PublicationLanguage, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
+        AffiliationId, AffiliationType, CandidateId, ElectionCategory, ElectionId,
+        ElectionSubcategory, Gender, GenderAnnex, NameShortCode, PublicationLanguage, StringValue,
+        XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -994,6 +995,23 @@ impl CandidateListsCandidate {
     pub fn builder() -> CandidateListsCandidateBuilder {
         CandidateListsCandidateBuilder::new()
     }
+
+    /// Create a candidate that refers to a candidate defined elsewhere in the election
+    /// with the given short code.
+    pub fn reference(id: impl Into<CandidateId>, short_code: NameShortCode) -> Self {
+        CandidateListsCandidate {
+            identifier: CandidateIdentifier::new(id.into()).with_short_code_ref(short_code),
+            full_name: None,
+            date_of_birth: None,
+            gender: None,
+            gender_annex: None,
+            qualifying_address: None,
+            contact: None,
+            agent: None,
+            date_of_birth_annex: None,
+            national_identification_number: None,
+        }
+    }
 }
 
 /// A builder for building [`CandidateListsCandidate`] structs.
@@ -1094,7 +1112,7 @@ impl CandidateListsCandidateBuilder {
     /// Build the candidate, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateListsCandidate, EMLError> {
         let identifier = self
-                .identifier
+            .identifier
             .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?;
 
         if !identifier.has_reference() && self.full_name.is_none() {
@@ -1220,7 +1238,7 @@ mod tests {
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
         },
-        utils::{AuthorityId, CandidateId, NameShortCode},
+        utils::{AuthorityId, ContestId},
     };
 
     #[test]
@@ -1534,102 +1552,129 @@ mod tests {
                     .build_for_candidate_lists()
                     .unwrap(),
             )
-            .contests([CandidateListsContest::builder()
-                .identifier(ContestIdentifier::geen())
-                .affiliations([
-                    CandidateListsAffiliation::builder()
+            .contests([
+                CandidateListsContest::builder()
+                    .identifier(ContestIdentifier::new(ContestId::new("1").unwrap()))
+                    .affiliations([
+                        CandidateListsAffiliation::builder()
+                            .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                            .registered_name("Affiliation 1")
+                            .affiliation_type(AffiliationType::StandAloneList)
+                            .publish_gender(true)
+                            .candidates([
+                                CandidateListsCandidate::builder()
+                                    .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
+                                    .full_name(
+                                        PersonName::new("Pietersen")
+                                            .with_initials("P.")
+                                            .with_first_name("Piet"),
+                                    )
+                                    .qualifying_address(QualifyingAddressCountry::new(
+                                        Some("NL"),
+                                        "Amsterdam",
+                                    ))
+                                    .build()
+                                    .unwrap(),
+                                CandidateListsCandidate::builder()
+                                    .identifier(
+                                        CandidateIdentifier::new(CandidateId::new(
+                                            NonZeroU64::new(2).unwrap(),
+                                        ))
+                                        .with_short_code(NameShortCode::new("VlagW").unwrap()),
+                                    )
+                                    .full_name(PersonName::new("Vlag").with_initials("W."))
+                                    .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
+                                    .gender_annex(GenderAnnex::Male)
+                                    .qualifying_address(QualifyingAddressLocality::new(
+                                        "'s-Gravenhage",
+                                    ))
+                                    .contact(Contact::new(MailingAddress::new(
+                                        QualifyingAddress::new(
+                                            QualifyingAddressLocality::new("'s-Gravenhage")
+                                                .with_address_line("Houttuinen 49")
+                                                .with_postal_code("2551 VN"),
+                                            None::<CountryNameCode>,
+                                        ),
+                                    )))
+                                    .build()
+                                    .unwrap(),
+                            ])
+                            .build()
+                            .unwrap(),
+                        CandidateListsAffiliation::builder()
+                            .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
+                            .affiliation_type(AffiliationType::StandAloneList)
+                            .publish_gender(true)
+                            .candidates([CandidateListsCandidate::builder()
+                                .identifier(
+                                    CandidateIdentifier::new(CandidateId::new(
+                                        NonZeroU64::new(9).unwrap(),
+                                    ))
+                                    .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
+                                )
+                                .full_name(
+                                    PersonName::new("Bultenaar")
+                                        .with_initials("B.")
+                                        .with_first_name("Berend"),
+                                )
+                                .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
+                                .gender_annex(GenderAnnex::Male)
+                                .qualifying_address(QualifyingAddressCountry::new(
+                                    Some("JP"),
+                                    "Zdjapan",
+                                ))
+                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                    QualifyingAddressLocality::new("Hellevoetsluis")
+                                        .with_address_line("Eik 555")
+                                        .with_postal_code("3224 TB"),
+                                    None::<CountryNameCode>,
+                                ))))
+                                .agent(Agent {
+                                    role: Some("H10".to_string()),
+                                    agent_identifier: AgentIdentifier::new(
+                                        PersonName::new("Grupstal")
+                                            .with_initials("H.J.T.")
+                                            .with_first_name("Hendrika Johanna Theodora"),
+                                    ),
+                                    contact: Some(Contact::new(MailingAddress::new(
+                                        QualifyingAddress::new(
+                                            QualifyingAddressLocality::new("Amsterdam")
+                                                .with_address_line("J.C.Schröderstraat 1")
+                                                .with_postal_code("1068 JT"),
+                                            None::<CountryNameCode>,
+                                        ),
+                                    ))),
+                                    living_address: LivingAddress::new("Amsterdam"),
+                                })
+                                .build()
+                                .unwrap()])
+                            .build()
+                            .unwrap(),
+                    ])
+                    .build()
+                    .unwrap(),
+                CandidateListsContest::builder()
+                    .identifier(ContestIdentifier::new(ContestId::new("2").unwrap()))
+                    .affiliations([CandidateListsAffiliation::builder()
                         .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
                         .registered_name("Affiliation 1")
                         .affiliation_type(AffiliationType::StandAloneList)
                         .publish_gender(true)
                         .candidates([
-                            CandidateListsCandidate::builder()
-                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
-                                .full_name(
-                                    PersonName::new("Pietersen")
-                                        .with_initials("P.")
-                                        .with_first_name("Piet"),
-                                )
-                                .qualifying_address(QualifyingAddressCountry::new(
-                                    Some("NL"),
-                                    "Amsterdam",
-                                ))
-                                .build()
-                                .unwrap(),
-                            CandidateListsCandidate::builder()
-                                .identifier(
-                                    CandidateIdentifier::new(CandidateId::new(
-                                        NonZeroU64::new(2).unwrap(),
-                                    ))
-                                    .with_short_code(NameShortCode::new("VlagW").unwrap()),
-                                )
-                                .full_name(PersonName::new("Vlag").with_initials("W."))
-                                .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
-                                .gender_annex(GenderAnnex::Male)
-                                .qualifying_address(QualifyingAddressLocality::new("'s-Gravenhage"))
-                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
-                                    QualifyingAddressLocality::new("'s-Gravenhage")
-                                        .with_address_line("Houttuinen 49")
-                                        .with_postal_code("2551 VN"),
-                                    None::<CountryNameCode>,
-                                ))))
-                                .build()
-                                .unwrap(),
+                            CandidateListsCandidate::reference(
+                                CandidateId::new(NonZeroU64::new(1).unwrap()),
+                                NameShortCode::new("BultenaarB").unwrap(),
+                            ),
+                            CandidateListsCandidate::reference(
+                                CandidateId::new(NonZeroU64::new(2).unwrap()),
+                                NameShortCode::new("VlagW").unwrap(),
+                            ),
                         ])
                         .build()
-                        .unwrap(),
-                    CandidateListsAffiliation::builder()
-                        .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
-                        .affiliation_type(AffiliationType::StandAloneList)
-                        .publish_gender(true)
-                        .candidates([CandidateListsCandidate::builder()
-                            .identifier(
-                                CandidateIdentifier::new(CandidateId::new(
-                                    NonZeroU64::new(9).unwrap(),
-                                ))
-                                .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
-                            )
-                            .full_name(
-                                PersonName::new("Bultenaar")
-                                    .with_initials("B.")
-                                    .with_first_name("Berend"),
-                            )
-                            .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
-                            .gender_annex(GenderAnnex::Male)
-                            .qualifying_address(QualifyingAddressCountry::new(
-                                Some("JP"),
-                                "Zdjapan",
-                            ))
-                            .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
-                                QualifyingAddressLocality::new("Hellevoetsluis")
-                                    .with_address_line("Eik 555")
-                                    .with_postal_code("3224 TB"),
-                                None::<CountryNameCode>,
-                            ))))
-                            .agent(Agent {
-                                role: Some("H10".to_string()),
-                                agent_identifier: AgentIdentifier::new(
-                                    PersonName::new("Grupstal")
-                                        .with_initials("H.J.T.")
-                                        .with_first_name("Hendrika Johanna Theodora"),
-                                ),
-                                contact: Some(Contact::new(MailingAddress::new(
-                                    QualifyingAddress::new(
-                                        QualifyingAddressLocality::new("Amsterdam")
-                                            .with_address_line("J.C.Schröderstraat 1")
-                                            .with_postal_code("1068 JT"),
-                                        None::<CountryNameCode>,
-                                    ),
-                                ))),
-                                living_address: LivingAddress::new("Amsterdam"),
-                            })
-                            .build()
-                            .unwrap()])
-                        .build()
-                        .unwrap(),
-                ])
-                .build()
-                .unwrap()])
+                        .unwrap()])
+                    .build()
+                    .unwrap(),
+            ])
             .build()
             .unwrap();
 
