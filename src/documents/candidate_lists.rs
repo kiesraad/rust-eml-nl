@@ -1,6 +1,10 @@
 //! Document variant for the EML_NL Candidate List (`230b`) document.
 
-use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashSet},
+    num::NonZeroU64,
+    str::FromStr,
+};
 
 use crate::{
     EMLError, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
@@ -239,9 +243,10 @@ impl CandidateListsBuilder {
         self
     }
 
-    /// Build the `CandidateLists` document, returning an error if any required fields are missing.
+    /// Build the `CandidateLists` document, returning an error if any required
+    /// fields are missing or if the candidate short codes are invalid.
     pub fn build(self) -> Result<CandidateLists, EMLError> {
-        Ok(CandidateLists {
+        let candidate_lists = CandidateLists {
             version: self.version.unwrap_or_default(),
             lists_type: self
                 .lists_type
@@ -280,7 +285,14 @@ impl CandidateListsBuilder {
                 },
                 Ok,
             )?,
-        })
+        };
+
+        candidate_lists
+            .candidate_list
+            .election
+            .validate_short_codes()?;
+
+        Ok(candidate_lists)
     }
 }
 
@@ -491,6 +503,43 @@ impl CandidateListsElection {
         self.contests.push(contest.into());
         self
     }
+
+    /// Iterate over all candidates in all affiliations of all contests in this election.
+    fn all_candidates(&self) -> impl Iterator<Item = &CandidateListsCandidate> {
+        self.contests
+            .iter()
+            .flat_map(|contest| &contest.affiliations)
+            .flat_map(|affiliation| &affiliation.candidates)
+    }
+
+    /// Validate the short codes of the candidates in this election.
+    fn validate_short_codes(&self) -> Result<(), EMLError> {
+        // Each ShortCode attribute must be unique within the election
+        let mut defined = HashSet::new();
+        for candidate in self.all_candidates() {
+            if let Some(short_code) = &candidate.identifier.short_code
+                && !defined.insert(short_code.raw())
+            {
+                return Err(
+                    EMLErrorKind::DuplicateShortCode(short_code.raw().into_owned()).without_span(),
+                );
+            }
+        }
+
+        // Each ShortCode element must refer to an existing ShortCode attribute
+        for candidate in self.all_candidates() {
+            if let Some(short_code_ref) = &candidate.identifier.short_code_ref
+                && !defined.contains(&short_code_ref.raw())
+            {
+                return Err(EMLErrorKind::UnknownShortCodeReference(
+                    short_code_ref.raw().into_owned(),
+                )
+                .without_span());
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl EMLElement for CandidateListsElection {
@@ -511,6 +560,8 @@ impl EMLElement for CandidateListsElection {
                 elem.push_err(err);
             }
         }
+
+        elem.report_validation(data.validate_short_codes(), elem.full_span())?;
 
         Ok(data)
     }
@@ -1504,6 +1555,129 @@ mod tests {
             .ok_with_errors()
             .is_ok()
         );
+    }
+
+    #[test]
+    fn test_invalid_duplicate_short_code() {
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230c_invalid_duplicate_short_code.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_invalid_unknown_short_code_reference() {
+        let doc = include_str!(
+            "../../test-files/candidate_lists/eml230c_invalid_unknown_short_code_reference.eml.xml"
+        );
+        assert!(
+            CandidateLists::parse_eml(doc, EMLParsingMode::Strict)
+                .ok_with_errors()
+                .is_err()
+        );
+
+        let (_, errors) = CandidateLists::parse_eml(doc, EMLParsingMode::Loose)
+            .ok_with_errors()
+            .unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(
+            errors[0].kind(),
+            EMLErrorKind::UnknownShortCodeReference(code) if code == "OnbekendX"
+        ));
+    }
+
+    fn build_with_candidates(
+        candidates: impl Into<Vec<CandidateListsCandidate>>,
+    ) -> Result<CandidateLists, EMLError> {
+        CandidateLists::builder()
+            .lists_type(CandidateListsType::Multiple)
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                CandidateListsElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .category(ElectionCategory::GR)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_candidate_lists()
+                    .unwrap(),
+            )
+            .contests([CandidateListsContest::builder()
+                .identifier(ContestIdentifier::geen())
+                .affiliations([CandidateListsAffiliation::builder()
+                    .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                    .affiliation_type(AffiliationType::StandAloneList)
+                    .publish_gender(true)
+                    .candidates(candidates)
+                    .build()
+                    .unwrap()])
+                .build()
+                .unwrap()])
+            .build()
+    }
+
+    fn defined_candidate(id: u64, short_code: &str) -> CandidateListsCandidate {
+        CandidateListsCandidate::builder()
+            .identifier(
+                CandidateIdentifier::new(CandidateId::from_u64(id).unwrap())
+                    .with_short_code(NameShortCode::new(short_code).unwrap()),
+            )
+            .full_name(PersonName::new(short_code))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_build_with_short_code_references() {
+        assert!(
+            build_with_candidates([
+                defined_candidate(1, "VlagW"),
+                CandidateListsCandidate::reference(
+                    CandidateId::from_u64(2).unwrap(),
+                    NameShortCode::new("VlagW").unwrap(),
+                ),
+            ])
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_build_with_duplicate_short_code() {
+        let err =
+            build_with_candidates([defined_candidate(1, "VlagW"), defined_candidate(2, "VlagW")])
+                .unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            EMLErrorKind::DuplicateShortCode(code) if code == "VlagW"
+        ));
+    }
+
+    #[test]
+    fn test_build_with_unknown_short_code_reference() {
+        let err = build_with_candidates([
+            defined_candidate(1, "VlagW"),
+            CandidateListsCandidate::reference(
+                CandidateId::from_u64(2).unwrap(),
+                NameShortCode::new("OnbekendX").unwrap(),
+            ),
+        ])
+        .unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            EMLErrorKind::UnknownShortCodeReference(code) if code == "OnbekendX"
+        ));
     }
 
     #[test]

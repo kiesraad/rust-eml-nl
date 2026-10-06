@@ -185,6 +185,14 @@ pub enum EMLErrorKind {
     #[error("Could not find an affiliation for affiliation id {0}")]
     UnknownAffiliation(AffiliationId),
 
+    /// A candidate short code is defined more than once in the same election.
+    #[error("The candidate short code '{0}' is defined more than once")]
+    DuplicateShortCode(String),
+
+    /// A candidate short code reference does not refer to a defined short code.
+    #[error("The candidate short code reference '{0}' does not refer to a defined candidate")]
+    UnknownShortCodeReference(String),
+
     /// The regions of an election tree do not describe a valid tree.
     #[error("Invalid election tree: {0}")]
     InvalidElectionTree(#[from] ElectionTreeHierarchyError),
