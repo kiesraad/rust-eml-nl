@@ -3,11 +3,11 @@
 use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
 
 use crate::{
-    EMLError, EMLVersion, NS_EML, NS_KR, NS_XAL, OASIS_EML_SCHEMA_VERSION,
+    EMLError, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
     common::{
-        CandidateIdentifier, CanonicalizationMethod, ContestIdentifier, CountryNameCode,
+        Agent, CandidateIdentifier, CanonicalizationMethod, Contact, ContestIdentifier,
         CreationDateTime, ElectionDomain, IssueDate, ListData, ListDataBelongsToCombination,
-        LocalityName, ManagingAuthority, PersonNameStructure, TransactionId,
+        ManagingAuthority, PersonNameStructure, QualifyingAddress, TransactionId,
     },
     documents::ElectionIdentifierBuilder,
     error::EMLErrorKind,
@@ -972,6 +972,18 @@ pub struct CandidateListsCandidate {
 
     /// The qualifying address of the candidate.
     pub qualifying_address: Option<QualifyingAddress>,
+
+    /// Contact details for the candidate, if present.
+    pub contact: Option<Contact>,
+
+    /// Agent details for the candidate, if present.
+    pub agent: Option<Agent>,
+
+    /// Alternative date of birth representation when exact date is unknown.
+    pub date_of_birth_annex: Option<Box<str>>,
+
+    /// National identification number (e.g. BSN in the Netherlands).
+    pub national_identification_number: Option<Box<str>>,
 }
 
 impl CandidateListsCandidate {
@@ -990,6 +1002,10 @@ pub struct CandidateListsCandidateBuilder {
     gender_annex: Option<GenderAnnex>,
     full_name: Option<PersonNameStructure>,
     qualifying_address: Option<QualifyingAddress>,
+    contact: Option<Contact>,
+    agent: Option<Agent>,
+    date_of_birth_annex: Option<Box<str>>,
+    national_identification_number: Option<Box<str>>,
 }
 
 impl CandidateListsCandidateBuilder {
@@ -1002,6 +1018,10 @@ impl CandidateListsCandidateBuilder {
             gender_annex: None,
             full_name: None,
             qualifying_address: None,
+            contact: None,
+            agent: None,
+            date_of_birth_annex: None,
+            national_identification_number: None,
         }
     }
 
@@ -1041,6 +1061,33 @@ impl CandidateListsCandidateBuilder {
         self
     }
 
+    /// Set the contact details for the candidate.
+    pub fn contact(mut self, contact: impl Into<Contact>) -> Self {
+        self.contact = Some(contact.into());
+        self
+    }
+
+    /// Set the agent for the candidate.
+    pub fn agent(mut self, agent: impl Into<Agent>) -> Self {
+        self.agent = Some(agent.into());
+        self
+    }
+
+    /// Set the date of birth for the candidate with the alternative representation.
+    pub fn date_of_birth_annex(mut self, date_of_birth_annex: impl Into<Box<str>>) -> Self {
+        self.date_of_birth_annex = Some(date_of_birth_annex.into());
+        self
+    }
+
+    /// Set the national identification number for the candidate.
+    pub fn national_identification_number(
+        mut self,
+        national_identification_number: impl Into<Box<str>>,
+    ) -> Self {
+        self.national_identification_number = Some(national_identification_number.into());
+        self
+    }
+
     /// Build the candidate, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateListsCandidate, EMLError> {
         Ok(CandidateListsCandidate {
@@ -1054,6 +1101,10 @@ impl CandidateListsCandidateBuilder {
             gender: self.gender.map(StringValue::from_value),
             gender_annex: self.gender_annex.map(StringValue::from_value),
             qualifying_address: self.qualifying_address,
+            contact: self.contact,
+            agent: self.agent,
+            date_of_birth_annex: self.date_of_birth_annex,
+            national_identification_number: self.national_identification_number,
         })
     }
 }
@@ -1068,8 +1119,6 @@ impl EMLElement for CandidateListsCandidate {
     const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Candidate", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        // TODO: parse Contact, Agent, kr:DateOfBirthAnnex and kr:NationalIdentificationNumber when present
-
         let clc = collect_struct!(elem, CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
             full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
@@ -1077,6 +1126,10 @@ impl EMLElement for CandidateListsCandidate {
             gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
             gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
             qualifying_address as Option: QualifyingAddress::EML_NAME => |elem| elem.read_element::<QualifyingAddress>()?,
+            contact as Option: Contact::EML_NAME => |elem| elem.read_element::<Contact>()?,
+            agent as Option: Agent::EML_NAME => |elem| elem.read_element::<Agent>()?,
+            date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
+            national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
 
         if clc.gender.is_some() && clc.gender_annex.is_some() {
@@ -1116,506 +1169,18 @@ impl EMLElement for CandidateListsCandidate {
                 QualifyingAddress::EML_NAME,
                 self.qualifying_address.as_ref(),
             )?
-            .finish()
-    }
-}
-
-/// The qualifying address of a candidate.
-#[derive(Debug, Clone)]
-pub enum QualifyingAddress {
-    /// Qualifying address is a locality only.
-    Locality(QualifyingAddressLocality),
-
-    /// Qualifying address is a locality in a specific country.
-    Country(QualifyingAddressCountry),
-}
-
-impl QualifyingAddress {
-    /// Create a new qualifying address with locality information and an optional country.
-    pub fn new(
-        locality: impl Into<QualifyingAddressLocality>,
-        country_name_code: Option<impl Into<CountryNameCode>>,
-    ) -> Self {
-        match country_name_code {
-            Some(code) => QualifyingAddress::Country(QualifyingAddressCountry {
-                locality: locality.into(),
-                country_name_code: Some(code.into()),
-            }),
-            None => QualifyingAddress::Locality(locality.into()),
-        }
-    }
-
-    /// Get the locality information for the qualifying address.
-    pub fn locality(&self) -> &QualifyingAddressLocality {
-        match self {
-            QualifyingAddress::Locality(locality) => locality,
-            QualifyingAddress::Country(country) => &country.locality,
-        }
-    }
-
-    /// Get the country information for the qualifying address, if present.
-    pub fn country_name_code(&self) -> Option<&CountryNameCode> {
-        match self {
-            QualifyingAddress::Locality(_) => None,
-            QualifyingAddress::Country(country) => country.country_name_code.as_ref(),
-        }
-    }
-}
-
-impl From<QualifyingAddressLocality> for QualifyingAddress {
-    fn from(locality: QualifyingAddressLocality) -> Self {
-        QualifyingAddress::Locality(locality)
-    }
-}
-
-impl From<QualifyingAddressCountry> for QualifyingAddress {
-    fn from(country: QualifyingAddressCountry) -> Self {
-        QualifyingAddress::Country(country)
-    }
-}
-
-impl EMLElement for QualifyingAddress {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("QualifyingAddress", Some(NS_EML));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let parent_name = elem.name()?.as_owned();
-        let mut found_value = None;
-        while let Some(mut next_child) = elem.next_child()? {
-            let name = next_child.name()?;
-            if found_value.is_some()
-                || name != QualifyingAddressLocality::EML_NAME
-                    && name != QualifyingAddressCountry::EML_NAME
-            {
-                let err = EMLErrorKind::UnexpectedElement(name.as_owned(), parent_name.clone())
-                    .with_span(next_child.span());
-                if next_child.parsing_mode().is_strict() {
-                    return Err(err);
-                } else {
-                    next_child.push_err(err);
-                    next_child.skip()?;
-                }
-            } else {
-                match name {
-                    name if name == QualifyingAddressLocality::EML_NAME => {
-                        let locality = QualifyingAddressLocality::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Locality(locality));
-                    }
-                    name if name == QualifyingAddressCountry::EML_NAME => {
-                        let country = QualifyingAddressCountry::read_eml(&mut next_child)?;
-                        found_value = Some(QualifyingAddress::Country(country));
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        }
-        let Some(value) = found_value else {
-            return Err(EMLErrorKind::MissingChoiceElements(vec![
-                QualifyingAddressLocality::EML_NAME.as_owned(),
-                QualifyingAddressCountry::EML_NAME.as_owned(),
-            ])
-            .with_span(elem.span()));
-        };
-        Ok(value)
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        match self {
-            QualifyingAddress::Locality(locality) => {
-                writer.child_elem(QualifyingAddressLocality::EML_NAME, locality)?
-            }
-            QualifyingAddress::Country(country) => {
-                writer.child_elem(QualifyingAddressCountry::EML_NAME, country)?
-            }
-        }
-        .finish()
-    }
-}
-
-/// Qualifying address locality.
-#[derive(Debug, Clone)]
-pub struct QualifyingAddressLocality {
-    /// The address line, if present.
-    pub address_line: Option<AddressLine>,
-
-    /// The locality name.
-    pub locality_name: LocalityName,
-
-    /// The postal code, if present.
-    pub postal_code: Option<PostalCode>,
-
-    /// The Type attribute, if present.
-    pub locality_type: Option<Box<str>>,
-
-    /// The UsageType attribute, if present.
-    pub usage_type: Option<Box<str>>,
-
-    /// The Indicator attribute, if present.
-    pub indicator: Option<Box<str>>,
-}
-
-impl QualifyingAddressLocality {
-    /// Create a new QualifyingAddressLocality.
-    pub fn new(locality_name: impl Into<Box<str>>) -> Self {
-        QualifyingAddressLocality {
-            address_line: None,
-            locality_name: LocalityName::new(locality_name),
-            postal_code: None,
-            locality_type: None,
-            usage_type: None,
-            indicator: None,
-        }
-    }
-
-    /// Get the locality name for the qualifying address locality.
-    pub fn locality_name(&self) -> &str {
-        &self.locality_name.name
-    }
-
-    /// Set the address line for the locality.
-    pub fn with_address_line(self, address_line: impl Into<AddressLine>) -> Self {
-        self.with_address_line_option(Some(address_line))
-    }
-
-    /// Set the address line for the locality, if present.
-    pub fn with_address_line_option(
-        mut self,
-        address_line: Option<impl Into<AddressLine>>,
-    ) -> Self {
-        self.address_line = address_line.map(Into::into);
-        self
-    }
-
-    /// Set the postal code for the locality.
-    pub fn with_postal_code(self, postal_code: impl Into<PostalCode>) -> Self {
-        self.with_postal_code_option(Some(postal_code))
-    }
-
-    /// Set the postal code for the locality, if present.
-    pub fn with_postal_code_option(mut self, postal_code: Option<impl Into<PostalCode>>) -> Self {
-        self.postal_code = postal_code.map(Into::into);
-        self
-    }
-
-    /// Set the Type attribute for the locality.
-    pub fn with_locality_type(self, locality_type: impl Into<Box<str>>) -> Self {
-        self.with_locality_type_option(Some(locality_type))
-    }
-
-    /// Set the Type attribute for the locality, if present.
-    pub fn with_locality_type_option(mut self, locality_type: Option<impl Into<Box<str>>>) -> Self {
-        self.locality_type = locality_type.map(Into::into);
-        self
-    }
-
-    /// Set the UsageType attribute for the locality.
-    pub fn with_usage_type(self, usage_type: impl Into<Box<str>>) -> Self {
-        self.with_usage_type_option(Some(usage_type))
-    }
-
-    /// Set the UsageType attribute for the locality, if present.
-    pub fn with_usage_type_option(mut self, usage_type: Option<impl Into<Box<str>>>) -> Self {
-        self.usage_type = usage_type.map(Into::into);
-        self
-    }
-
-    /// Set the Indicator attribute for the locality.
-    pub fn with_indicator(self, indicator: impl Into<Box<str>>) -> Self {
-        self.with_indicator_option(Some(indicator))
-    }
-
-    /// Set the Indicator attribute for the locality, if present.
-    pub fn with_indicator_option(mut self, indicator: Option<impl Into<Box<str>>>) -> Self {
-        self.indicator = indicator.map(Into::into);
-        self
-    }
-}
-
-impl From<&str> for QualifyingAddressLocality {
-    fn from(value: &str) -> Self {
-        QualifyingAddressLocality::new(value)
-    }
-}
-
-impl From<String> for QualifyingAddressLocality {
-    fn from(value: String) -> Self {
-        QualifyingAddressLocality::new(value)
-    }
-}
-
-impl From<Box<str>> for QualifyingAddressLocality {
-    fn from(value: Box<str>) -> Self {
-        QualifyingAddressLocality::new(value)
-    }
-}
-
-impl EMLElement for QualifyingAddressLocality {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Locality", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, QualifyingAddressLocality {
-            address_line as Option: AddressLine::EML_NAME => |elem| elem.read_element::<AddressLine>()?,
-            locality_name: LocalityName::EML_NAME => |elem| elem.read_element::<LocalityName>()?,
-            postal_code as Option: PostalCode::EML_NAME => |elem| elem.read_element::<PostalCode>()?,
-            locality_type: elem.attribute_value("Type")?.map(Into::into),
-            usage_type: elem.attribute_value("UsageType")?.map(Into::into),
-            indicator: elem.attribute_value("Indicator")?.map(Into::into),
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.locality_type.as_ref())?
-            .attr_opt("UsageType", self.usage_type.as_ref())?
-            .attr_opt("Indicator", self.indicator.as_ref())?
-            .child_elem_option(AddressLine::EML_NAME, self.address_line.as_ref())?
-            .child_elem(LocalityName::EML_NAME, &self.locality_name)?
-            .child_elem_option(PostalCode::EML_NAME, self.postal_code.as_ref())?
-            .finish()
-    }
-}
-
-/// Address line information.
-#[derive(Debug, Clone)]
-pub struct AddressLine {
-    /// The address line value.
-    pub value: Box<str>,
-
-    /// The Type attribute, if present.
-    pub address_line_type: Option<Box<str>>,
-
-    /// The Code attribute, if present.
-    pub code: Option<Box<str>>,
-}
-
-impl AddressLine {
-    /// Create a new AddressLine.
-    pub fn new(value: impl Into<Box<str>>) -> Self {
-        AddressLine {
-            value: value.into(),
-            address_line_type: None,
-            code: None,
-        }
-    }
-
-    /// Set the Type attribute for the address line.
-    pub fn with_type(mut self, address_line_type: impl Into<Box<str>>) -> Self {
-        self.address_line_type = Some(address_line_type.into());
-        self
-    }
-
-    /// Set the Code attribute for the address line.
-    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
-        self.code = Some(code.into());
-        self
-    }
-}
-
-impl From<&str> for AddressLine {
-    fn from(value: &str) -> Self {
-        AddressLine::new(value)
-    }
-}
-
-impl From<String> for AddressLine {
-    fn from(value: String) -> Self {
-        AddressLine::new(value)
-    }
-}
-
-impl From<Box<str>> for AddressLine {
-    fn from(value: Box<str>) -> Self {
-        AddressLine::new(value)
-    }
-}
-
-impl EMLElement for AddressLine {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("AddressLine", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(AddressLine {
-            value: elem.text_without_children()?,
-            address_line_type: elem.attribute_value("Type")?.map(Into::into),
-            code: elem.attribute_value("Code")?.map(Into::into),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.address_line_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(self.value.as_ref())?
-            .finish()
-    }
-}
-
-/// Postal code information.
-#[derive(Debug, Clone)]
-pub struct PostalCode {
-    /// Number of the postal code.
-    pub postal_code_number: PostalCodeNumber,
-}
-
-impl PostalCode {
-    /// Create a new PostalCode.
-    pub fn new(postal_code_number: impl Into<PostalCodeNumber>) -> Self {
-        PostalCode {
-            postal_code_number: postal_code_number.into(),
-        }
-    }
-}
-
-impl From<&str> for PostalCode {
-    fn from(value: &str) -> Self {
-        PostalCode::new(value)
-    }
-}
-
-impl From<String> for PostalCode {
-    fn from(value: String) -> Self {
-        PostalCode::new(value)
-    }
-}
-
-impl From<Box<str>> for PostalCode {
-    fn from(value: Box<str>) -> Self {
-        PostalCode::new(value)
-    }
-}
-
-impl From<PostalCodeNumber> for PostalCode {
-    fn from(postal_code_number: PostalCodeNumber) -> Self {
-        PostalCode { postal_code_number }
-    }
-}
-
-impl EMLElement for PostalCode {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("PostalCode", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, PostalCode {
-            postal_code_number: PostalCodeNumber::EML_NAME => |elem| elem.read_element::<PostalCodeNumber>()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem(PostalCodeNumber::EML_NAME, &self.postal_code_number)?
-            .finish()
-    }
-}
-
-/// The postal code number.
-#[derive(Debug, Clone)]
-pub struct PostalCodeNumber {
-    /// The postal code number value.
-    pub value: Box<str>,
-
-    /// The Type attribute, if present.
-    pub postal_code_number_type: Option<Box<str>>,
-
-    /// The Code attribute, if present.
-    pub code: Option<Box<str>>,
-}
-
-impl EMLElement for PostalCodeNumber {
-    const EML_NAME: QualifiedName<'_, '_> =
-        QualifiedName::from_static("PostalCodeNumber", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(PostalCodeNumber {
-            value: elem.text_without_children()?,
-            postal_code_number_type: elem.attribute_value("Type")?.map(Into::into),
-            code: elem.attribute_value("Code")?.map(Into::into),
-        })
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .attr_opt("Type", self.postal_code_number_type.as_ref())?
-            .attr_opt("Code", self.code.as_ref())?
-            .text(self.value.as_ref())?
-            .finish()
-    }
-}
-
-impl PostalCodeNumber {
-    /// Create a new PostalCodeNumber.
-    pub fn new(value: impl Into<Box<str>>) -> Self {
-        PostalCodeNumber {
-            value: value.into(),
-            postal_code_number_type: None,
-            code: None,
-        }
-    }
-
-    /// Set the Type attribute for the postal code number.
-    pub fn with_type(mut self, postal_code_number_type: impl Into<Box<str>>) -> Self {
-        self.postal_code_number_type = Some(postal_code_number_type.into());
-        self
-    }
-
-    /// Set the Code attribute for the postal code number.
-    pub fn with_code(mut self, code: impl Into<Box<str>>) -> Self {
-        self.code = Some(code.into());
-        self
-    }
-}
-
-impl From<&str> for PostalCodeNumber {
-    fn from(value: &str) -> Self {
-        PostalCodeNumber::new(value)
-    }
-}
-
-impl From<String> for PostalCodeNumber {
-    fn from(value: String) -> Self {
-        PostalCodeNumber::new(value)
-    }
-}
-
-impl From<Box<str>> for PostalCodeNumber {
-    fn from(value: Box<str>) -> Self {
-        PostalCodeNumber::new(value)
-    }
-}
-
-/// Qualifying address country.
-#[derive(Debug, Clone)]
-pub struct QualifyingAddressCountry {
-    /// The country name code, if present.
-    pub country_name_code: Option<CountryNameCode>,
-    /// The locality within the country.
-    pub locality: QualifyingAddressLocality,
-}
-
-impl QualifyingAddressCountry {
-    /// Create a new QualifyingAddressCountry.
-    pub fn new(
-        country_code: Option<impl Into<Box<str>>>,
-        locality: impl Into<QualifyingAddressLocality>,
-    ) -> Self {
-        Self {
-            country_name_code: country_code.map(|code| CountryNameCode::new(code)),
-            locality: locality.into(),
-        }
-    }
-}
-
-impl EMLElement for QualifyingAddressCountry {
-    const EML_NAME: QualifiedName<'_, '_> = QualifiedName::from_static("Country", Some(NS_XAL));
-
-    fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        Ok(collect_struct!(elem, QualifyingAddressCountry {
-            country_name_code as Option: CountryNameCode::EML_NAME => |elem| elem.read_element::<CountryNameCode>()?,
-            locality: QualifyingAddressLocality::EML_NAME => |elem| elem.read_element::<QualifyingAddressLocality>()?,
-        }))
-    }
-
-    fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
-            .child_elem_option(CountryNameCode::EML_NAME, self.country_name_code.as_ref())?
-            .child_elem(QualifyingAddressLocality::EML_NAME, &self.locality)?
+            .child_elem_option(Contact::EML_NAME, self.contact.as_ref())?
+            .child_elem_option(Agent::EML_NAME, self.agent.as_ref())?
+            .child_option(
+                ("DateOfBirthAnnex", NS_KR),
+                self.date_of_birth_annex.as_ref(),
+                |elem, value| elem.text(value.as_ref())?.finish(),
+            )?
+            .child_option(
+                ("NationalIdentificationNumber", NS_KR),
+                self.national_identification_number.as_ref(),
+                |elem, value| elem.text(value.as_ref())?.finish(),
+            )?
             .finish()
     }
 }
@@ -1627,11 +1192,14 @@ mod tests {
     use super::*;
     use crate::{
         EMLVersion,
-        common::PersonName,
+        common::{
+            AgentIdentifier, CountryNameCode, LivingAddress, MailingAddress, PersonName,
+            QualifyingAddressCountry, QualifyingAddressLocality,
+        },
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
         },
-        utils::{AuthorityId, CandidateId},
+        utils::{AuthorityId, CandidateId, NameShortCode},
     };
 
     #[test]
@@ -1692,133 +1260,6 @@ mod tests {
         let xml_output =
             test_write_eml_element(&affiliation_identifier, &[NS_EML], EMLVersion::default())
                 .unwrap();
-        assert_eq!(xml_output, xml);
-    }
-
-    #[test]
-    fn test_qualifying_address_full() {
-        let c = QualifyingAddressCountry::new(
-            Some("NL"),
-            QualifyingAddressLocality::new("Amsterdam")
-                .with_address_line(
-                    AddressLine::new("Test 1")
-                        .with_code("TestCode")
-                        .with_type("TestType"),
-                )
-                .with_postal_code(
-                    PostalCodeNumber::new("1234 AB")
-                        .with_code("TestCode")
-                        .with_type("TestType"),
-                )
-                .with_indicator("Test")
-                .with_locality_type("City")
-                .with_usage_type("Example"),
-        );
-
-        assert_eq!(c.country_name_code, Some(CountryNameCode::new("NL")));
-        assert_eq!(c.locality.locality_name.name.as_ref(), "Amsterdam");
-        assert_eq!(
-            c.locality.address_line.as_ref().unwrap().value.as_ref(),
-            "Test 1"
-        );
-        assert_eq!(
-            c.locality
-                .address_line
-                .as_ref()
-                .unwrap()
-                .code
-                .as_ref()
-                .unwrap()
-                .as_ref(),
-            "TestCode"
-        );
-        assert_eq!(
-            c.locality
-                .address_line
-                .as_ref()
-                .unwrap()
-                .address_line_type
-                .as_ref()
-                .unwrap()
-                .as_ref(),
-            "TestType"
-        );
-        assert_eq!(
-            c.locality
-                .postal_code
-                .as_ref()
-                .unwrap()
-                .postal_code_number
-                .value
-                .as_ref(),
-            "1234 AB"
-        );
-        assert_eq!(
-            c.locality
-                .postal_code
-                .as_ref()
-                .unwrap()
-                .postal_code_number
-                .code
-                .as_ref()
-                .unwrap()
-                .as_ref(),
-            "TestCode"
-        );
-        assert_eq!(
-            c.locality
-                .postal_code
-                .as_ref()
-                .unwrap()
-                .postal_code_number
-                .postal_code_number_type
-                .as_ref()
-                .unwrap()
-                .as_ref(),
-            "TestType"
-        );
-        assert_eq!(c.locality.indicator.as_ref().unwrap().as_ref(), "Test");
-        assert_eq!(c.locality.locality_type.as_ref().unwrap().as_ref(), "City");
-        assert_eq!(c.locality.usage_type.as_ref().unwrap().as_ref(), "Example");
-
-        test_write_eml_element(&c, &[NS_XAL], EMLVersion::default()).unwrap();
-    }
-
-    #[test]
-    fn test_qualifying_address_parsing() {
-        let xml = test_xml_fragment(
-            r#"
-            <QualifyingAddress xmlns="urn:oasis:names:tc:evs:schema:eml" xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0">
-                <xal:Country>
-                    <xal:Locality>
-                        <xal:LocalityName>Amsterdam</xal:LocalityName>
-                    </xal:Locality>
-                </xal:Country>
-            </QualifyingAddress>
-            "#,
-        );
-
-        let qualifying_address = QualifyingAddress::parse_eml_fragment(
-            &xml,
-            EMLParsingMode::Strict,
-            EMLVersion::default(),
-        )
-        .ok()
-        .unwrap();
-        match &qualifying_address {
-            QualifyingAddress::Country(country) => {
-                assert_eq!(country.country_name_code, None);
-                assert_eq!(country.locality.locality_name.name.as_ref(), "Amsterdam");
-            }
-            _ => panic!("Expected country qualifying address"),
-        }
-
-        let xml_output = test_write_eml_element(
-            &qualifying_address,
-            &[NS_EML, NS_XAL],
-            EMLVersion::default(),
-        )
-        .unwrap();
         assert_eq!(xml_output, xml);
     }
 
@@ -1992,5 +1433,140 @@ mod tests {
             .ok_with_errors()
             .is_ok()
         );
+    }
+
+    #[test]
+    fn multiple_candidate_lists_construction() {
+        let cl = CandidateLists::builder()
+            .version(EMLVersion::V1_3)
+            .lists_type(CandidateListsType::Multiple)
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                CandidateListsElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .category(ElectionCategory::GR)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_candidate_lists()
+                    .unwrap(),
+            )
+            .contests([CandidateListsContest::builder()
+                .identifier(ContestIdentifier::geen())
+                .affiliations([
+                    CandidateListsAffiliation::builder()
+                        .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                        .registered_name("Affiliation 1")
+                        .affiliation_type(AffiliationType::StandAloneList)
+                        .publish_gender(true)
+                        .candidates([
+                            CandidateListsCandidate::builder()
+                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
+                                .full_name(
+                                    PersonName::new("Pietersen")
+                                        .with_initials("P.")
+                                        .with_first_name("Piet"),
+                                )
+                                .qualifying_address(QualifyingAddressCountry::new(
+                                    Some("NL"),
+                                    "Amsterdam",
+                                ))
+                                .build()
+                                .unwrap(),
+                            CandidateListsCandidate::builder()
+                                .identifier(
+                                    CandidateIdentifier::new(CandidateId::new(
+                                        NonZeroU64::new(2).unwrap(),
+                                    ))
+                                    .with_short_code(NameShortCode::new("VlagW").unwrap()),
+                                )
+                                .full_name(PersonName::new("Vlag").with_initials("W."))
+                                .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
+                                .gender_annex(GenderAnnex::Male)
+                                .qualifying_address(QualifyingAddressLocality::new("'s-Gravenhage"))
+                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                    QualifyingAddressLocality::new("'s-Gravenhage")
+                                        .with_address_line("Houttuinen 49")
+                                        .with_postal_code("2551 VN"),
+                                    None::<CountryNameCode>,
+                                ))))
+                                .build()
+                                .unwrap(),
+                        ])
+                        .build()
+                        .unwrap(),
+                    CandidateListsAffiliation::builder()
+                        .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
+                        .affiliation_type(AffiliationType::StandAloneList)
+                        .publish_gender(true)
+                        .candidates([CandidateListsCandidate::builder()
+                            .identifier(
+                                CandidateIdentifier::new(CandidateId::new(
+                                    NonZeroU64::new(9).unwrap(),
+                                ))
+                                .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
+                            )
+                            .full_name(
+                                PersonName::new("Bultenaar")
+                                    .with_initials("B.")
+                                    .with_first_name("Berend"),
+                            )
+                            .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
+                            .gender_annex(GenderAnnex::Male)
+                            .qualifying_address(QualifyingAddressCountry::new(
+                                Some("JP"),
+                                "Zdjapan",
+                            ))
+                            .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                QualifyingAddressLocality::new("Hellevoetsluis")
+                                    .with_address_line("Eik 555")
+                                    .with_postal_code("3224 TB"),
+                                None::<CountryNameCode>,
+                            ))))
+                            .agent(Agent {
+                                role: Some("H10".to_string()),
+                                agent_identifier: AgentIdentifier::new(
+                                    PersonName::new("Grupstal")
+                                        .with_initials("H.J.T.")
+                                        .with_first_name("Hendrika Johanna Theodora"),
+                                ),
+                                contact: Some(Contact::new(MailingAddress::new(
+                                    QualifyingAddress::new(
+                                        QualifyingAddressLocality::new("Amsterdam")
+                                            .with_address_line("J.C.Schröderstraat 1")
+                                            .with_postal_code("1068 JT"),
+                                        None::<CountryNameCode>,
+                                    ),
+                                ))),
+                                living_address: LivingAddress::new("Amsterdam"),
+                            })
+                            .build()
+                            .unwrap()])
+                        .build()
+                        .unwrap(),
+                ])
+                .build()
+                .unwrap()])
+            .build()
+            .unwrap();
+
+        let xml = cl.write_eml_root_str(true, true).unwrap();
+        assert_eq!(
+            xml,
+            include_str!(
+                "../../test-files/candidate_lists/eml230c_candidate_lists_construction_output.eml.xml"
+            )
+        );
+
+        // check if it still is the same after a second parse and write
+        let parsed = CandidateLists::parse_eml(&xml, EMLParsingMode::Strict).unwrap();
+        let xml2 = parsed.write_eml_root_str(true, true).unwrap();
+        assert_eq!(xml, xml2);
     }
 }
