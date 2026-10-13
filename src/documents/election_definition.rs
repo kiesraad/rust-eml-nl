@@ -420,8 +420,8 @@ impl EMLElement for ElectionDefinition {
                 ManagingAuthority::EML_NAME,
                 self.managing_authority.as_ref(),
             )?
-            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
+            .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
             // .child_elem_option(
             //     CanonicalizationMethod::EML_NAME,
@@ -537,7 +537,6 @@ impl EMLElement for ElectionDefinitionElection {
                 &self.identifier,
             )?
             .child_elem(ElectionDefinitionContest::EML_NAME, &self.contest)?
-            .child_elem(ElectionTree::EML_NAME, &self.election_tree)?
             .child(EML_NAME_NUMBER_OF_SEATS, |elem| {
                 elem.text(self.number_of_seats.raw().as_ref())?.finish()
             })?
@@ -545,6 +544,7 @@ impl EMLElement for ElectionDefinitionElection {
                 elem.text(self.preference_threshold.raw().as_ref())?
                     .finish()
             })?
+            .child_elem(ElectionTree::EML_NAME, &self.election_tree)?
             .child(("RegisteredParties", NS_KR), |elem| {
                 ElectionDefinitionRegisteredParty::write_list(&self.registered_parties, elem)
             })?

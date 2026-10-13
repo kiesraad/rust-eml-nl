@@ -5,8 +5,8 @@
         <AuthorityIdentifier Id="1234"/>
         <AuthorityAddress/>
     </ManagingAuthority>
-    <kr:CreationDateTime>2014-11-28T12:00:09+00:00</kr:CreationDateTime>
     <IssueDate>2024-06-10</IssueDate>
+    <kr:CreationDateTime>2014-11-28T12:00:09+00:00</kr:CreationDateTime>
     <ElectionEvent>
         <EventIdentifier/>
         <Election>
@@ -22,13 +22,13 @@
                 <VotingMethod>SPV</VotingMethod>
                 <MaxVotes>100</MaxVotes>
             </Contest>
+            <kr:NumberOfSeats>10</kr:NumberOfSeats>
+            <kr:PreferenceThreshold>50</kr:PreferenceThreshold>
             <kr:ElectionTree>
                 <kr:Region RegionCategory="GEMEENTE">
                     <kr:RegionName>Region 1</kr:RegionName>
                 </kr:Region>
             </kr:ElectionTree>
-            <kr:NumberOfSeats>10</kr:NumberOfSeats>
-            <kr:PreferenceThreshold>50</kr:PreferenceThreshold>
             <kr:RegisteredParties>
                 <kr:RegisteredParty>
                     <kr:RegisteredAppellation>Party a</kr:RegisteredAppellation>
