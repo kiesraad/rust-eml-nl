@@ -2263,12 +2263,6 @@ impl EMLElement for ElectionCountSelection {
             .child(VALID_VOTES_EML_NAME, |elem| {
                 elem.text(self.valid_votes.raw().as_ref())?.finish()
             })?
-            .child_option_version(
-                PREVIOUS_VALID_VOTES_EML_NAME,
-                EMLVersionRange::since(EMLVersion::V1_3_1),
-                self.previous_valid_votes.as_ref(),
-                |elem, value| elem.text(value.raw().as_ref())?.finish(),
-            )?
             .finish()
     }
 }
@@ -2983,6 +2977,8 @@ mod tests {
                 .unwrap(),
             99
         );
+
+        assert_eq!(eml.write_eml_root_str(true, true).unwrap(), xml);
     }
 
     #[test]
