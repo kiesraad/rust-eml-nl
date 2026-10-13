@@ -1,0 +1,278 @@
+<EML xmlns="urn:oasis:names:tc:evs:schema:eml" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    xmlns:kr="http://www.kiesraad.nl/extensions"
+    xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0"
+    xmlns:xnl="urn:oasis:names:tc:ciq:xsdschema:xNL:2.0" Id="230c" SchemaVersion="5">
+    <TransactionId>1</TransactionId>
+    <ManagingAuthority>
+        <AuthorityIdentifier Id="CSB">De Kiesraad</AuthorityIdentifier>
+        <AuthorityAddress></AuthorityAddress>
+    </ManagingAuthority>
+    <IssueDate>2026-09-23</IssueDate>
+    <kr:Schema Version="1.3"></kr:Schema>
+    <kr:CreationDateTime>2026-09-23T11:50:53.397</kr:CreationDateTime>
+    <ds:CanonicalizationMethod
+        Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments"></ds:CanonicalizationMethod>
+    <CandidateList>
+        <Election>
+            <ElectionIdentifier Id="EK2027">
+                <ElectionName>Eerste Kamer 2027</ElectionName>
+                <ElectionCategory>EK</ElectionCategory>
+                <kr:ElectionSubcategory>EK</kr:ElectionSubcategory>
+                <kr:ElectionDate>2027-03-17</kr:ElectionDate>
+                <kr:NominationDate>2027-02-01</kr:NominationDate>
+            </ElectionIdentifier>
+            <Contest>
+                <ContestIdentifier Id="1">
+                    <ContestName>Groningen</ContestName>
+                </ContestIdentifier>
+                <Affiliation>
+                    <AffiliationIdentifier Id="1">
+                        <RegisteredName></RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>stel gelijkluidende lijsten</Type>
+                    <kr:ListData BelongsToSet="1" PublicationLanguage="nl" PublishGender="false"></kr:ListData>
+                    <Candidate>
+                        <CandidateIdentifier Id="1" ShortCode="StreeveldHT"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">H.T.</xnl:NameLine>
+                                <xnl:LastName>Streeveld</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1970-01-17</DateOfBirth>
+                        <kr:GenderAnnex>male</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Rheden</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Deestraat 207</xal:AddressLine>
+                                    <xal:LocalityName>Rheden</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>8602 AA</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2" ShortCode="VlagW"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">W.</xnl:NameLine>
+                                <xnl:LastName>Vlag</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1921-08-08</DateOfBirth>
+                        <kr:GenderAnnex>male</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>'s-Gravenhage</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Houttuinen 49</xal:AddressLine>
+                                    <xal:LocalityName>'s-Gravenhage</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>2551 VN</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                    </Candidate>
+                </Affiliation>
+                <Affiliation>
+                    <AffiliationIdentifier Id="2">
+                        <RegisteredName>Test</RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>lijstengroep</Type>
+                    <kr:ListData BelongsToSet="1" PublicationLanguage="nl" PublishGender="true"></kr:ListData>
+                    <Candidate>
+                        <CandidateIdentifier Id="1" ShortCode="GroemanR"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">R.</xnl:NameLine>
+                                <xnl:FirstName>Rozen</xnl:FirstName>
+                                <xnl:LastName>Groeman</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1947-09-09</DateOfBirth>
+                        <kr:GenderAnnex>male</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>'s-Gravenhage</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Zuiderparklaan 12</xal:AddressLine>
+                                    <xal:LocalityName>'s-Gravenhage</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>2574 HA</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2" ShortCode="AsgaardL"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">L.</xnl:NameLine>
+                                <xnl:FirstName>Loki</xnl:FirstName>
+                                <xnl:LastName>Asgaard</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>2002-12-20</DateOfBirth>
+                        <kr:GenderAnnex>male</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Hellevoetsluis</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Zenit 55</xal:AddressLine>
+                                    <xal:LocalityName>Hellevoetsluis</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>3225 VG</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                    </Candidate>
+                </Affiliation>
+            </Contest>
+            <Contest>
+                <ContestIdentifier Id="2">
+                    <ContestName>Fryslân</ContestName>
+                </ContestIdentifier>
+                <Affiliation>
+                    <AffiliationIdentifier Id="1">
+                        <RegisteredName></RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>stel gelijkluidende lijsten</Type>
+                    <kr:ListData BelongsToSet="1" PublicationLanguage="nl" PublishGender="false"></kr:ListData>
+                    <Candidate>
+                        <CandidateIdentifier Id="1">
+                            <ShortCode>StreeveldHT</ShortCode>
+                        </CandidateIdentifier>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2">
+                            <ShortCode>VlagW</ShortCode>
+                        </CandidateIdentifier>
+                    </Candidate>
+                </Affiliation>
+                <Affiliation>
+                    <AffiliationIdentifier Id="2">
+                        <RegisteredName>Test</RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>lijstengroep</Type>
+                    <kr:ListData BelongsToSet="2" PublicationLanguage="nl" PublishGender="true"></kr:ListData>
+                    <Candidate>
+                        <CandidateIdentifier Id="1" ShortCode="InönüAÇ"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">A.Ç.</xnl:NameLine>
+                                <xnl:FirstName>Aişe Çağati</xnl:FirstName>
+                                <xnl:LastName>Inönü</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>1976-02-02</DateOfBirth>
+                        <kr:GenderAnnex>female</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Locality>
+                                <xal:LocalityName>Amsterdam</xal:LocalityName>
+                            </xal:Locality>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Postbus 49</xal:AddressLine>
+                                    <xal:LocalityName>Amsterdam</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>1000 AA</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2">
+                            <ShortCode>AsgaardL</ShortCode>
+                        </CandidateIdentifier>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="3">
+                            <ShortCode>GroemanR</ShortCode>
+                        </CandidateIdentifier>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="4" ShortCode="BultenaarB"></CandidateIdentifier>
+                        <CandidateFullName>
+                            <xnl:PersonName>
+                                <xnl:NameLine NameType="Initials">B.</xnl:NameLine>
+                                <xnl:FirstName>Berend</xnl:FirstName>
+                                <xnl:LastName>Bultenaar</xnl:LastName>
+                            </xnl:PersonName>
+                        </CandidateFullName>
+                        <DateOfBirth>2005-01-23</DateOfBirth>
+                        <kr:GenderAnnex>male</kr:GenderAnnex>
+                        <QualifyingAddress>
+                            <xal:Country>
+                                <xal:CountryNameCode>JP</xal:CountryNameCode>
+                                <xal:Locality>
+                                    <xal:LocalityName>Zdjapan</xal:LocalityName>
+                                </xal:Locality>
+                            </xal:Country>
+                        </QualifyingAddress>
+                        <Contact>
+                            <MailingAddress>
+                                <xal:Locality>
+                                    <xal:AddressLine>Eik 555</xal:AddressLine>
+                                    <xal:LocalityName>Hellevoetsluis</xal:LocalityName>
+                                    <xal:PostalCode>
+                                        <xal:PostalCodeNumber>3224 TB</xal:PostalCodeNumber>
+                                    </xal:PostalCode>
+                                </xal:Locality>
+                            </MailingAddress>
+                        </Contact>
+                        <Agent Role="H10">
+                            <AgentIdentifier>
+                                <AgentName>
+                                    <xnl:PersonName>
+                                        <xnl:NameLine NameType="Initials">A.Ç.</xnl:NameLine>
+                                        <xnl:FirstName>Aişe Çağati</xnl:FirstName>
+                                        <xnl:LastName>Inönü</xnl:LastName>
+                                    </xnl:PersonName>
+                                </AgentName>
+                            </AgentIdentifier>
+                            <Contact>
+                                <MailingAddress>
+                                    <xal:Locality>
+                                        <xal:AddressLine>Postbus 49</xal:AddressLine>
+                                        <xal:LocalityName>Amsterdam</xal:LocalityName>
+                                        <xal:PostalCode>
+                                            <xal:PostalCodeNumber>1000 AA</xal:PostalCodeNumber>
+                                        </xal:PostalCode>
+                                    </xal:Locality>
+                                </MailingAddress>
+                            </Contact>
+                            <kr:LivingAddress>
+                                <kr:LocalityName>Amsterdam</kr:LocalityName>
+                            </kr:LivingAddress>
+                        </Agent>
+                    </Candidate>
+                </Affiliation>
+            </Contest>
+        </Election>
+    </CandidateList>
+</EML>

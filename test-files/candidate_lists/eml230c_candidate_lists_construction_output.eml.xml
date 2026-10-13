@@ -16,7 +16,7 @@
                 <kr:NominationDate>2024-10-01</kr:NominationDate>
             </ElectionIdentifier>
             <Contest>
-                <ContestIdentifier Id="geen"/>
+                <ContestIdentifier Id="1"/>
                 <Affiliation>
                     <AffiliationIdentifier Id="1">
                         <RegisteredName>Affiliation 1</RegisteredName>
@@ -130,6 +130,26 @@
                                 <kr:LocalityName>Amsterdam</kr:LocalityName>
                             </kr:LivingAddress>
                         </Agent>
+                    </Candidate>
+                </Affiliation>
+            </Contest>
+            <Contest>
+                <ContestIdentifier Id="2"/>
+                <Affiliation>
+                    <AffiliationIdentifier Id="1">
+                        <RegisteredName>Affiliation 1</RegisteredName>
+                    </AffiliationIdentifier>
+                    <Type>op zichzelf staande lijst</Type>
+                    <kr:ListData PublishGender="true"/>
+                    <Candidate>
+                        <CandidateIdentifier Id="1">
+                            <ShortCode>BultenaarB</ShortCode>
+                        </CandidateIdentifier>
+                    </Candidate>
+                    <Candidate>
+                        <CandidateIdentifier Id="2">
+                            <ShortCode>VlagW</ShortCode>
+                        </CandidateIdentifier>
                     </Candidate>
                 </Affiliation>
             </Contest>

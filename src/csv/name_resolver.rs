@@ -73,16 +73,20 @@ impl NameResolver for CandidateListsContest {
             .iter()
             .find(|a| a.identifier.id.copied_value().ok() == Some(affiliation_id))
             .and_then(|a| {
-                Some(format_candidate(a.candidates.iter().find(|c| {
-                    c.identifier.id.copied_value().ok() == Some(candidate_id)
-                })?))
+                format_candidate(
+                    a.candidates
+                        .iter()
+                        .find(|c| c.identifier.id.copied_value().ok() == Some(candidate_id))?,
+                )
             })
     }
 }
 
 /// Format a CandidateListsCandidate into a string representation of their name.
-fn format_candidate(candidate: &CandidateListsCandidate) -> String {
-    let pn = &candidate.full_name.person_name;
+///
+/// Returns None if the candidate does not include a name (for candidates referenced by short code).
+fn format_candidate(candidate: &CandidateListsCandidate) -> Option<String> {
+    let pn = &candidate.full_name.as_ref()?.person_name;
     let last = pn.get_last_name();
     let prefix = pn.get_name_prefix();
     let initials = pn.get_initials();
@@ -93,11 +97,11 @@ fn format_candidate(candidate: &CandidateListsCandidate) -> String {
         last.to_string()
     };
 
-    if let Some(initials) = initials {
+    Some(if let Some(initials) = initials {
         format!("{}, {}", last_part, initials)
     } else {
         last_part
-    }
+    })
 }
 
 #[cfg(test)]
@@ -123,14 +127,17 @@ mod tests {
             )
             .build()
             .unwrap();
-        assert_eq!(format_candidate(&candidate), "van Jansen, J.A.");
+        assert_eq!(
+            format_candidate(&candidate).as_deref(),
+            Some("van Jansen, J.A.")
+        );
 
         let candidate = CandidateListsCandidate::builder()
             .identifier(CandidateId::from_u64(1).unwrap())
             .full_name(PersonName::new("Tester").with_first_name("Test"))
             .build()
             .unwrap();
-        assert_eq!(format_candidate(&candidate), "Tester");
+        assert_eq!(format_candidate(&candidate).as_deref(), Some("Tester"));
     }
 
     #[test]

@@ -1,6 +1,10 @@
 //! Document variant for the EML_NL Candidate List (`230b`) document.
 
-use std::{collections::BTreeMap, num::NonZeroU64, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashSet},
+    num::NonZeroU64,
+    str::FromStr,
+};
 
 use crate::{
     EMLError, EMLVersion, NS_EML, NS_KR, OASIS_EML_SCHEMA_VERSION,
@@ -16,8 +20,9 @@ use crate::{
         EMLWriteElement as _, QualifiedName, collect_struct,
     },
     utils::{
-        AffiliationId, AffiliationType, ElectionCategory, ElectionId, ElectionSubcategory, Gender,
-        GenderAnnex, PublicationLanguage, StringValue, XsDate, XsDateOrDateTime, XsDateTime,
+        AffiliationId, AffiliationType, CandidateId, ElectionCategory, ElectionId,
+        ElectionSubcategory, Gender, GenderAnnex, NameShortCode, PublicationLanguage, StringValue,
+        XsDate, XsDateOrDateTime, XsDateTime,
     },
 };
 
@@ -238,9 +243,10 @@ impl CandidateListsBuilder {
         self
     }
 
-    /// Build the `CandidateLists` document, returning an error if any required fields are missing.
+    /// Build the `CandidateLists` document, returning an error if any required
+    /// fields are missing or if the candidate short codes are invalid.
     pub fn build(self) -> Result<CandidateLists, EMLError> {
-        Ok(CandidateLists {
+        let candidate_lists = CandidateLists {
             version: self.version.unwrap_or_default(),
             lists_type: self
                 .lists_type
@@ -279,7 +285,14 @@ impl CandidateListsBuilder {
                 },
                 Ok,
             )?,
-        })
+        };
+
+        candidate_lists
+            .candidate_list
+            .election
+            .validate_short_codes()?;
+
+        Ok(candidate_lists)
     }
 }
 
@@ -490,6 +503,43 @@ impl CandidateListsElection {
         self.contests.push(contest.into());
         self
     }
+
+    /// Iterate over all candidates in all affiliations of all contests in this election.
+    fn all_candidates(&self) -> impl Iterator<Item = &CandidateListsCandidate> {
+        self.contests
+            .iter()
+            .flat_map(|contest| &contest.affiliations)
+            .flat_map(|affiliation| &affiliation.candidates)
+    }
+
+    /// Validate the short codes of the candidates in this election.
+    fn validate_short_codes(&self) -> Result<(), EMLError> {
+        // Each ShortCode attribute must be unique within the election
+        let mut defined = HashSet::new();
+        for candidate in self.all_candidates() {
+            if let Some(short_code) = &candidate.identifier.short_code
+                && !defined.insert(short_code.raw())
+            {
+                return Err(
+                    EMLErrorKind::DuplicateShortCode(short_code.raw().into_owned()).without_span(),
+                );
+            }
+        }
+
+        // Each ShortCode element must refer to an existing ShortCode attribute
+        for candidate in self.all_candidates() {
+            if let Some(short_code_ref) = &candidate.identifier.short_code_ref
+                && !defined.contains(&short_code_ref.raw())
+            {
+                return Err(EMLErrorKind::UnknownShortCodeReference(
+                    short_code_ref.raw().into_owned(),
+                )
+                .without_span());
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl EMLElement for CandidateListsElection {
@@ -510,6 +560,8 @@ impl EMLElement for CandidateListsElection {
                 elem.push_err(err);
             }
         }
+
+        elem.report_validation(data.validate_short_codes(), elem.full_span())?;
 
         Ok(data)
     }
@@ -956,8 +1008,11 @@ pub struct CandidateListsCandidate {
     /// The candidate identifier.
     pub identifier: CandidateIdentifier,
 
-    /// The full name of the candidate.
-    pub full_name: PersonNameStructure,
+    /// The full name of the candidate, if present.
+    ///
+    /// This is absent when the candidate refers to a candidate defined
+    /// elsewhere in the election using a short code.
+    pub full_name: Option<PersonNameStructure>,
 
     /// The date of birth of the candidate, if present.
     pub date_of_birth: Option<StringValue<XsDate>>,
@@ -990,6 +1045,23 @@ impl CandidateListsCandidate {
     /// Create a new builder for building a candidate for the candidate lists document.
     pub fn builder() -> CandidateListsCandidateBuilder {
         CandidateListsCandidateBuilder::new()
+    }
+
+    /// Create a candidate that refers to a candidate defined elsewhere in the election
+    /// with the given short code.
+    pub fn reference(id: impl Into<CandidateId>, short_code: NameShortCode) -> Self {
+        CandidateListsCandidate {
+            identifier: CandidateIdentifier::new(id.into()).with_short_code_ref(short_code),
+            full_name: None,
+            date_of_birth: None,
+            gender: None,
+            gender_annex: None,
+            qualifying_address: None,
+            contact: None,
+            agent: None,
+            date_of_birth_annex: None,
+            national_identification_number: None,
+        }
     }
 }
 
@@ -1090,13 +1162,17 @@ impl CandidateListsCandidateBuilder {
 
     /// Build the candidate, returning an error if any required fields are missing.
     pub fn build(self) -> Result<CandidateListsCandidate, EMLError> {
+        let identifier = self
+            .identifier
+            .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?;
+
+        if !identifier.has_reference() && self.full_name.is_none() {
+            return Err(EMLErrorKind::MissingBuildProperty("full_name").without_span());
+        }
+
         Ok(CandidateListsCandidate {
-            identifier: self
-                .identifier
-                .ok_or_else(|| EMLErrorKind::MissingBuildProperty("identifier").without_span())?,
-            full_name: self
-                .full_name
-                .ok_or_else(|| EMLErrorKind::MissingBuildProperty("full_name").without_span())?,
+            identifier,
+            full_name: self.full_name,
             date_of_birth: self.date_of_birth.map(StringValue::from_value),
             gender: self.gender.map(StringValue::from_value),
             gender_annex: self.gender_annex.map(StringValue::from_value),
@@ -1121,7 +1197,7 @@ impl EMLElement for CandidateListsCandidate {
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
         let clc = collect_struct!(elem, CandidateListsCandidate {
             identifier: CandidateIdentifier::EML_NAME => |elem| elem.read_element::<CandidateIdentifier>()?,
-            full_name: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
+            full_name as Option: ("CandidateFullName", NS_EML) => |elem| PersonNameStructure::read_eml_element(elem)?,
             date_of_birth as Option: ("DateOfBirth", NS_EML) => |elem| elem.string_value()?,
             gender as Option: StringValue::<Gender>::EML_NAME => |elem| elem.read_element::<StringValue<Gender>>()?,
             gender_annex as Option: StringValue::<GenderAnnex>::EML_NAME => |elem| elem.read_element::<StringValue<GenderAnnex>>()?,
@@ -1131,6 +1207,18 @@ impl EMLElement for CandidateListsCandidate {
             date_of_birth_annex as Option: ("DateOfBirthAnnex", NS_KR) => |elem| elem.text_without_children()?,
             national_identification_number as Option: ("NationalIdentificationNumber", NS_KR) => |elem| elem.text_without_children()?,
         });
+
+        if !clc.identifier.has_reference() && clc.full_name.is_none() {
+            let err = EMLErrorKind::MissingElement(
+                QualifiedName::from_static("CandidateFullName", Some(NS_EML)).as_owned(),
+            )
+            .with_span(elem.full_span());
+            if elem.parsing_mode().is_strict() {
+                return Err(err);
+            } else {
+                elem.push_err(err);
+            }
+        }
 
         if clc.gender.is_some() && clc.gender_annex.is_some() {
             let err = EMLErrorKind::InvalidGenderElement.with_span(elem.full_span());
@@ -1147,9 +1235,11 @@ impl EMLElement for CandidateListsCandidate {
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
         writer
             .child_elem(CandidateIdentifier::EML_NAME, &self.identifier)?
-            .child(("CandidateFullName", NS_EML), |writer| {
-                self.full_name.write_eml_element(writer)
-            })?
+            .child_option(
+                ("CandidateFullName", NS_EML),
+                self.full_name.as_ref(),
+                |elem, full_name| full_name.write_eml_element(elem),
+            )?
             .child_option(
                 ("DateOfBirth", NS_EML),
                 self.date_of_birth.as_ref(),
@@ -1199,7 +1289,7 @@ mod tests {
         io::{
             EMLParsingMode, EMLRead as _, EMLWrite as _, test_write_eml_element, test_xml_fragment,
         },
-        utils::{AuthorityId, CandidateId, NameShortCode},
+        utils::{AuthorityId, ContestId},
     };
 
     #[test]
@@ -1261,6 +1351,38 @@ mod tests {
             test_write_eml_element(&affiliation_identifier, &[NS_EML], EMLVersion::default())
                 .unwrap();
         assert_eq!(xml_output, xml);
+    }
+
+    #[test]
+    fn test_candidate_without_full_name() {
+        let xml = test_xml_fragment(
+            r#"
+                <Candidate xmlns="urn:oasis:names:tc:evs:schema:eml">
+                    <CandidateIdentifier Id="1" ShortCode="VlagW"/>
+                </Candidate>
+            "#,
+        );
+
+        assert!(
+            CandidateListsCandidate::parse_eml_fragment(
+                &xml,
+                EMLParsingMode::Strict,
+                EMLVersion::default(),
+            )
+            .ok()
+            .is_err()
+        );
+
+        let (candidate, errors) = CandidateListsCandidate::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Loose,
+            EMLVersion::default(),
+        )
+        .ok_with_errors()
+        .unwrap();
+        assert!(candidate.full_name.is_none());
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(errors[0].kind(), EMLErrorKind::MissingElement(_)));
     }
 
     #[test]
@@ -1436,6 +1558,153 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_duplicate_short_code() {
+        assert!(
+            CandidateLists::parse_eml(
+                include_str!(
+                    "../../test-files/candidate_lists/eml230c_invalid_duplicate_short_code.eml.xml"
+                ),
+                EMLParsingMode::Strict
+            )
+            .ok_with_errors()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_invalid_unknown_short_code_reference() {
+        let doc = include_str!(
+            "../../test-files/candidate_lists/eml230c_invalid_unknown_short_code_reference.eml.xml"
+        );
+        assert!(
+            CandidateLists::parse_eml(doc, EMLParsingMode::Strict)
+                .ok_with_errors()
+                .is_err()
+        );
+
+        let (_, errors) = CandidateLists::parse_eml(doc, EMLParsingMode::Loose)
+            .ok_with_errors()
+            .unwrap();
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(
+            errors[0].kind(),
+            EMLErrorKind::UnknownShortCodeReference(code) if code == "OnbekendX"
+        ));
+    }
+
+    fn build_with_candidates(
+        candidates: impl Into<Vec<CandidateListsCandidate>>,
+    ) -> Result<CandidateLists, EMLError> {
+        CandidateLists::builder()
+            .lists_type(CandidateListsType::Multiple)
+            .transaction_id(TransactionId::new(1))
+            .managing_authority(ManagingAuthority::new(AuthorityId::new("1234").unwrap()))
+            .issue_date(XsDate::from_date(2024, 6, 10).unwrap())
+            .creation_date_time(
+                chrono::Utc
+                    .with_ymd_and_hms(2014, 11, 28, 12, 0, 9)
+                    .unwrap(),
+            )
+            .election_identifier(
+                CandidateListsElectionIdentifier::builder()
+                    .id(ElectionId::new("GR2026_Test").unwrap())
+                    .category(ElectionCategory::GR)
+                    .election_date(XsDate::from_date(2024, 11, 5).unwrap())
+                    .nomination_date(XsDate::from_date(2024, 10, 1).unwrap())
+                    .build_for_candidate_lists()
+                    .unwrap(),
+            )
+            .contests([CandidateListsContest::builder()
+                .identifier(ContestIdentifier::geen())
+                .affiliations([CandidateListsAffiliation::builder()
+                    .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                    .affiliation_type(AffiliationType::StandAloneList)
+                    .publish_gender(true)
+                    .candidates(candidates)
+                    .build()
+                    .unwrap()])
+                .build()
+                .unwrap()])
+            .build()
+    }
+
+    fn defined_candidate(id: u64, short_code: &str) -> CandidateListsCandidate {
+        CandidateListsCandidate::builder()
+            .identifier(
+                CandidateIdentifier::new(CandidateId::from_u64(id).unwrap())
+                    .with_short_code(NameShortCode::new(short_code).unwrap()),
+            )
+            .full_name(PersonName::new(short_code))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_build_with_short_code_references() {
+        assert!(
+            build_with_candidates([
+                defined_candidate(1, "VlagW"),
+                CandidateListsCandidate::reference(
+                    CandidateId::from_u64(2).unwrap(),
+                    NameShortCode::new("VlagW").unwrap(),
+                ),
+            ])
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_build_with_duplicate_short_code() {
+        let err =
+            build_with_candidates([defined_candidate(1, "VlagW"), defined_candidate(2, "VlagW")])
+                .unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            EMLErrorKind::DuplicateShortCode(code) if code == "VlagW"
+        ));
+    }
+
+    #[test]
+    fn test_build_with_unknown_short_code_reference() {
+        let err = build_with_candidates([
+            defined_candidate(1, "VlagW"),
+            CandidateListsCandidate::reference(
+                CandidateId::from_u64(2).unwrap(),
+                NameShortCode::new("OnbekendX").unwrap(),
+            ),
+        ])
+        .unwrap_err();
+        assert!(matches!(
+            err.kind(),
+            EMLErrorKind::UnknownShortCodeReference(code) if code == "OnbekendX"
+        ));
+    }
+
+    #[test]
+    fn test_short_code_references() {
+        let doc = CandidateLists::parse_eml(
+            include_str!("../../test-files/candidate_lists/eml230c_test.eml.xml"),
+            EMLParsingMode::Strict,
+        )
+        .unwrap();
+        let short_code = |s| Some(StringValue::Parsed(NameShortCode::new(s).unwrap()));
+
+        let contests = &doc.candidate_list.election.contests;
+        let full = &contests[0].affiliations[0].candidates[0];
+        assert!(full.full_name.is_some());
+        assert_eq!(full.identifier.short_code, short_code("StreeveldHT"));
+        assert_eq!(full.identifier.short_code_ref, None);
+
+        let reference = &contests[1].affiliations[0].candidates[0];
+        assert!(reference.full_name.is_none());
+        assert_eq!(reference.identifier.short_code, None);
+        assert_eq!(
+            reference.identifier.short_code_ref,
+            short_code("StreeveldHT")
+        );
+    }
+
+    #[test]
     fn multiple_candidate_lists_construction() {
         let cl = CandidateLists::builder()
             .version(EMLVersion::V1_3)
@@ -1457,102 +1726,129 @@ mod tests {
                     .build_for_candidate_lists()
                     .unwrap(),
             )
-            .contests([CandidateListsContest::builder()
-                .identifier(ContestIdentifier::geen())
-                .affiliations([
-                    CandidateListsAffiliation::builder()
+            .contests([
+                CandidateListsContest::builder()
+                    .identifier(ContestIdentifier::new(ContestId::new("1").unwrap()))
+                    .affiliations([
+                        CandidateListsAffiliation::builder()
+                            .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
+                            .registered_name("Affiliation 1")
+                            .affiliation_type(AffiliationType::StandAloneList)
+                            .publish_gender(true)
+                            .candidates([
+                                CandidateListsCandidate::builder()
+                                    .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
+                                    .full_name(
+                                        PersonName::new("Pietersen")
+                                            .with_initials("P.")
+                                            .with_first_name("Piet"),
+                                    )
+                                    .qualifying_address(QualifyingAddressCountry::new(
+                                        Some("NL"),
+                                        "Amsterdam",
+                                    ))
+                                    .build()
+                                    .unwrap(),
+                                CandidateListsCandidate::builder()
+                                    .identifier(
+                                        CandidateIdentifier::new(CandidateId::new(
+                                            NonZeroU64::new(2).unwrap(),
+                                        ))
+                                        .with_short_code(NameShortCode::new("VlagW").unwrap()),
+                                    )
+                                    .full_name(PersonName::new("Vlag").with_initials("W."))
+                                    .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
+                                    .gender_annex(GenderAnnex::Male)
+                                    .qualifying_address(QualifyingAddressLocality::new(
+                                        "'s-Gravenhage",
+                                    ))
+                                    .contact(Contact::new(MailingAddress::new(
+                                        QualifyingAddress::new(
+                                            QualifyingAddressLocality::new("'s-Gravenhage")
+                                                .with_address_line("Houttuinen 49")
+                                                .with_postal_code("2551 VN"),
+                                            None::<CountryNameCode>,
+                                        ),
+                                    )))
+                                    .build()
+                                    .unwrap(),
+                            ])
+                            .build()
+                            .unwrap(),
+                        CandidateListsAffiliation::builder()
+                            .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
+                            .affiliation_type(AffiliationType::StandAloneList)
+                            .publish_gender(true)
+                            .candidates([CandidateListsCandidate::builder()
+                                .identifier(
+                                    CandidateIdentifier::new(CandidateId::new(
+                                        NonZeroU64::new(9).unwrap(),
+                                    ))
+                                    .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
+                                )
+                                .full_name(
+                                    PersonName::new("Bultenaar")
+                                        .with_initials("B.")
+                                        .with_first_name("Berend"),
+                                )
+                                .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
+                                .gender_annex(GenderAnnex::Male)
+                                .qualifying_address(QualifyingAddressCountry::new(
+                                    Some("JP"),
+                                    "Zdjapan",
+                                ))
+                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
+                                    QualifyingAddressLocality::new("Hellevoetsluis")
+                                        .with_address_line("Eik 555")
+                                        .with_postal_code("3224 TB"),
+                                    None::<CountryNameCode>,
+                                ))))
+                                .agent(Agent {
+                                    role: Some("H10".to_string()),
+                                    agent_identifier: AgentIdentifier::new(
+                                        PersonName::new("Grupstal")
+                                            .with_initials("H.J.T.")
+                                            .with_first_name("Hendrika Johanna Theodora"),
+                                    ),
+                                    contact: Some(Contact::new(MailingAddress::new(
+                                        QualifyingAddress::new(
+                                            QualifyingAddressLocality::new("Amsterdam")
+                                                .with_address_line("J.C.Schröderstraat 1")
+                                                .with_postal_code("1068 JT"),
+                                            None::<CountryNameCode>,
+                                        ),
+                                    ))),
+                                    living_address: LivingAddress::new("Amsterdam"),
+                                })
+                                .build()
+                                .unwrap()])
+                            .build()
+                            .unwrap(),
+                    ])
+                    .build()
+                    .unwrap(),
+                CandidateListsContest::builder()
+                    .identifier(ContestIdentifier::new(ContestId::new("2").unwrap()))
+                    .affiliations([CandidateListsAffiliation::builder()
                         .id(AffiliationId::new(NonZeroU64::new(1).unwrap()))
                         .registered_name("Affiliation 1")
                         .affiliation_type(AffiliationType::StandAloneList)
                         .publish_gender(true)
                         .candidates([
-                            CandidateListsCandidate::builder()
-                                .identifier(CandidateId::new(NonZeroU64::new(1).unwrap()))
-                                .full_name(
-                                    PersonName::new("Pietersen")
-                                        .with_initials("P.")
-                                        .with_first_name("Piet"),
-                                )
-                                .qualifying_address(QualifyingAddressCountry::new(
-                                    Some("NL"),
-                                    "Amsterdam",
-                                ))
-                                .build()
-                                .unwrap(),
-                            CandidateListsCandidate::builder()
-                                .identifier(
-                                    CandidateIdentifier::new(CandidateId::new(
-                                        NonZeroU64::new(2).unwrap(),
-                                    ))
-                                    .with_short_code(NameShortCode::new("VlagW").unwrap()),
-                                )
-                                .full_name(PersonName::new("Vlag").with_initials("W."))
-                                .date_of_birth(XsDate::from_date(1921, 8, 8).unwrap())
-                                .gender_annex(GenderAnnex::Male)
-                                .qualifying_address(QualifyingAddressLocality::new("'s-Gravenhage"))
-                                .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
-                                    QualifyingAddressLocality::new("'s-Gravenhage")
-                                        .with_address_line("Houttuinen 49")
-                                        .with_postal_code("2551 VN"),
-                                    None::<CountryNameCode>,
-                                ))))
-                                .build()
-                                .unwrap(),
+                            CandidateListsCandidate::reference(
+                                CandidateId::new(NonZeroU64::new(1).unwrap()),
+                                NameShortCode::new("BultenaarB").unwrap(),
+                            ),
+                            CandidateListsCandidate::reference(
+                                CandidateId::new(NonZeroU64::new(2).unwrap()),
+                                NameShortCode::new("VlagW").unwrap(),
+                            ),
                         ])
                         .build()
-                        .unwrap(),
-                    CandidateListsAffiliation::builder()
-                        .id(AffiliationId::new(NonZeroU64::new(2).unwrap()))
-                        .affiliation_type(AffiliationType::StandAloneList)
-                        .publish_gender(true)
-                        .candidates([CandidateListsCandidate::builder()
-                            .identifier(
-                                CandidateIdentifier::new(CandidateId::new(
-                                    NonZeroU64::new(9).unwrap(),
-                                ))
-                                .with_short_code(NameShortCode::new("BultenaarB").unwrap()),
-                            )
-                            .full_name(
-                                PersonName::new("Bultenaar")
-                                    .with_initials("B.")
-                                    .with_first_name("Berend"),
-                            )
-                            .date_of_birth(XsDate::from_date(2005, 1, 23).unwrap())
-                            .gender_annex(GenderAnnex::Male)
-                            .qualifying_address(QualifyingAddressCountry::new(
-                                Some("JP"),
-                                "Zdjapan",
-                            ))
-                            .contact(Contact::new(MailingAddress::new(QualifyingAddress::new(
-                                QualifyingAddressLocality::new("Hellevoetsluis")
-                                    .with_address_line("Eik 555")
-                                    .with_postal_code("3224 TB"),
-                                None::<CountryNameCode>,
-                            ))))
-                            .agent(Agent {
-                                role: Some("H10".to_string()),
-                                agent_identifier: AgentIdentifier::new(
-                                    PersonName::new("Grupstal")
-                                        .with_initials("H.J.T.")
-                                        .with_first_name("Hendrika Johanna Theodora"),
-                                ),
-                                contact: Some(Contact::new(MailingAddress::new(
-                                    QualifyingAddress::new(
-                                        QualifyingAddressLocality::new("Amsterdam")
-                                            .with_address_line("J.C.Schröderstraat 1")
-                                            .with_postal_code("1068 JT"),
-                                        None::<CountryNameCode>,
-                                    ),
-                                ))),
-                                living_address: LivingAddress::new("Amsterdam"),
-                            })
-                            .build()
-                            .unwrap()])
-                        .build()
-                        .unwrap(),
-                ])
-                .build()
-                .unwrap()])
+                        .unwrap()])
+                    .build()
+                    .unwrap(),
+            ])
             .build()
             .unwrap();
 

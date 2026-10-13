@@ -15,12 +15,17 @@ pub struct CandidateIdentifier {
     /// The display order of the candidate.
     pub display_order: Option<StringValue<NonZeroU64>>,
 
-    /// The short code of the candidate.
+    /// The short code of the candidate, specified as the `ShortCode` attribute.
     ///
-    /// Note: This can be specified either as an attribute or as a child
-    /// element, but the attribute takes precedence if both are present.
-    /// Additionally we only ever output it as an attribute for simplicity.
+    /// This marks the place where the candidate is fully defined. Each short code
+    /// attribute must be unique within the election.
     pub short_code: Option<StringValue<NameShortCode>>,
+
+    /// The short code of the candidate, specified as a `ShortCode` child element.
+    ///
+    /// This refers to a candidate that is fully defined elsewhere in the document
+    /// with a matching `short_code` attribute.
+    pub short_code_ref: Option<StringValue<NameShortCode>>,
 
     /// The expected confirmation reference of the candidate.
     pub expected_confirmation_reference: Option<Box<str>>,
@@ -33,6 +38,7 @@ impl CandidateIdentifier {
             id: StringValue::Parsed(id),
             display_order: None,
             short_code: None,
+            short_code_ref: None,
             expected_confirmation_reference: None,
         }
     }
@@ -49,10 +55,21 @@ impl CandidateIdentifier {
         self
     }
 
+    /// Set the short code reference of the candidate.
+    pub fn with_short_code_ref(mut self, short_code: NameShortCode) -> Self {
+        self.short_code_ref = Some(StringValue::Parsed(short_code));
+        self
+    }
+
     /// Set the expected confirmation reference of the candidate.
     pub fn with_expected_confirmation_reference(mut self, reference: impl Into<Box<str>>) -> Self {
         self.expected_confirmation_reference = Some(reference.into());
         self
+    }
+
+    /// Returns true if this identifier has a short code reference.
+    pub fn has_reference(&self) -> bool {
+        self.short_code_ref.is_some()
     }
 }
 
@@ -67,42 +84,36 @@ impl EMLElement for CandidateIdentifier {
         QualifiedName::from_static("CandidateIdentifier", Some(NS_EML));
 
     fn read_eml(elem: &mut EMLElementReader<'_, '_>) -> Result<Self, EMLError> {
-        let id = elem.string_value_attr("Id", None)?;
-        let display_order = elem.string_value_attr_opt("DisplayOrder")?;
-        let short_code = elem.string_value_attr_opt("ShortCode")?;
-        let expected_confirmation_reference = elem
-            .attribute_value("ExpectedConfirmationReference")?
-            .map(|s| s.into());
-
-        struct CandidateIdentifierTmp {
-            short_code: Option<StringValue<NameShortCode>>,
-        }
-
-        let elem = collect_struct!(
-            elem,
-            CandidateIdentifierTmp {
-                short_code as Option: ("ShortCode", NS_EML) => |elem| elem.string_value()?,
-            }
-        );
-
-        Ok(CandidateIdentifier {
-            id,
-            display_order,
-            short_code: short_code.or(elem.short_code), // attribute takes precedence
-            expected_confirmation_reference,
-        })
+        Ok(collect_struct!(elem, CandidateIdentifier {
+            id: elem.string_value_attr("Id", None)?,
+            display_order: elem.string_value_attr_opt("DisplayOrder")?,
+            short_code: elem.string_value_attr_opt("ShortCode")?,
+            short_code_ref as Option: ("ShortCode", NS_EML) => |elem| elem.string_value()?,
+            expected_confirmation_reference: elem
+                .attribute_value("ExpectedConfirmationReference")?
+                .map(|s| s.into()),
+        }))
     }
 
     fn write_eml(&self, writer: EMLElementWriter) -> Result<(), EMLError> {
-        writer
+        let writer = writer
             .attr("Id", &self.id.raw())?
             .attr_opt("DisplayOrder", self.display_order.as_ref().map(|v| v.raw()))?
             .attr_opt("ShortCode", self.short_code.as_ref().map(|v| v.raw()))?
             .attr_opt(
                 "ExpectedConfirmationReference",
                 self.expected_confirmation_reference.as_ref(),
-            )?
-            .empty()
+            )?;
+
+        if let Some(short_code_ref) = &self.short_code_ref {
+            writer
+                .child(("ShortCode", NS_EML), |elem| {
+                    elem.text(short_code_ref.raw().as_ref())?.finish()
+                })?
+                .finish()
+        } else {
+            writer.empty()
+        }
     }
 }
 
@@ -133,6 +144,7 @@ mod tests {
         );
         assert_eq!(can_id.display_order, None);
         assert_eq!(can_id.short_code, None);
+        assert_eq!(can_id.short_code_ref, None);
         assert_eq!(can_id.expected_confirmation_reference, None);
 
         let xml_output = test_write_eml_element(&can_id, &[NS_EML], EMLVersion::default()).unwrap();
@@ -164,9 +176,35 @@ mod tests {
             can_id.short_code,
             Some(StringValue::Parsed(NameShortCode::new("1234").unwrap()))
         );
+        assert_eq!(can_id.short_code_ref, None);
         assert_eq!(
             can_id.expected_confirmation_reference,
             Some("Ref123".into())
+        );
+
+        let xml_output = test_write_eml_element(&can_id, &[NS_EML], EMLVersion::default()).unwrap();
+        assert_eq!(xml_output, xml);
+    }
+
+    #[test]
+    fn test_short_code_element_candidate_identifier() {
+        let xml = test_xml_fragment(
+            r#"
+            <CandidateIdentifier xmlns="urn:oasis:names:tc:evs:schema:eml" Id="3">
+                <ShortCode>VlagW</ShortCode>
+            </CandidateIdentifier>
+            "#,
+        );
+        let can_id = CandidateIdentifier::parse_eml_fragment(
+            &xml,
+            EMLParsingMode::Strict,
+            EMLVersion::default(),
+        )
+        .unwrap();
+        assert_eq!(can_id.short_code, None);
+        assert_eq!(
+            can_id.short_code_ref,
+            Some(StringValue::Parsed(NameShortCode::new("VlagW").unwrap()))
         );
 
         let xml_output = test_write_eml_element(&can_id, &[NS_EML], EMLVersion::default()).unwrap();
