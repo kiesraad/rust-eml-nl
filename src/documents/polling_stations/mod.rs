@@ -304,10 +304,10 @@ impl EMLElement for PollingStations {
         writer
             .attr(("Id", None), EML_POLLING_STATIONS_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
-            .child_elem(EMLVersion::EML_NAME, &self.version)?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem_option(IssueDate::EML_NAME, self.issue_date.as_ref())?
+            .child_elem(EMLVersion::EML_NAME, &self.version)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
             // .child_elem_option(

@@ -302,13 +302,13 @@ impl EMLElement for ElectionCount {
         writer
             .attr(("Id", None), self.count_type.to_eml_id())?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
+            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
+            .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_option(
                 EMLVersion::EML_NAME,
                 self.version.to_str(),
                 |elem, version| elem.attr("Version", version)?.empty(),
             )?
-            .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
-            .child_elem(ManagingAuthority::EML_NAME, &self.managing_authority)?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
             // .child_elem_option(

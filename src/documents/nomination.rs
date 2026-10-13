@@ -303,17 +303,17 @@ impl EMLElement for Nomination {
         writer
             .attr(("Id", None), EML_NOMINATION_ID)?
             .attr(("SchemaVersion", None), OASIS_EML_SCHEMA_VERSION)?
-            .child_option(
-                EMLVersion::EML_NAME,
-                self.version.to_str(),
-                |elem, version| elem.attr("Version", version)?.empty(),
-            )?
             .child_elem(TransactionId::EML_NAME, &self.transaction_id)?
             .child_elem_option(
                 ManagingAuthority::EML_NAME,
                 self.managing_authority.as_ref(),
             )?
             .child_elem(IssueDate::EML_NAME, &self.issue_date)?
+            .child_option(
+                EMLVersion::EML_NAME,
+                self.version.to_str(),
+                |elem, version| elem.attr("Version", version)?.empty(),
+            )?
             .child_elem(CreationDateTime::EML_NAME, &self.creation_date_time)?
             // Note: we don't output the CanonicalizationMethod because we aren't canonicalizing our output
             // .child_elem_option(
