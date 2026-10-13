@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<EML Id="510b" SchemaVersion="5" xmlns="urn:oasis:names:tc:evs:schema:eml" xmlns:kr="http://www.kiesraad.nl/extensions" xmlns:rg="http://www.kiesraad.nl/reportgenerator" xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" xmlns:xnl="urn:oasis:names:tc:ciq:xsdschema:xNL:2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<EML xmlns="urn:oasis:names:tc:evs:schema:eml" xmlns:kr="http://www.kiesraad.nl/extensions" xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" xmlns:xnl="urn:oasis:names:tc:ciq:xsdschema:xNL:2.0" Id="510b" SchemaVersion="5">
     <kr:Schema Version="1.3.1"/>
     <TransactionId>1</TransactionId>
     <ManagingAuthority>
@@ -46,10 +46,10 @@
                         <Cast>100</Cast>
                         <kr:PreviousTotalCounted>99</kr:PreviousTotalCounted>
                         <TotalCounted>100</TotalCounted>
-                        <kr:PreviousRejectedVotes ReasonCode="ongeldig">1</kr:PreviousRejectedVotes>
                         <kr:PreviousRejectedVotes ReasonCode="blanco">0</kr:PreviousRejectedVotes>
-                        <RejectedVotes ReasonCode="ongeldig">0</RejectedVotes>
+                        <kr:PreviousRejectedVotes ReasonCode="ongeldig">1</kr:PreviousRejectedVotes>
                         <RejectedVotes ReasonCode="blanco">0</RejectedVotes>
+                        <RejectedVotes ReasonCode="ongeldig">0</RejectedVotes>
                     </TotalVotes>
                     <ReportingUnitVotes>
                         <ReportingUnitIdentifier Id="HSB1::1234">Op rolletjes</ReportingUnitIdentifier>
@@ -78,10 +78,10 @@
                         <Cast>100</Cast>
                         <kr:PreviousTotalCounted>99</kr:PreviousTotalCounted>
                         <TotalCounted>100</TotalCounted>
-                        <kr:PreviousRejectedVotes ReasonCode="ongeldig">1</kr:PreviousRejectedVotes>
                         <kr:PreviousRejectedVotes ReasonCode="blanco">0</kr:PreviousRejectedVotes>
-                        <RejectedVotes ReasonCode="ongeldig">0</RejectedVotes>
+                        <kr:PreviousRejectedVotes ReasonCode="ongeldig">1</kr:PreviousRejectedVotes>
                         <RejectedVotes ReasonCode="blanco">0</RejectedVotes>
+                        <RejectedVotes ReasonCode="ongeldig">0</RejectedVotes>
                     </ReportingUnitVotes>
                 </Contest>
             </Contests>
