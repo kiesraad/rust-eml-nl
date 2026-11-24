@@ -465,11 +465,8 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             if self.is_resolved_name(attr.key, self.span, name.clone(), true)? {
                 return Ok(Some(
-                    attr.decoded_and_normalized_value(
-                        self.reader.xml_version,
-                        self.reader.inner.decoder(),
-                    )
-                    .with_span(self.span)?,
+                    attr.normalized_value(self.reader.xml_version)
+                        .with_span(self.span)?,
                 ));
             }
         }
@@ -477,7 +474,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
     }
 
     /// Get a hashmap of all attributes of the start tag of this element.
-    #[expect(unused)]
+    #[cfg_attr(not(test), expect(unused))]
     pub fn attributes(&self) -> Result<HashMap<QualifiedName<'_, '_>, Cow<'_, str>>, EMLError> {
         let mut attributes = HashMap::new();
         // quick-xml does not expose any way to get the span of individual attributes, so we use the whole start tag span for now
@@ -485,7 +482,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             let attr = attr.with_span(self.span)?;
             let name = self.get_resolved_name(attr.key, self.span, true)?;
             let value = attr
-                .decoded_and_normalized_value(self.reader.xml_version, self.reader.inner.decoder())
+                .normalized_value(self.reader.xml_version)
                 .with_span(self.span)?;
             attributes.insert(name, value);
         }
@@ -514,16 +511,16 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         let mut text = String::new();
         loop {
             match self.next()? {
-                Some((Event::Text(t), span)) => {
-                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
+                Some((Event::Text(t), _)) => {
+                    let decoded = t.xml_content(self.reader.xml_version);
                     text.push_str(decoded.as_ref());
                 }
-                Some((Event::CData(t), span)) => {
-                    let decoded = t.xml_content(self.reader.xml_version).with_span(span)?;
+                Some((Event::CData(t), _)) => {
+                    let decoded = t.xml_content(self.reader.xml_version);
                     text.push_str(decoded.as_ref());
                 }
                 Some((Event::GeneralRef(r), span)) => {
-                    let ref_name = r.decode().with_span(span)?;
+                    let ref_name = r.into_inner();
                     let formatted_entity = format!("&{};", ref_name);
 
                     text.push_str(unescape(&formatted_entity).with_span(span)?.as_ref());
@@ -762,23 +759,11 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
         span: Span,
     ) -> Result<Option<Cow<'a, str>>, EMLError> {
         match resolve_result {
-            ResolveResult::Bound(namespace) => Ok(Some(
-                self.reader
-                    .inner
-                    .decoder()
-                    .decode(namespace.into_inner())
-                    .with_span(span)?,
-            )),
+            ResolveResult::Bound(namespace) => Ok(Some(Cow::Borrowed(namespace.into_inner()))),
             ResolveResult::Unbound => Ok(None),
-            ResolveResult::Unknown(scope) => Err(EMLErrorKind::UnknownNamespace(
-                self.reader
-                    .inner
-                    .decoder()
-                    .decode(&scope)
-                    .with_span(span)?
-                    .into_owned(),
-            ))
-            .with_span(span),
+            ResolveResult::Unknown(scope) => {
+                Err(EMLErrorKind::UnknownNamespace(scope)).with_span(span)
+            }
         }
     }
 
@@ -820,12 +805,7 @@ impl<'r, 'input> EMLElementReader<'r, 'input> {
             self.reader.inner.resolver().resolve_element(name)
         };
         let namespace = self.namespace_name(resolved, span)?;
-        let local_name = self
-            .reader
-            .inner
-            .decoder()
-            .decode(local_name.into_inner())
-            .with_span(span)?;
+        let local_name = local_name.into_inner();
 
         Ok(QualifiedName::new(local_name, namespace))
     }
@@ -1221,5 +1201,58 @@ mod tests {
             };
             assert!(matches!(error.kind(), EMLErrorKind::UnexpectedEof));
         }
+    }
+
+    #[test]
+    fn test_entities_in_attributes_should_decode() {
+        let document = r#"<eml:Example attr="Hello &amp; goodbye" />"#;
+        let mut reader = EMLReader::init_from_str_with_version(
+            document,
+            EMLParsingMode::Strict,
+            EMLVersion::V1_2_2,
+        );
+        let root = reader.next_element().unwrap();
+        assert_eq!(
+            root.attribute_value("attr").unwrap().unwrap(),
+            "Hello & goodbye"
+        );
+
+        assert_eq!(
+            root.attributes()
+                .unwrap()
+                .get(&QualifiedName::from_static("attr", None))
+                .unwrap(),
+            "Hello & goodbye"
+        );
+    }
+
+    #[test]
+    fn test_entities_in_normal_text_should_decode() {
+        let document = r#"<eml:Example>Hello &amp; goodbye</eml:Example>"#;
+        let mut reader = EMLReader::init_from_str_with_version(
+            document,
+            EMLParsingMode::Strict,
+            EMLVersion::V1_2_2,
+        );
+        let mut root = reader.next_element().unwrap();
+        assert_eq!(
+            root.text_without_children().unwrap().as_ref(),
+            "Hello & goodbye"
+        );
+    }
+
+    #[test]
+    fn test_entities_in_cdata_should_not_decode() {
+        let document = r#"<eml:Example><![CDATA[Hello &amp; goodbye]]></eml:Example>"#;
+        let mut reader = EMLReader::init_from_str_with_version(
+            document,
+            EMLParsingMode::Strict,
+            EMLVersion::V1_2_2,
+        );
+        let mut root = reader.next_element().unwrap();
+        assert_eq!(
+            root.text_without_children().unwrap().as_ref(),
+            "Hello &amp; goodbye"
+        );
     }
 }
